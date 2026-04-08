@@ -4,6 +4,7 @@ import {
   signupSchema,
   loginSchema,
   forgotSchema,
+  resetSchema,
 } from "../validations/authValidations.js";
 import debug from "debug";
 import z from "zod";
@@ -133,4 +134,78 @@ export const forgot = async (req: any, res: any, next: any) => {
     res.status(401).json({ error: "Internal server error" });
   }
 };
-export const verifyCode = async () => {};
+export const verifyCode = async (req: any, res: any) => {
+  try {
+    const email = req.email;
+    const { token } = req.body;
+    const user = await User.findOne({ user_email: email });
+    if (!user) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
+    if (!user.pass_token) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+    const check = await bcrypt.compare(token, user.pass_token);
+    if (!check)
+      return res.status(401).json({ error: "Invalid one time password" });
+    const user_cookie_details = { userId: user._id };
+    if (ACCESS_SECRET) {
+      const access_token = jwt.sign(user_cookie_details, ACCESS_SECRET, {
+        algorithm: "HS256",
+      });
+      res.cookie("reset_token", access_token, {
+        httpOnly: true,
+        maxAge: 5 * 60 * 60,
+      });
+    }
+  } catch (error) {
+    controlDebug(error);
+    if (error instanceof z.ZodError) {
+      return res
+        .status(401)
+        .json({ error: "Input requirements not fulfilled" });
+    }
+    res.status(401).json({ error: "Internal server error" });
+  }
+};
+export const reset = async (req: any, res: any) => {
+  try {
+    const reset_info = req.cookies.reset_token;
+    const reqBody = req.body;
+    const passwords = resetSchema.parse(reqBody);
+    if (passwords.user_pass !== passwords.user_pass_conf) {
+      return res.status(401).json({ error: "Passwords must be the same" });
+    }
+    if (!reset_info) {
+      return res.json({
+        error: "Reset password handlers expired try again later",
+      });
+    }
+    if (ACCESS_SECRET) {
+      const reset = jwt.verify(reset_info, ACCESS_SECRET);
+      if (!reset) {
+        controlDebug("There is an error in controllers!");
+        return res.status(500).json({ error: "Internal server error" });
+      }
+      if (typeof reset == "object") {
+        const userId = reset.userId;
+        const user = await User.findOne({ _id: userId });
+        if (!user) {
+          return res.status(500).json("Internal server error");
+        }
+        const hashedPassword = await bcrypt.hash(passwords.user_pass, 10);
+        user.user_pass == hashedPassword;
+        await user.save();
+        res.status(201).json({ success: "Password reset successful" });
+      }
+    }
+  } catch (error) {
+    controlDebug(error);
+    if (error instanceof z.ZodError) {
+      return res
+        .status(401)
+        .json({ error: "Input requirements not fulfilled" });
+    }
+    res.status(401).json({ error: "Internal server error" });
+  }
+};

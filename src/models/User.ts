@@ -10,16 +10,24 @@ const userSchema = new mongoose.Schema({
   },
   user_email: {
     type: String,
+    unique: true,
     required: true,
   },
   pass_token: {
     type: String,
     default: null,
   },
-  isVerified:{
-    type:Boolean,
-    default:false
-  }
+  sign_otp_token: {
+    type: String,
+    default: null,
+  },
+  refresh_token: {
+    type: "String",
+  },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
 });
-const User = mongoose.model("User",userSchema)
-export default User
+const User = mongoose.model("User", userSchema);
+export default User;

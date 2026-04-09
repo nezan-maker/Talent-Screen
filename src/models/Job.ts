@@ -1,4 +1,18 @@
 import mongoose from "mongoose";
+const ai_criteria = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+  priority: {
+    type: Number,
+    required: true,
+  },
+});
 const jobSchema = new mongoose.Schema({
   job_title: {
     type: String,
@@ -27,9 +41,7 @@ const jobSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  job_ai_description: {
-    type: Array,
-  },
+  job_ai_criteria: [ai_criteria],
 });
 const Job = mongoose.model("User", jobSchema);
 export default Job;

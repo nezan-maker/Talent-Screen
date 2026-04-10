@@ -42,6 +42,10 @@ const jobSchema = new mongoose.Schema({
     required: true,
   },
   job_ai_criteria: [ai_criteria],
+  job_state: {
+    type: String,
+    required: true,
+  },
 });
 const Job = mongoose.model("User", jobSchema);
 export default Job;

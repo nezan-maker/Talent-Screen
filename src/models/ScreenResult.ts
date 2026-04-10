@@ -1,8 +1,14 @@
 import mongoose from "mongoose";
-type Applicant_result = {
-  applicant_id: string;
-  applicant_marks: number;
-};
+const relevanceSchema = new mongoose.Schema({
+  skills_relevance: {
+    type: Number,
+    required: true,
+  },
+  education_relevance: {
+    type: Number,
+    required: true,
+  },
+});
 const applicant_schema = new mongoose.Schema({
   applicant_id: {
     type: String,
@@ -16,6 +22,7 @@ const applicant_schema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  applicant_specification_relevance: relevanceSchema,
   applicant_result_description: {
     type: String,
     required: true,

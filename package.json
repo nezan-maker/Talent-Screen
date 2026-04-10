@@ -12,6 +12,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@types/debug": "^4.1.13",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",

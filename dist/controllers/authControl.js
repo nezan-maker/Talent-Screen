@@ -1,0 +1,228 @@
+import bcrypt from "bcrypt";
+import User from "../models/User.js";
+import { signupSchema, loginSchema, forgotSchema, resetSchema, } from "../validations/authValidations.js";
+import debug from "debug";
+import z from "zod";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import crypto from "crypto";
+const controlDebug = debug("app:controller");
+dotenv.config();
+const ACCESS_SECRET = process.env.ACCESS_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
+export const signUp = async (req, res, next) => {
+    try {
+        const reqBody = req.body;
+        const user_details = signupSchema.parse(reqBody);
+        const oldUser = await User.findOne({ user_email: user_details.user_email });
+        if (oldUser) {
+            return res
+                .status(401)
+                .json({ message: "You already have an account please sign in" });
+        }
+        if (user_details.user_pass !== user_details.user_pass_conf) {
+            return res
+                .status(401)
+                .json({ input_error: "Input passwords must be the same" });
+        }
+        const hashedPassword = await bcrypt.hash(user_details.user_pass, 10);
+        const newUser = new User({
+            user_name: user_details.user_name,
+            user_email: user_details.user_email,
+            user_pass: hashedPassword,
+        });
+        await newUser.save();
+        res.status(201).json({ success: "Sign up successful" });
+        if (req.email)
+            req.email = user_details.user_email;
+        next();
+    }
+    catch (error) {
+        controlDebug(error);
+        if (error instanceof z.ZodError) {
+            return res
+                .status(401)
+                .json({ input_error: "Input requirements not fulfilled" });
+        }
+        res.status(500).json({ server_error: "Internal server error" });
+    }
+};
+export const confirm = async (req, res) => {
+    try {
+        const { token } = req.body;
+        const email = req.email;
+        if (!email) {
+            return res.status(500).json({ error: "Internal server error" });
+        }
+        const user = await User.findOne({ user_email: email });
+        if (!user) {
+            return res.status(500).json({ error: "Internal server error" });
+        }
+        if (token !== user.sign_otp_token) {
+            return res
+                .status(401)
+                .json({ error: "Invalid one time password entered" });
+        }
+        user.isVerified = true;
+        const user_cookie_details = { userId: user._id };
+        if (ACCESS_SECRET && REFRESH_SECRET) {
+            const access_token = jwt.sign(user_cookie_details, ACCESS_SECRET, {
+                algorithm: "HS256",
+            });
+            const refresh_token = jwt.sign(user_cookie_details, REFRESH_SECRET, {
+                algorithm: "HS256",
+            });
+            res.cookie("access_token", access_token, {
+                httpOnly: true,
+                maxAge: 20 * 60 * 60,
+            });
+            user.refresh_token = refresh_token;
+            await user.save();
+            res.status(200).json({ success: "Confirmation successful" });
+        }
+    }
+    catch (error) {
+        controlDebug(error);
+        res.status(500).json({ server_error: "Internal server error" });
+    }
+};
+export const logIn = async (req, res) => {
+    try {
+        const reqBody = req.body;
+        const user_details = loginSchema.parse(reqBody);
+        const user = await User.findOne({ user_email: user_details.user_email });
+        if (!user) {
+            return res.status(404).json({
+                data_error: "User is not found in the database.Consider creating an account",
+            });
+        }
+        const check = await bcrypt.compare(user_details.user_pass, user.user_pass);
+        if (!check) {
+            return res.status(401).json({ input_error: "Invalid credentials" });
+        }
+    }
+    catch (error) {
+        if (error instanceof z.ZodError) {
+            return res
+                .status(401)
+                .json({ input_error: "Input requirements not fulfilled" });
+        }
+        controlDebug(error);
+        res.status(500).json({ server_error: "Internal server error" });
+    }
+};
+export const forgot = async (req, res, next) => {
+    try {
+        const reqBody = req.body;
+        const forget_details = forgotSchema.parse(reqBody);
+        const user = await User.findOne({ user_email: forget_details.user_email });
+        if (!user) {
+            return res.status(404).json({
+                data_error: "User not found in the database consider creating account",
+            });
+        }
+        let reset_pass_token = crypto
+            .randomInt(1000000)
+            .toString()
+            .padStart(6, "0");
+        reset_pass_token = await bcrypt.hash(reset_pass_token, 5);
+        user.pass_token = reset_pass_token;
+        await user.save();
+        req.email = forget_details.user_email;
+        next();
+    }
+    catch (error) {
+        controlDebug(error);
+        if (error instanceof z.ZodError) {
+            return res
+                .status(401)
+                .json({ input_error: "Input requirements are not fulfilled" });
+        }
+        res.status(401).json({ server_error: "Internal server error" });
+    }
+};
+export const verifyCode = async (req, res) => {
+    try {
+        const email = req.email;
+        const { token } = req.body;
+        if (!email) {
+            return res.status(500).json({ server_error: "Internal server error" });
+        }
+        const user = await User.findOne({ user_email: email });
+        if (!user) {
+            return res.status(500).json({ server_error: "Internal server error" });
+        }
+        if (!user.pass_token) {
+            return res.status(500).json({ server_error: "Internal server error" });
+        }
+        const check = await bcrypt.compare(token, user.pass_token);
+        if (!check)
+            return res.status(401).json({ input_error: "Invalid one time password" });
+        const user_cookie_details = { userId: user._id };
+        if (ACCESS_SECRET) {
+            const access_token = jwt.sign(user_cookie_details, ACCESS_SECRET, {
+                algorithm: "HS256",
+            });
+            res.cookie("reset_token", access_token, {
+                httpOnly: true,
+                maxAge: 5 * 60 * 60,
+            });
+        }
+    }
+    catch (error) {
+        controlDebug(error);
+        if (error instanceof z.ZodError) {
+            return res
+                .status(401)
+                .json({ input_error: "Input requirements not fulfilled" });
+        }
+        res.status(401).json({ server_error: "Internal server error" });
+    }
+};
+export const reset = async (req, res) => {
+    try {
+        const reset_info = req.cookies.reset_token;
+        const reqBody = req.body;
+        const passwords = resetSchema.parse(reqBody);
+        if (passwords.user_pass !== passwords.user_pass_conf) {
+            return res
+                .status(401)
+                .json({ input_error: "Passwords must be the same" });
+        }
+        if (!reset_info) {
+            return res.json({
+                expiration_error: "Reset password handlers expired try again later",
+            });
+        }
+        if (ACCESS_SECRET) {
+            const reset = jwt.verify(reset_info, ACCESS_SECRET);
+            if (!reset) {
+                controlDebug("There is an error in controllers!");
+                return res.status(500).json({ server_error: "Internal server error" });
+            }
+            if (typeof reset == "object") {
+                const userId = reset.userId;
+                const user = await User.findOne({ _id: userId });
+                if (!user) {
+                    return res
+                        .status(500)
+                        .json({ server_error: "Internal server error" });
+                }
+                const hashedPassword = await bcrypt.hash(passwords.user_pass, 10);
+                user.user_pass == hashedPassword;
+                await user.save();
+                res.status(201).json({ success: "Password reset successful" });
+            }
+        }
+    }
+    catch (error) {
+        controlDebug(error);
+        if (error instanceof z.ZodError) {
+            return res
+                .status(401)
+                .json({ input_error: "Input requirements not fulfilled" });
+        }
+        res.status(401).json({ server_error: "Internal server error" });
+    }
+};
+//# sourceMappingURL=authControl.js.map

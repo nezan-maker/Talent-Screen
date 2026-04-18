@@ -1,25 +1,4 @@
 import mongoose from "mongoose";
-const skillSchema = new mongoose.Schema({
-    skill_name: {
-        type: String,
-        required: true,
-    },
-    skill_category: {
-        type: String,
-        reqiured: true,
-    },
-    skill_description: {
-        type: String,
-        required: true,
-    },
-    education_level_certificates: {
-        type: [String],
-        required: true,
-    },
-    proficiency_level: {
-        type: Number,
-    },
-});
 const applicantSchema = new mongoose.Schema({
     applicant_name: {
         type: String,
@@ -29,14 +8,24 @@ const applicantSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    skills: skillSchema,
-    experience_years: {
+    skills: {
+        type: [String],
+        required: true,
+    },
+    education_certifates: {
+        type: [String],
+        required: true,
+    },
+    additional_info: {
+        type: [String],
+        required: true,
+    },
+    experience_in_years: {
         type: Number,
         required: true,
     },
     screening_state: {
         type: String,
-        required: true,
         default: "Uninitialised",
     },
 });

@@ -13,7 +13,7 @@ import env from "../config/env.js";
 import crypto from "crypto";
 import type { Request, Response} from "express";
 import type { JwtPayload } from "jsonwebtoken";
-const controlDebug = debug("app:controller");
+export const controlDebug = debug("app:controller");
 export interface I_Request extends Request {
   email?: string;
 }

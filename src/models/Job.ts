@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 const ai_criteria = new mongoose.Schema({
-  name: {
+  criteria_string: {
     type: String,
     required: true,
   },
@@ -9,7 +9,7 @@ const ai_criteria = new mongoose.Schema({
     required: true,
   },
   priority: {
-    type: Number,
+    type: String,
     required: true,
   },
 });
@@ -20,28 +20,31 @@ const jobSchema = new mongoose.Schema({
   },
   job_department: {
     type: String,
-    default: null,
+    required: true,
   },
   job_location: {
     type: String,
-    default: null,
+    required: true,
   },
   job_employment_type: {
     type: String,
-    default: null,
+    required: true,
   },
   job_salary_min: {
-    type: Boolean,
-    default: false,
+    type: Number,
   },
   job_salary_max: {
     type: Number,
   },
-  job_experience_level: {
+  job_experience_required: {
     type: String,
-    default: null,
+    required: true,
   },
   job_ai_criteria: [ai_criteria],
+  workers_required: {
+    type: Number,
+    required: true,
+  },
   job_state: {
     type: String,
     default: "Uninitialised",

@@ -4,7 +4,7 @@ import env from "../config/env.js";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 const ACCESS_SECRET = env.ACCESS_SECRET;
-const middleAuth = async (
+export const middleAuth = async (
   req: I_Request,
   res: Response,
   next: NextFunction,

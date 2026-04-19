@@ -40,7 +40,7 @@ export const signUp = async (req, res) => {
             expiresIn: "10m",
         });
         res.cookie("reference_token", reference_token, {
-            maxAge: 10 * 60,
+            maxAge: 10 * 60 * 1000,
             httpOnly: true,
         });
         res.status(201).json({ success: "Sign up successful", token: otpToken });
@@ -58,18 +58,23 @@ export const signUp = async (req, res) => {
 export const confirm = async (req, res) => {
     try {
         const { token } = req.body;
-        const email = req.email;
-        if (!email) {
-            return res.status(500).json({ error: "Internal server error" });
+        const detail_cookie = req.cookies.reference_token;
+        if (!env.ACCESS_SECRET)
+            return res.status(500).json({ server_error: "Internal server error" });
+        const payload = jwt.verify(detail_cookie, env.ACCESS_SECRET);
+        if (!payload) {
+            return res.status(500).json({ server_error: "Internal server error" });
         }
-        const user = await User.findOne({ user_email: email });
+        if (typeof payload == "string")
+            return res.status(500).json({ server_error: "Internal server errror" });
+        const user = await User.findOne({ _id: payload.id });
         if (!user) {
-            return res.status(500).json({ error: "Internal server error" });
+            return res.status(500).json({ server_error: "Internal server error" });
         }
         if (token !== user.sign_otp_token) {
             return res
                 .status(401)
-                .json({ error: "Invalid one time password entered" });
+                .json({ auth_error: "Invalid one time password entered" });
         }
         user.isVerified = true;
         const user_cookie_details = { userId: user._id };
@@ -124,7 +129,7 @@ export const logIn = async (req, res) => {
         res.status(500).json({ server_error: "Internal server error" });
     }
 };
-export const forgot = async (req, res, next) => {
+export const forgot = async (req, res) => {
     try {
         const reqBody = req.body;
         const forget_details = forgotSchema.parse(reqBody);
@@ -134,6 +139,16 @@ export const forgot = async (req, res, next) => {
                 data_error: "User not found in the database consider creating account",
             });
         }
+        let rec_info = { user_id: user._id };
+        if (!env.ACCESS_SECRET)
+            return res.status(500).json({ server_error: "Internal server error" });
+        const reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
+            expiresIn: "10m",
+        });
+        res.cookie("reference_token", reference_token, {
+            maxAge: 10 * 60 * 1000,
+            httpOnly: true,
+        });
         let reset_pass_token = crypto
             .randomInt(1000000)
             .toString()
@@ -141,8 +156,6 @@ export const forgot = async (req, res, next) => {
         reset_pass_token = await bcrypt.hash(reset_pass_token, 5);
         user.pass_token = reset_pass_token;
         await user.save();
-        req.email = forget_details.user_email;
-        next();
     }
     catch (error) {
         controlDebug(error);
@@ -156,12 +169,17 @@ export const forgot = async (req, res, next) => {
 };
 export const verifyCode = async (req, res) => {
     try {
-        const email = req.email;
         const { token } = req.body;
-        if (!email) {
+        const detail_cookie = req.cookies.reference_token;
+        if (!env.ACCESS_SECRET)
+            return res.status(500).json({ server_error: "Internal server error" });
+        const payload = jwt.verify(detail_cookie, env.ACCESS_SECRET);
+        if (!payload) {
             return res.status(500).json({ server_error: "Internal server error" });
         }
-        const user = await User.findOne({ user_email: email });
+        if (typeof payload == "string")
+            return res.status(500).json({ server_error: "Internal server errror" });
+        const user = await User.findOne({ _id: payload.id });
         if (!user) {
             return res.status(500).json({ server_error: "Internal server error" });
         }

@@ -2,7 +2,7 @@ import env from "../config/env.js";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 const ACCESS_SECRET = env.ACCESS_SECRET;
-const middleAuth = async (req, res, next) => {
+export const middleAuth = async (req, res, next) => {
     const identity_cookie = req.cookies.access_token;
     if (!identity_cookie) {
         return res.status(401).json({

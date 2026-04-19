@@ -6,7 +6,7 @@ import z from "zod";
 import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import crypto from "crypto";
-const controlDebug = debug("app:controller");
+export const controlDebug = debug("app:controller");
 const ACCESS_SECRET = env.ACCESS_SECRET;
 const REFRESH_SECRET = env.REFRESH_SECRET;
 export const signUp = async (req, res) => {

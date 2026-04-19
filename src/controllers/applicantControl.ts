@@ -148,12 +148,6 @@ const applicantControl = async (req: Request, res: Response) => {
         data_error: `User named ${current_json.applicant_name} is already registered for this job`,
       });
     const applicant = new Applicant(applicant_json);
-    const oldJob = await Job.findOne({ job_title: applicant_json.job_title });
-    if (oldJob) {
-      continue;
-    }
-    const job = new Job({ job_title: applicant_json.job_title });
-    await job.save();
     await applicant.save();
     res
       .status(200)

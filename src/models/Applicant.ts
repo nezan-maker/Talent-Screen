@@ -25,10 +25,6 @@ const applicantSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  screening_state: {
-    type: String,
-    default: "Uninitialised",
-  },
 });
 const Applicant = mongoose.model("applicants", applicantSchema);
 export default Applicant;

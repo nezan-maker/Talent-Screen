@@ -2,6 +2,7 @@ import type { Response, Request } from "express";
 import * as excel from "exceljs";
 import Applicant from "../models/Applicant.js";
 import { Readable } from "stream";
+import Job from "../models/Job.js";
 interface ApplicantData {
   applicant_name: string;
   job_title: string;
@@ -70,6 +71,9 @@ const applicantControl = async (req: Request, res: Response) => {
 
   const workbook = new excel.Workbook();
   let worksheet;
+  const file_content_json: any[] = [];
+  const rowData: { [key: string]: any } = {};
+  let headers: string[] = [];
   if (file.filename.endsWith(".csv")) {
     const stream = Readable.from(file.buffer);
     worksheet = await workbook.csv.read(stream);
@@ -79,6 +83,15 @@ const applicantControl = async (req: Request, res: Response) => {
         return res.status(400).json({
           data_error: "CSV file does not meet the required structure",
         });
+      if (rowNumber === 1) {
+        headers = rowValues;
+      }
+      for (let i = 0; i < headers.length; i++) {
+        let header = headers[i];
+        if (!header) return;
+        rowData[header] = rowValues[i];
+        file_content_json.push(rowData);
+      }
     });
   }
   await workbook.xlsx.load(file.buffer as any);
@@ -86,8 +99,6 @@ const applicantControl = async (req: Request, res: Response) => {
   if (!worksheet) {
     return res.status(500).json({ server_error: "Internal server error" });
   }
-  const headers: string[] = [];
-  const file_content_json: any[] = [];
   const header_row = worksheet.getRow(1);
   header_row.eachCell({ includeEmpty: false }, (cell) => {
     headers.push(cell.value?.toString() || "");
@@ -137,7 +148,13 @@ const applicantControl = async (req: Request, res: Response) => {
         data_error: `User named ${current_json.applicant_name} is already registered for this job`,
       });
     const applicant = new Applicant(applicant_json);
-    applicant.save();
+    const oldJob = await Job.findOne({ job_title: applicant_json.job_title });
+    if (oldJob) {
+      continue;
+    }
+    const job = new Job({ job_title: applicant_json.job_title });
+    await job.save();
+    await applicant.save();
     res
       .status(200)
       .json({ success: "Job successfully created from spreadsheet file" });

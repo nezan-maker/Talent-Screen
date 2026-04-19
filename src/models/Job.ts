@@ -20,11 +20,11 @@ const jobSchema = new mongoose.Schema({
   },
   job_department: {
     type: String,
-    required: true,
+    default: null,
   },
   job_location: {
     type: String,
-    required: true,
+    default: null,
   },
   job_employment_type: {
     type: String,
@@ -39,12 +39,12 @@ const jobSchema = new mongoose.Schema({
   },
   job_experience_level: {
     type: String,
-    required: true,
+    default: null,
   },
   job_ai_criteria: [ai_criteria],
   job_state: {
     type: String,
-    required: true,
+    default: "Uninitialised",
   },
 });
 const Job = mongoose.model("User", jobSchema);

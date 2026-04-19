@@ -4,13 +4,12 @@ import { signupSchema, loginSchema, forgotSchema, resetSchema, } from "../valida
 import debug from "debug";
 import z from "zod";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
+import env from "../config/env.js";
 import crypto from "crypto";
 const controlDebug = debug("app:controller");
-dotenv.config();
-const ACCESS_SECRET = process.env.ACCESS_SECRET;
-const REFRESH_SECRET = process.env.REFRESH_SECRET;
-export const signUp = async (req, res, next) => {
+const ACCESS_SECRET = env.ACCESS_SECRET;
+const REFRESH_SECRET = env.REFRESH_SECRET;
+export const signUp = async (req, res) => {
     try {
         const reqBody = req.body;
         const user_details = signupSchema.parse(reqBody);
@@ -26,16 +25,25 @@ export const signUp = async (req, res, next) => {
                 .json({ input_error: "Input passwords must be the same" });
         }
         const hashedPassword = await bcrypt.hash(user_details.user_pass, 10);
+        const otpToken = crypto.randomInt(1000000).toString().padStart(6, "0");
         const newUser = new User({
             user_name: user_details.user_name,
             user_email: user_details.user_email,
             user_pass: hashedPassword,
+            sign_otp_token: otpToken,
         });
         await newUser.save();
-        res.status(201).json({ success: "Sign up successful" });
-        if (req.email)
-            req.email = user_details.user_email;
-        next();
+        let rec_info = { user_id: newUser._id };
+        if (!env.ACCESS_SECRET)
+            return res.status(500).json({ server_error: "Internal server error" });
+        const reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
+            expiresIn: "10m",
+        });
+        res.cookie("reference_token", reference_token, {
+            maxAge: 10 * 60,
+            httpOnly: true,
+        });
+        res.status(201).json({ success: "Sign up successful", token: otpToken });
     }
     catch (error) {
         controlDebug(error);
@@ -96,9 +104,14 @@ export const logIn = async (req, res) => {
                 data_error: "User is not found in the database.Consider creating an account",
             });
         }
+        if (!user.isVerified) {
+            return res
+                .status(401)
+                .json({ auth_error: "Account not verified please confirm by email" });
+        }
         const check = await bcrypt.compare(user_details.user_pass, user.user_pass);
         if (!check) {
-            return res.status(401).json({ input_error: "Invalid credentials" });
+            return res.status(401).json({ auth_error: "Invalid credentials" });
         }
     }
     catch (error) {

@@ -11,7 +11,7 @@ import z from "zod";
 import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import crypto from "crypto";
-import type { Request, Response} from "express";
+import type { Request, Response } from "express";
 import type { JwtPayload } from "jsonwebtoken";
 export const controlDebug = debug("app:controller");
 export interface I_Request extends Request {
@@ -32,8 +32,8 @@ export const signUp = async (req: I_Request, res: Response) => {
     }
     if (user_details.user_pass !== user_details.user_pass_conf) {
       return res
-        .status(401)
-        .json({ input_error: "Input passwords must be the same" });
+        .status(400)
+        .json({ input_error: "Passwords must be the same" });
     }
     const hashedPassword = await bcrypt.hash(user_details.user_pass, 10);
     const otpToken = crypto.randomInt(1000000).toString().padStart(6, "0");
@@ -117,8 +117,7 @@ export const logIn = async (req: Request, res: Response) => {
     const user = await User.findOne({ user_email: user_details.user_email });
     if (!user) {
       return res.status(404).json({
-        data_error:
-          "User is not found in the database.Consider creating an account",
+        data_error: "User is not found.Kindly consider creating an account",
       });
     }
     if (!user.isVerified) {
@@ -133,7 +132,7 @@ export const logIn = async (req: Request, res: Response) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res
-        .status(401)
+        .status(400)
         .json({ input_error: "Input requirements not fulfilled" });
     }
     controlDebug(error);
@@ -166,15 +165,16 @@ export const forgot = async (req: I_Request, res: Response) => {
       .padStart(6, "0");
     reset_pass_token = await bcrypt.hash(reset_pass_token, 5);
     user.pass_token = reset_pass_token;
+    res.status(200).json({ success: "OTP token sent" });
     await user.save();
   } catch (error) {
     controlDebug(error);
     if (error instanceof z.ZodError) {
       return res
-        .status(401)
+        .status(400)
         .json({ input_error: "Input requirements are not fulfilled" });
     }
-    res.status(401).json({ server_error: "Internal server error" });
+    res.status(500).json({ server_error: "Internal server error" });
   }
 };
 export const verifyCode = async (req: I_Request, res: Response) => {
@@ -209,6 +209,7 @@ export const verifyCode = async (req: I_Request, res: Response) => {
         httpOnly: true,
         maxAge: 5 * 60 * 60,
       });
+      res.status(200).json({ success: "Token verification successful" });
     }
   } catch (error) {
     controlDebug(error);

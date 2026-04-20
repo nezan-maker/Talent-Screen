@@ -21,8 +21,8 @@ export const signUp = async (req, res) => {
         }
         if (user_details.user_pass !== user_details.user_pass_conf) {
             return res
-                .status(401)
-                .json({ input_error: "Input passwords must be the same" });
+                .status(400)
+                .json({ input_error: "Passwords must be the same" });
         }
         const hashedPassword = await bcrypt.hash(user_details.user_pass, 10);
         const otpToken = crypto.randomInt(1000000).toString().padStart(6, "0");

@@ -1,0 +1,374 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "WiseRank",
+    "version": "1.0.0",
+    "description": "An AI-assisted web application that helps streamline the process of screening applicants based on their profiles and resumes provided through parsing of spreadsheet, csv or pdf that may contain such info."
+  },
+  "paths": {
+    "/auth/signup": {
+      "post": {
+        "summary": "Registering endpoint",
+        "descrption": "Allows new users to create accounts on WiseRank",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_name": { "type": "string" },
+                  "user_email": { "type": "string", "format": "email" },
+                  "user_pass": { "type": "string", "format": "password" },
+                  "user_pass_conf": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Sign up successful"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "input_error": "Passwords must be the same"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized in case user already exists",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "You already have an account please sign in"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Insuccessful response due to a server error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/confirm": {
+      "post": {
+        "summary": "Confirming with email",
+        "descrption": "Allows verification of user authenticity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Confirmation successful"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized in case OTP is incorrect",
+            "content": {
+              "application/json": {
+                "example": {
+                  "auth_error": "Invalid one time password entered"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Insuccessful response due to a server error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login endpoint",
+        "descrption": "Allows new users to log into their accounts on WiseRank",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_email": { "type": "string", "format": "email" },
+                  "user_pass": { "type": "string", "format": "password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Sign up successful"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "input_error": "Passwords must be the same"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized in case account is not verified or invalid credentials",
+            "content": {
+              "application/json": {
+                "example": {
+                  "auth_error": "Account not verified or invalid credentials"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found in the database",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "User not found.Kindly consider creating account"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Insuccessful response due to a server error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/forgot": {
+      "post": {
+        "summary": "Account recover endpoint",
+        "descrption": "First step to recovering personal accounts on WiseRank",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_email": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "OTP token sent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "input_error": "Input requirements not fulfilled"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found in the database",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "User not found in the database.Kindly consider creating an account"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Insuccessful response due to a server error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "summary": "Account recovery OTP token verification endpoint",
+        "descrption": "Second step to recovering personal accounts on WiseRank by verifying sent codes",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Token verification successful"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized in case OTP token sent is incorrect",
+            "content": {
+              "application/json": {
+                "example": {
+                  "input_error": "Invalid one time password"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Insuccessful response due to a server error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/reset": {
+      "post": {
+        "summary": "Password reset endpoint",
+        "descrption": "First step to recovering personal accounts on WiseRank",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_pass": { "type": "string", "format": "password" },
+                  "user_pass_conf": { "type": "string", "format": "password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "OTP token sent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "input_error": "Input requirements not fulfilled"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found in the database",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "User not found in the database.Kindly consider creating an account"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Insuccessful response due to a server error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

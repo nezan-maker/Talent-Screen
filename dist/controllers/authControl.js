@@ -106,7 +106,7 @@ export const logIn = async (req, res) => {
         const user = await User.findOne({ user_email: user_details.user_email });
         if (!user) {
             return res.status(404).json({
-                data_error: "User is not found in the database.Consider creating an account",
+                data_error: "User is not found.Kindly consider creating an account",
             });
         }
         if (!user.isVerified) {
@@ -122,7 +122,7 @@ export const logIn = async (req, res) => {
     catch (error) {
         if (error instanceof z.ZodError) {
             return res
-                .status(401)
+                .status(400)
                 .json({ input_error: "Input requirements not fulfilled" });
         }
         controlDebug(error);
@@ -155,16 +155,17 @@ export const forgot = async (req, res) => {
             .padStart(6, "0");
         reset_pass_token = await bcrypt.hash(reset_pass_token, 5);
         user.pass_token = reset_pass_token;
+        res.status(200).json({ success: "OTP token sent" });
         await user.save();
     }
     catch (error) {
         controlDebug(error);
         if (error instanceof z.ZodError) {
             return res
-                .status(401)
+                .status(400)
                 .json({ input_error: "Input requirements are not fulfilled" });
         }
-        res.status(401).json({ server_error: "Internal server error" });
+        res.status(500).json({ server_error: "Internal server error" });
     }
 };
 export const verifyCode = async (req, res) => {
@@ -198,6 +199,7 @@ export const verifyCode = async (req, res) => {
                 httpOnly: true,
                 maxAge: 5 * 60 * 60,
             });
+            res.status(200).json({ success: "Token verification successful" });
         }
     }
     catch (error) {

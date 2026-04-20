@@ -2,7 +2,6 @@ import type { Response, Request } from "express";
 import * as excel from "exceljs";
 import Applicant from "../models/Applicant.js";
 import { Readable } from "stream";
-import Job from "../models/Job.js";
 interface ApplicantData {
   applicant_name: string;
   job_title: string;

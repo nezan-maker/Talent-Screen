@@ -24,6 +24,10 @@ const applicantSchema = new mongoose.Schema({
         type: Number,
         required: true,
     },
+    shortlisted: {
+        type: Boolean,
+        required: true,
+    },
 });
 const Applicant = mongoose.model("applicants", applicantSchema);
 export default Applicant;

@@ -1,7 +1,6 @@
 import * as excel from "exceljs";
 import Applicant from "../models/Applicant.js";
 import { Readable } from "stream";
-import Job from "../models/Job.js";
 const applicantControl = async (req, res) => {
     if (!req.file) {
         if (!req.body)

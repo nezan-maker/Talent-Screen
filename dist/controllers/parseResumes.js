@@ -52,6 +52,10 @@ const resumeParse = async (req, res) => {
                 }
                 let header_text;
                 let header_array = [];
+                let skill_obj = {};
+                let educ_obj = {};
+                let exp_obj = {};
+                let add_obj = {};
                 for (let head = 0; head < selected_headers.length; head++) {
                     const current_header = selected_headers[head] || "";
                     let pattern;
@@ -69,6 +73,23 @@ const resumeParse = async (req, res) => {
                     else {
                         continue;
                     }
+                    if (header_array[0] &&
+                        header_array[1] &&
+                        header_array[2] &&
+                        header_array[3]) {
+                        skill_obj = header_array[0];
+                        educ_obj = header_array[1];
+                        exp_obj = header_array[2];
+                        add_obj = header_array[3];
+                    }
+                    const updateApplic = await Applicant.findOneAndUpdate({
+                        _id: applicant_id,
+                    }, {
+                        skills: skill_obj.skills,
+                        education: educ_obj.education,
+                        experience: exp_obj.education,
+                        additional_info: add_obj.additional_information,
+                    });
                 }
             }
         }
@@ -78,4 +99,5 @@ const resumeParse = async (req, res) => {
         res.status(500).json({ server_error: "Internal server error" });
     }
 };
+export default resumeParse;
 //# sourceMappingURL=parseResumes.js.map

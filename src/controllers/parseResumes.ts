@@ -6,7 +6,7 @@ import type { ExtendedRequest } from "./resumeUpload.js";
 import { controlDebug } from "./authControl.js";
 import axios from "axios";
 interface HeaderText {
-  [key: string]: any;
+  [key: string]: string;
 }
 const resumeParse = async (req: ExtendedRequest, res: Response) => {
   try {
@@ -67,6 +67,10 @@ const resumeParse = async (req: ExtendedRequest, res: Response) => {
 
         let header_text;
         let header_array: HeaderText[] = [];
+        let skill_obj: HeaderText = {};
+        let educ_obj: HeaderText = {};
+        let exp_obj: HeaderText = {};
+        let add_obj: HeaderText = {};
 
         for (let head = 0; head < selected_headers.length; head++) {
           const current_header = selected_headers[head] || "";
@@ -87,6 +91,29 @@ const resumeParse = async (req: ExtendedRequest, res: Response) => {
           } else {
             continue;
           }
+          if (
+            header_array[0] &&
+            header_array[1] &&
+            header_array[2] &&
+            header_array[3]
+          ) {
+            skill_obj = header_array[0];
+            educ_obj = header_array[1];
+            exp_obj = header_array[2];
+            add_obj = header_array[3];
+          }
+
+          const updateApplic = await Applicant.findOneAndUpdate(
+            {
+              _id: applicant_id,
+            },
+            {
+              skills: skill_obj.skills,
+              education: educ_obj.education,
+              experience: exp_obj.education,
+              additional_info: add_obj.additional_information,
+            },
+          );
         }
       }
     }
@@ -95,3 +122,4 @@ const resumeParse = async (req: ExtendedRequest, res: Response) => {
     res.status(500).json({ server_error: "Internal server error" });
   }
 };
+export default resumeParse;

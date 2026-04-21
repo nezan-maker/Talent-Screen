@@ -11,20 +11,9 @@ const applicantControl = async (req, res) => {
         const application_data = JSON.parse(raw_application_data);
         for (let i = 0; i < application_data.length; i++) {
             const current_json = application_data[i];
-            if (typeof current_json.skills !== "string" ||
-                typeof current_json.additional_info !== "string" ||
-                typeof current_json.education_certificates !== "string")
-                return;
-            let skills = current_json.skills.split(",");
-            let additional_info = current_json.skills.split(",");
-            let education_certificates = current_json.skills.split(",");
             let applicant_json = {
                 applicant_name: current_json.applicant_name,
                 job_title: current_json.job_title,
-                skills,
-                additional_info,
-                education_certificates,
-                experience_in_years: current_json.experience_in_years,
             };
             const oldApplicant = await Applicant.findOne({
                 applicant_name: current_json.applicant_name,
@@ -108,20 +97,9 @@ const applicantControl = async (req, res) => {
             return res
                 .status(400)
                 .json({ data_error: "Spreadsheet does not match required structure" });
-        if (typeof current_json.skills !== "string" ||
-            typeof current_json.additional_info !== "string" ||
-            typeof current_json.education_certificates !== "string")
-            return;
-        let skills = current_json.skills.split(",");
-        let additional_info = current_json.skills.split(",");
-        let education_certificates = current_json.skills.split(",");
         let applicant_json = {
             applicant_name: current_json.applicant_name,
             job_title: current_json.job_title,
-            skills,
-            additional_info,
-            education_certificates,
-            experience_in_years: current_json.experience_in_years,
         };
         const oldApplicant = await Applicant.findOne({
             applicant_name: current_json.applicant_name,

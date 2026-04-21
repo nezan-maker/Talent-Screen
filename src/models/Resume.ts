@@ -5,7 +5,8 @@ const resumeSchema = new mongoose.Schema({
     required: true,
   },
   applicant_id: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Applicant",
     required: true,
   },
   resume_pdf_url: {

@@ -7,6 +7,7 @@ import connectDB from "./config/db.js";
 import { fileURLToPath } from "url";
 import path, { dirname } from "path";
 import { apiReference } from "@scalar/express-api-reference";
+import dashRoutes from "./routes/dashRoutes.js";
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,6 +23,7 @@ const startServer = async () => {
     app.use("/docs", apiReference({ url: "/openapi.json" }));
     app.use(cookie());
     app.use("/auth", authRoutes());
+    app.use("/", dashRoutes());
     app.listen(PORT, () => {
         serverDebug(`Server connected on port ${PORT}`);
     });

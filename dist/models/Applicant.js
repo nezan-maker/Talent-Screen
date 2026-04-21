@@ -9,24 +9,20 @@ const applicantSchema = new mongoose.Schema({
         required: true,
     },
     skills: {
-        type: [String],
-        required: true,
+        type: String,
     },
-    education_certifates: {
-        type: [String],
-        required: true,
+    education: {
+        type: String,
+    },
+    experience: {
+        type: Number,
     },
     additional_info: {
-        type: [String],
-        required: true,
-    },
-    experience_in_years: {
-        type: Number,
-        required: true,
+        type: String,
     },
     shortlisted: {
         type: Boolean,
-        required: true,
+        default: false,
     },
 });
 const Applicant = mongoose.model("applicants", applicantSchema);

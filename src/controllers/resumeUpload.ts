@@ -1,12 +1,19 @@
 import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { controlDebug } from "./authControl.js";
 import unzipper from "unzipper";
 import env from "../config/env.js";
 import Resume from "../models/Resume.js";
-import User from "../models/User.js";
 import Applicant from "../models/Applicant.js";
-const resumeUpload = async (req: Request, res: Response) => {
+import mongoose from "mongoose";
+export interface ExtendedRequest extends Request {
+  resume_array: mongoose.Types.ObjectId[];
+}
+const resumeUpload = async (
+  req: ExtendedRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     if (!req.file) {
       return res.status(400).json({ data_error: "No valid PDF file uploaded" });
@@ -16,6 +23,7 @@ const resumeUpload = async (req: Request, res: Response) => {
     const cloud_name: string = env?.CLOUDINARY_API_NAME || "";
     const api_key: string = env?.CLOUDINARY_API_KEY || "";
     const api_secret: string = env?.CLOUDINARY_API_SECRET || "";
+    let resume_array: mongoose.Types.ObjectId[] = [];
     if (env) {
       cloudinary.config({
         cloud_name,
@@ -68,6 +76,8 @@ const resumeUpload = async (req: Request, res: Response) => {
         resume_pdf_url: file_url,
       });
       await resume.save();
+      resume_array.push(resume._id);
+      req.resume_array = resume_array;
       res.status(200).json({ success: "Successfully uploaded resume PDFs" });
     }
   } catch (error) {

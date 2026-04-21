@@ -1,0 +1,78 @@
+import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
+import type { Request, Response } from "express";
+import { controlDebug } from "./authControl.js";
+import unzipper from "unzipper";
+import env from "../config/env.js";
+import Resume from "../models/Resume.js";
+import User from "../models/User.js";
+import Applicant from "../models/Applicant.js";
+const resumeUpload = async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ data_error: "No valid PDF file uploaded" });
+    }
+    const zipFile: Express.Multer.File = req.file;
+    const directory = await unzipper.Open.buffer(zipFile.buffer);
+    const cloud_name: string = env?.CLOUDINARY_API_NAME || "";
+    const api_key: string = env?.CLOUDINARY_API_KEY || "";
+    const api_secret: string = env?.CLOUDINARY_API_SECRET || "";
+    if (env) {
+      cloudinary.config({
+        cloud_name,
+        api_key,
+        api_secret,
+      });
+    }
+    for (const entry of directory.files) {
+      const applicant_file_name = entry.path.split(".")[0];
+      let applicant;
+      if (applicant_file_name) {
+        applicant = await Applicant.findOne({
+          applicant_name: applicant_file_name,
+        });
+      }
+
+      if (!applicant) {
+        return res.status(400).json({
+          data_error: `No matching name in the database for applicant ${applicant_file_name}`,
+        });
+      }
+      let applicant_id = applicant._id;
+      let job_title = applicant._id;
+      if (!applicant_id) {
+        return res.status(500).json({ server_error: "Internal server error" });
+      }
+      const result: UploadApiResponse = await new Promise<UploadApiResponse>(
+        (resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              folder: "resumes",
+              resource_type: "auto",
+            },
+            (error, result_) => {
+              if (error) {
+                reject(error);
+              }
+              if (result_) {
+                resolve(result_);
+              }
+            },
+          );
+          entry.stream().pipe(stream);
+        },
+      );
+      const file_url: string = result.secure_url;
+      const resume = new Resume({
+        applicant_id,
+        job_title,
+        resume_pdf_url: file_url,
+      });
+      await resume.save();
+      res.status(200).json({ success: "Successfully uploaded resume PDFs" });
+    }
+  } catch (error) {
+    controlDebug(error);
+    res.status(500).json({ server_error: "Internal server error" });
+  }
+};
+export default resumeUpload;

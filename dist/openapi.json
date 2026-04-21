@@ -9,7 +9,7 @@
     "/auth/signup": {
       "post": {
         "summary": "Registering endpoint",
-        "descrption": "Allows new users to create accounts on WiseRank",
+        "description": "Allows new users to create accounts on WiseRank",
         "requestBody": {
           "required": true,
           "content": {
@@ -61,7 +61,7 @@
             }
           },
           "500": {
-            "description": "Insuccessful response due to a server error",
+            "description": "Unsuccessful response due to a server error",
             "content": {
               "application/json": {
                 "example": {
@@ -76,7 +76,7 @@
     "/auth/confirm": {
       "post": {
         "summary": "Confirming with email",
-        "descrption": "Allows verification of user authenticity",
+        "description": "Allows verification of user authenticity",
         "requestBody": {
           "required": true,
           "content": {
@@ -112,7 +112,7 @@
             }
           },
           "500": {
-            "description": "Insuccessful response due to a server error",
+            "description": "Unsuccessful response due to a server error",
             "content": {
               "application/json": {
                 "example": {
@@ -127,7 +127,7 @@
     "/auth/login": {
       "post": {
         "summary": "Login endpoint",
-        "descrption": "Allows new users to log into their accounts on WiseRank",
+        "description": "Allows new users to log into their accounts on WiseRank",
         "requestBody": {
           "required": true,
           "content": {
@@ -184,7 +184,7 @@
             }
           },
           "500": {
-            "description": "Insuccessful response due to a server error",
+            "description": "Unsuccessful response due to a server error",
             "content": {
               "application/json": {
                 "example": {
@@ -199,7 +199,7 @@
     "/auth/forgot": {
       "post": {
         "summary": "Account recover endpoint",
-        "descrption": "First step to recovering personal accounts on WiseRank",
+        "description": "First step to recovering personal accounts on WiseRank",
         "requestBody": {
           "required": true,
           "content": {
@@ -245,7 +245,7 @@
             }
           },
           "500": {
-            "description": "Insuccessful response due to a server error",
+            "description": "Unsuccessful response due to a server error",
             "content": {
               "application/json": {
                 "example": {
@@ -260,7 +260,7 @@
     "/auth/verify": {
       "post": {
         "summary": "Account recovery OTP token verification endpoint",
-        "descrption": "Second step to recovering personal accounts on WiseRank by verifying sent codes",
+        "description": "Second step to recovering personal accounts on WiseRank by verifying sent codes",
         "requestBody": {
           "required": true,
           "content": {
@@ -296,7 +296,7 @@
             }
           },
           "500": {
-            "description": "Insuccessful response due to a server error",
+            "description": "Unsuccessful response due to a server error",
             "content": {
               "application/json": {
                 "example": {
@@ -311,7 +311,7 @@
     "/auth/reset": {
       "post": {
         "summary": "Password reset endpoint",
-        "descrption": "First step to recovering personal accounts on WiseRank",
+        "description": "First step to recovering personal accounts on WiseRank",
         "requestBody": {
           "required": true,
           "content": {
@@ -358,12 +358,63 @@
             }
           },
           "500": {
-            "description": "Insuccessful response due to a server error",
+            "description": "Unsuccessful response due to a server error",
             "content": {
               "application/json": {
                 "example": {
                   "server_error": "Internal server error"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "summary": "Dashboard displayed info endpoint",
+        "description": "Used to provide data formatted as json to the frontend that is displayed to the dashboard of each user",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "[{\"applicant_name\": \"John Doe \", \"job_title\": \"Junior Fullstack Developer\",\"skills\": \"[\" Strong communication skills\"]\",\"educational_certificates\": \"[\" Bachelor Degree in Data Sciences\"]\",\"additional_info\": \"[\"Enjoys configuring\"]\",\"experience_in_years\": \"5 years\"}]"
+              }
+            }
+          },
+          "500": {
+            "description": "Unsuccessful response due to a server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/register-candidates": {
+      "post": {
+        "summary": "Candidates registration",
+        "description": "Allows users to enroll or register applicants for a specific job",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "properties": {
+                "raw_application-data": { "type": "string" }
               }
             }
           }

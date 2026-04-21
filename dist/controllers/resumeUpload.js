@@ -4,6 +4,7 @@ import unzipper from "unzipper";
 import env from "../config/env.js";
 import Resume from "../models/Resume.js";
 import Applicant from "../models/Applicant.js";
+import mongoose from "mongoose";
 const resumeUpload = async (req, res, next) => {
     try {
         if (!req.file) {
@@ -14,6 +15,7 @@ const resumeUpload = async (req, res, next) => {
         const cloud_name = env?.CLOUDINARY_API_NAME || "";
         const api_key = env?.CLOUDINARY_API_KEY || "";
         const api_secret = env?.CLOUDINARY_API_SECRET || "";
+        let resume_array = [];
         if (env) {
             cloudinary.config({
                 cloud_name,
@@ -60,7 +62,8 @@ const resumeUpload = async (req, res, next) => {
                 resume_pdf_url: file_url,
             });
             await resume.save();
-            req.resume_id = resume._id;
+            resume_array.push(resume._id);
+            req.resume_array = resume_array;
             res.status(200).json({ success: "Successfully uploaded resume PDFs" });
         }
     }

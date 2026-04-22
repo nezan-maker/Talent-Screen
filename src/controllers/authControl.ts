@@ -12,7 +12,6 @@ import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import crypto from "crypto";
 import type { Request, Response } from "express";
-import type { JwtPayload } from "jsonwebtoken";
 export const controlDebug = debug("app:controller");
 export interface I_Request extends Request {
   email?: string;

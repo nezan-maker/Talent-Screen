@@ -50,6 +50,6 @@ const jobSchema = new mongoose.Schema({
         default: "Uninitialised",
     },
 });
-const Job = mongoose.model("User", jobSchema);
+const Job = mongoose.model("Job", jobSchema);
 export default Job;
 //# sourceMappingURL=Job.js.map

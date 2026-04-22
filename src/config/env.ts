@@ -5,10 +5,9 @@ const env = {
   MONGO_URI: process.env.MONGO_URI,
   ACCESS_SECRET: process.env.ACCESS_SECRET,
   REFRESH_SECRET: process.env.REFRESH_SECRET,
-  GOOGLE_API_KEY: process.env.GEMINI_API_KEY,
+  GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
   CLOUDINARY_API_NAME: process.env.CLOUDINARY_API_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
 };
 export default env;
-

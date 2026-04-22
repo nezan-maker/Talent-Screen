@@ -1,10 +1,14 @@
-import mongoose, { Mongoose } from "mongoose";
+import mongoose, { model, Model } from "mongoose";
 const userSchema = new mongoose.Schema({
     user_name: {
         type: String,
         required: true,
     },
     user_pass: {
+        type: String,
+        required: true,
+    },
+    company_name: {
         type: String,
         required: true,
     },
@@ -28,7 +32,7 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
-});
+}, { timestamps: true });
 const User = mongoose.model("User", userSchema);
 export default User;
 //# sourceMappingURL=User.js.map

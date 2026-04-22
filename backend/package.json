@@ -1,5 +1,5 @@
 {
-  "name": "rank_wise",
+  "name": "rank_wise_backend",
   "version": "1.0.0",
   "description": "",
   "main": "./dist/server.js",

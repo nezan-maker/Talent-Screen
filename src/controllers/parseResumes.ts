@@ -2,15 +2,17 @@ import * as pdfLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { Request, Response } from "express";
 import Resume from "../models/Resume.js";
 import Applicant from "../models/Applicant.js";
-import type { ExtendedRequest } from "./resumeUpload.js";
 import { controlDebug } from "./authControl.js";
 import axios from "axios";
 interface HeaderText {
   [key: string]: string;
 }
-const resumeParse = async (req: ExtendedRequest, res: Response) => {
+const resumeParse = async (req: Request, res: Response) => {
   try {
     const resume_array = req.resume_array;
+    if (!resume_array) {
+      return res.status(500).json({ srver_error: "Internal server error" });
+    }
     for (let i = 0; i < resume_array.length; i++) {
       const resume_id = resume_array[i];
       const resume = await Resume.findOne({ resume_id });

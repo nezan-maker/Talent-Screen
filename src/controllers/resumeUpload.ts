@@ -10,7 +10,7 @@ export interface ExtendedRequest extends Request {
   resume_array: mongoose.Types.ObjectId[];
 }
 const resumeUpload = async (
-  req: ExtendedRequest,
+  req: Request,
   res: Response,
   next: NextFunction,
 ) => {

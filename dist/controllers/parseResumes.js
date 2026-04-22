@@ -6,6 +6,9 @@ import axios from "axios";
 const resumeParse = async (req, res) => {
     try {
         const resume_array = req.resume_array;
+        if (!resume_array) {
+            return res.status(500).json({ srver_error: "Internal server error" });
+        }
         for (let i = 0; i < resume_array.length; i++) {
             const resume_id = resume_array[i];
             const resume = await Resume.findOne({ resume_id });

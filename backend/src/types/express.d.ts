@@ -4,6 +4,7 @@ declare global {
   namespace Express {
     interface Request {
       resume_array?: mongoose.Types.ObjectId[];
+      files: Express.Multer.File[];
     }
   }
 }

@@ -1,47 +1,87 @@
 {
-  "openapi": "3.0.0",
+  "openapi": "3.0.3",
   "info": {
-    "title": "WiseRank",
+    "title": "WiseRank API",
     "version": "1.0.0",
-    "description": "An AI-assisted web application that helps streamline the process of screening applicants based on their profiles and resumes provided through parsing of spreadsheet, csv or pdf that may contain such info."
+    "description": "An AI-assisted backend for authentication, candidate intake, dashboard reporting, and resume-based screening."
   },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local development"
+    },
+    {
+      "url": "/",
+      "description": "Relative server URL"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Account registration, verification, login, and password recovery."
+    },
+    {
+      "name": "Dashboard",
+      "description": "Dashboard and aggregate data retrieval."
+    },
+    {
+      "name": "Candidates",
+      "description": "Candidate intake from JSON payloads or uploaded files."
+    },
+    {
+      "name": "AI Screening",
+      "description": "AI-assisted job setup and applicant screening."
+    }
+  ],
   "paths": {
     "/auth/signup": {
       "post": {
-        "summary": "Registering endpoint",
-        "description": "Allows new users to create accounts on WiseRank",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Create an account",
+        "description": "Registers a new WiseRank user and sets a short-lived `reference_token` cookie used by `/auth/confirm`.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "user_name": { "type": "string" },
-                  "user_email": { "type": "string", "format": "email" },
-                  "user_pass": { "type": "string", "format": "password" },
-                  "user_pass_conf": {
-                    "type": "string",
-                    "format": "password"
-                  }
-                }
+                "$ref": "#/components/schemas/SignUpRequest"
+              },
+              "example": {
+                "user_name": "Alice Uwimana",
+                "user_email": "alice@example.com",
+                "user_pass": "SecurePass1!",
+                "user_pass_conf": "SecurePass1!"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Successful response",
+            "description": "Account created successfully.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Sets the `reference_token` cookie for email confirmation.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignUpResponse"
+                },
                 "example": {
-                  "success": "Sign up successful"
+                  "success": "Sign up successful",
+                  "token": "431928"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Password confirmation failed.",
             "content": {
               "application/json": {
                 "example": {
@@ -51,17 +91,26 @@
             }
           },
           "401": {
-            "description": "Unauthorized in case user already exists",
+            "description": "The user already exists or input validation failed.",
             "content": {
               "application/json": {
-                "example": {
-                  "message": "You already have an account please sign in"
+                "examples": {
+                  "userExists": {
+                    "value": {
+                      "message": "You already have an account please sign in"
+                    }
+                  },
+                  "validationError": {
+                    "value": {
+                      "input_error": "Input requirements not fulfilled"
+                    }
+                  }
                 }
               }
             }
           },
           "500": {
-            "description": "Unsuccessful response due to a server error",
+            "description": "Internal server error.",
             "content": {
               "application/json": {
                 "example": {
@@ -75,24 +124,40 @@
     },
     "/auth/confirm": {
       "post": {
-        "summary": "Confirming with email",
-        "description": "Allows verification of user authenticity",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Confirm a newly created account",
+        "description": "Validates the OTP sent during signup. Requires the `reference_token` cookie created by `/auth/signup`.",
+        "security": [
+          {
+            "referenceTokenCookie": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "token": { "type": "string" }
-                }
+                "$ref": "#/components/schemas/TokenRequest"
+              },
+              "example": {
+                "token": "431928"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Account confirmed successfully.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Sets the `access_token` cookie on success.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "example": {
@@ -102,7 +167,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized in case OTP is incorrect",
+            "description": "The OTP is invalid.",
             "content": {
               "application/json": {
                 "example": {
@@ -112,7 +177,7 @@
             }
           },
           "500": {
-            "description": "Unsuccessful response due to a server error",
+            "description": "Internal server error.",
             "content": {
               "application/json": {
                 "example": {
@@ -126,65 +191,77 @@
     },
     "/auth/login": {
       "post": {
-        "summary": "Login endpoint",
-        "description": "Allows new users to log into their accounts on WiseRank",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Log in",
+        "description": "Authenticates a verified user.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "user_email": { "type": "string", "format": "email" },
-                  "user_pass": { "type": "string", "format": "password" }
-                }
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "user_email": "alice@example.com",
+                "user_pass": "SecurePass1!"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Login succeeded.",
             "content": {
               "application/json": {
                 "example": {
-                  "success": "Sign up successful"
+                  "success": "Login successful"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Input validation failed.",
             "content": {
               "application/json": {
                 "example": {
-                  "input_error": "Passwords must be the same"
+                  "input_error": "Input requirements not fulfilled"
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized in case account is not verified or invalid credentials",
+            "description": "The account is unverified or the credentials are invalid.",
             "content": {
               "application/json": {
-                "example": {
-                  "auth_error": "Account not verified or invalid credentials"
+                "examples": {
+                  "notVerified": {
+                    "value": {
+                      "auth_error": "Account not verified please confirm by email"
+                    }
+                  },
+                  "invalidCredentials": {
+                    "value": {
+                      "auth_error": "Invalid credentials"
+                    }
+                  }
                 }
               }
             }
           },
           "404": {
-            "description": "User not found in the database",
+            "description": "The user was not found.",
             "content": {
               "application/json": {
                 "example": {
-                  "data_error": "User not found.Kindly consider creating account"
+                  "data_error": "User is not found.Kindly consider creating an account"
                 }
               }
             }
           },
           "500": {
-            "description": "Unsuccessful response due to a server error",
+            "description": "Internal server error.",
             "content": {
               "application/json": {
                 "example": {
@@ -198,24 +275,35 @@
     },
     "/auth/forgot": {
       "post": {
-        "summary": "Account recover endpoint",
-        "description": "First step to recovering personal accounts on WiseRank",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Start password recovery",
+        "description": "Looks up a user by email, creates a password-reset OTP, and sets a temporary `reference_token` cookie used by `/auth/verify`.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "user_email": { "type": "string", "format": "email" }
-                }
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              },
+              "example": {
+                "user_email": "alice@example.com"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Reset flow started successfully.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Sets the `reference_token` cookie for OTP verification.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "example": {
@@ -225,27 +313,31 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Input validation failed.",
             "content": {
               "application/json": {
-                "example": {
-                  "input_error": "Input requirements not fulfilled"
+                "examples": {
+                  "validationError": {
+                    "value": {
+                      "input_error": "Input requirements are not fulfilled"
+                    }
+                  }
                 }
               }
             }
           },
           "404": {
-            "description": "User not found in the database",
+            "description": "The user was not found.",
             "content": {
               "application/json": {
                 "example": {
-                  "message": "User not found in the database.Kindly consider creating an account"
+                  "data_error": "User not found in the database consider creating account"
                 }
               }
             }
           },
           "500": {
-            "description": "Unsuccessful response due to a server error",
+            "description": "Internal server error.",
             "content": {
               "application/json": {
                 "example": {
@@ -259,24 +351,40 @@
     },
     "/auth/verify": {
       "post": {
-        "summary": "Account recovery OTP token verification endpoint",
-        "description": "Second step to recovering personal accounts on WiseRank by verifying sent codes",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Verify password-reset OTP",
+        "description": "Checks the recovery OTP sent during `/auth/forgot`. Requires the `reference_token` cookie from that step.",
+        "security": [
+          {
+            "referenceTokenCookie": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "token": { "type": "string" }
-                }
+                "$ref": "#/components/schemas/TokenRequest"
+              },
+              "example": {
+                "token": "431928"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "OTP verified successfully.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Sets the `reset_token` cookie used by `/auth/reset`.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "example": {
@@ -286,17 +394,26 @@
             }
           },
           "401": {
-            "description": "Unauthorized in case OTP token sent is incorrect",
+            "description": "The OTP is invalid or the request is malformed.",
             "content": {
               "application/json": {
-                "example": {
-                  "input_error": "Invalid one time password"
+                "examples": {
+                  "invalidOtp": {
+                    "value": {
+                      "input_error": "Invalid one time password"
+                    }
+                  },
+                  "validationError": {
+                    "value": {
+                      "input_error": "Input requirements not fulfilled"
+                    }
+                  }
                 }
               }
             }
           },
           "500": {
-            "description": "Unsuccessful response due to a server error",
+            "description": "Internal server error.",
             "content": {
               "application/json": {
                 "example": {
@@ -310,55 +427,67 @@
     },
     "/auth/reset": {
       "post": {
-        "summary": "Password reset endpoint",
-        "description": "First step to recovering personal accounts on WiseRank",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Reset a password",
+        "description": "Sets a new password after `/auth/verify`. Requires the `reset_token` cookie.",
+        "security": [
+          {
+            "resetTokenCookie": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "user_pass": { "type": "string", "format": "password" },
-                  "user_pass_conf": { "type": "string", "format": "password" }
-                }
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              },
+              "example": {
+                "user_pass": "NewSecurePass1!",
+                "user_pass_conf": "NewSecurePass1!"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Successful response",
+          "201": {
+            "description": "Password reset succeeded.",
             "content": {
               "application/json": {
                 "example": {
-                  "success": "OTP token sent"
+                  "success": "Password reset successful"
                 }
               }
             }
           },
-          "400": {
-            "description": "Bad request",
+          "401": {
+            "description": "Password confirmation failed or the reset flow is invalid.",
             "content": {
               "application/json": {
-                "example": {
-                  "input_error": "Input requirements not fulfilled"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found in the database",
-            "content": {
-              "application/json": {
-                "example": {
-                  "message": "User not found in the database.Kindly consider creating an account"
+                "examples": {
+                  "passwordMismatch": {
+                    "value": {
+                      "input_error": "Passwords must be the same"
+                    }
+                  },
+                  "expiredFlow": {
+                    "value": {
+                      "expiration_error": "Reset password handlers expired try again later"
+                    }
+                  },
+                  "validationError": {
+                    "value": {
+                      "input_error": "Input requirements not fulfilled"
+                    }
+                  }
                 }
               }
             }
           },
           "500": {
-            "description": "Unsuccessful response due to a server error",
+            "description": "Internal server error.",
             "content": {
               "application/json": {
                 "example": {
@@ -372,27 +501,129 @@
     },
     "/dashboard": {
       "get": {
-        "summary": "Dashboard displayed info endpoint",
-        "description": "Used to provide data formatted as json to the frontend that is displayed to the dashboard of each user",
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Fetch dashboard data",
+        "description": "Returns dashboard data as a JSON-stringified array in the order `[applicants, jobs]`.",
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Dashboard payload returned successfully.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Stringified JSON containing an array with applicants at index 0 and jobs at index 1."
                 },
-                "example": "[{\"applicant_name\": \"John Doe \", \"job_title\": \"Junior Fullstack Developer\",\"skills\": \"[\" Strong communication skills\"]\",\"educational_certificates\": \"[\" Bachelor Degree in Data Sciences\"]\",\"additional_info\": \"[\"Enjoys configuring\"]\",\"experience_in_years\": \"5 years\"}]"
+                "example": "[[{\"applicant_name\":\"John Doe\",\"job_title\":\"Junior Fullstack Developer\",\"skills\":\"Node.js, React\",\"education\":\"BSc Computer Science\",\"experience\":2,\"additional_info\":\"Immediate starter\",\"shortlisted\":false}],[{\"job_title\":\"Junior Fullstack Developer\",\"job_department\":\"Engineering\",\"job_location\":\"Kigali\",\"job_employment_type\":\"Full-time\",\"job_salary_min\":500,\"job_salary_max\":900,\"job_experience_required\":\"2 years\",\"job_ai_criteria\":[{\"criteria_string\":\"Core requirements\",\"description\":\"Frontend and backend fundamentals\",\"priority\":\"High\"}],\"workers_required\":1,\"job_state\":\"Uninitialised\"}]]"
               }
             }
           },
           "500": {
-            "description": "Unsuccessful response due to a server error",
+            "description": "Internal server error.",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object"
-                },
+                "examples": {
+                  "errorShapeOne": {
+                    "value": {
+                      "error": "Internal server error"
+                    }
+                  },
+                  "errorShapeTwo": {
+                    "value": {
+                      "message": "Internal server error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/register-candidate": {
+      "post": {
+        "tags": [
+          "Candidates"
+        ],
+        "summary": "Register candidates",
+        "description": "Registers candidates either from JSON data or by uploading a spreadsheet together with a ZIP of PDF resumes. The JSON flow expects `raw_application_data` as a stringified JSON array. The multipart flow expects the spreadsheet and ZIP fields used by the controller (`applicant_spreadsheet` and `pdf_resume_zip`).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateJsonRegistrationRequest"
+              },
+              "example": {
+                "raw_application_data": "[{\"applicant_name\":\"Alice Uwimana\",\"job_title\":\"Full Stack Developer\"},{\"applicant_name\":\"Eric Ndayisaba\",\"job_title\":\"Full Stack Developer\"}]"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateMultipartRegistrationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Candidates were processed successfully.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "spreadsheetUpload": {
+                    "value": {
+                      "success": "Applicants successfully registered from spreadsheet file"
+                    }
+                  },
+                  "jsonRegistration": {
+                    "value": {
+                      "success": "Applicant successfully registered"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request body, upload, or spreadsheet structure is invalid.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "missingInfo": {
+                    "value": {
+                      "data_error": "Info about the applicants required"
+                    }
+                  },
+                  "badFileType": {
+                    "value": {
+                      "data_error": "File type not allowed"
+                    }
+                  },
+                  "badSpreadsheet": {
+                    "value": {
+                      "data_error": "Spreadsheet does not match required structure"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A duplicate applicant was found.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "User named Alice Uwimana is already registered for this job"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
                 "example": {
                   "server_error": "Internal server error"
                 }
@@ -402,21 +633,633 @@
         }
       }
     },
-    "/register-candidates": {
+    "/ask": {
       "post": {
-        "summary": "Candidates registration",
-        "description": "Allows users to enroll or register applicants for a specific job",
+        "tags": [
+          "AI Screening"
+        ],
+        "summary": "Generate screening results for a job",
+        "description": "Builds an AI prompt from the matching job and applicants, then stores the generated screening result.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/AskGeminiRequest"
               },
-              "properties": {
-                "raw_application-data": { "type": "string" }
+              "example": {
+                "jobTitle": "Full Stack Developer"
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Screening result generated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskGeminiResponse"
+                },
+                "example": {
+                  "success": {
+                    "job_title": "Full Stack Developer",
+                    "result_verdict": "Top candidates shortlisted based on overall performance and relevance",
+                    "applicants_details": [
+                      {
+                        "applicant_id": "APP-001",
+                        "applicant_name": "Alice Uwimana",
+                        "applicant_marks": 87.5,
+                        "applicant_specification_relevance": {
+                          "skills_relevance": 90,
+                          "education_relevance": 85
+                        },
+                        "applicant_result_description": "Strong in both frontend and backend technologies. Demonstrated solid understanding of system design and APIs."
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The requested job could not be found in an active state.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "Could not find an active job that matches what is specified"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No applicants were found for the requested job.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "No active applicants for the job Full Stack Developer yet"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/complete-job": {
+      "post": {
+        "tags": [
+          "AI Screening"
+        ],
+        "summary": "Create a job and generate its example form",
+        "description": "Creates a job record, asks Gemini for an example candidate form, and stores the generated example on the job.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteJobRequest"
+              },
+              "example": {
+                "reqBody": {
+                  "job_title": "Full Stack Developer",
+                  "job_department": "Engineering",
+                  "job_location": "Kigali",
+                  "job_employment_type": "Full-time",
+                  "job_salary_min": 1200,
+                  "job_salary_max": 2200,
+                  "job_experience_required": "3+ years",
+                  "job_ai_criteria": [
+                    {
+                      "criteria_string": "Core requirements",
+                      "description": "Strong React, Node.js, and SQL skills",
+                      "priority": "High"
+                    },
+                    {
+                      "criteria_string": "Nice to have",
+                      "description": "Cloud deployment experience",
+                      "priority": "Medium"
+                    }
+                  ],
+                  "workers_required": 1,
+                  "job_state": "Active"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Job created and example form generated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompleteJobResponse"
+                },
+                "example": {
+                  "success": "Job created successfully",
+                  "job": {
+                    "job_title": "Full Stack Developer",
+                    "job_department": "Engineering",
+                    "job_location": "Kigali",
+                    "job_employment_type": "Full-time",
+                    "job_salary_min": 1200,
+                    "job_salary_max": 2200,
+                    "job_experience_required": "3+ years",
+                    "job_ai_criteria": [
+                      {
+                        "criteria_string": "Core requirements",
+                        "description": "Strong React, Node.js, and SQL skills",
+                        "priority": "High"
+                      }
+                    ],
+                    "workers_required": 1,
+                    "job_state": "Uninitialised",
+                    "job_example_form": {
+                      "SKILLS": [
+                        "React",
+                        "Node.js",
+                        "SQL"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request body does not contain a valid `reqBody` object.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "Incorrect job structure"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A job with the same title already exists.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Job already registered"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "referenceTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "reference_token"
+      },
+      "resetTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "reset_token"
+      }
+    },
+    "schemas": {
+      "SignUpRequest": {
+        "type": "object",
+        "required": [
+          "user_name",
+          "user_email",
+          "user_pass",
+          "user_pass_conf"
+        ],
+        "properties": {
+          "user_name": {
+            "type": "string",
+            "minLength": 3
+          },
+          "user_email": {
+            "type": "string",
+            "format": "email"
+          },
+          "user_pass": {
+            "type": "string",
+            "format": "password",
+            "description": "Must contain uppercase, lowercase, number, and special character."
+          },
+          "user_pass_conf": {
+            "type": "string",
+            "format": "password",
+            "description": "Must match `user_pass`."
+          }
+        }
+      },
+      "SignUpResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "token"
+        ],
+        "properties": {
+          "success": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "description": "Development OTP token returned by the current backend implementation."
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "user_email",
+          "user_pass"
+        ],
+        "properties": {
+          "user_email": {
+            "type": "string",
+            "format": "email"
+          },
+          "user_pass": {
+            "type": "string",
+            "format": "password"
+          }
+        }
+      },
+      "ForgotPasswordRequest": {
+        "type": "object",
+        "required": [
+          "user_email"
+        ],
+        "properties": {
+          "user_email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "TokenRequest": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "ResetPasswordRequest": {
+        "type": "object",
+        "required": [
+          "user_pass",
+          "user_pass_conf"
+        ],
+        "properties": {
+          "user_pass": {
+            "type": "string",
+            "format": "password"
+          },
+          "user_pass_conf": {
+            "type": "string",
+            "format": "password"
+          }
+        }
+      },
+      "ApplicantInput": {
+        "type": "object",
+        "required": [
+          "applicant_name",
+          "job_title"
+        ],
+        "properties": {
+          "applicant_name": {
+            "type": "string"
+          },
+          "job_title": {
+            "type": "string"
+          }
+        }
+      },
+      "CandidateJsonRegistrationRequest": {
+        "type": "object",
+        "required": [
+          "raw_application_data"
+        ],
+        "properties": {
+          "raw_application_data": {
+            "type": "string",
+            "description": "A JSON-stringified array of applicant objects."
+          }
+        }
+      },
+      "CandidateMultipartRegistrationRequest": {
+        "type": "object",
+        "required": [
+          "applicant_spreadsheet",
+          "pdf_resume_zip"
+        ],
+        "properties": {
+          "applicant_spreadsheet": {
+            "type": "string",
+            "format": "binary",
+            "description": "CSV or XLSX spreadsheet containing applicant rows."
+          },
+          "pdf_resume_zip": {
+            "type": "string",
+            "format": "binary",
+            "description": "ZIP archive containing applicant resumes as PDFs."
+          }
+        }
+      },
+      "ApplicantRecord": {
+        "type": "object",
+        "properties": {
+          "applicant_name": {
+            "type": "string"
+          },
+          "job_title": {
+            "type": "string"
+          },
+          "skills": {
+            "type": "string"
+          },
+          "education": {
+            "type": "string"
+          },
+          "experience": {
+            "type": "number"
+          },
+          "additional_info": {
+            "type": "string"
+          },
+          "shortlisted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "JobCriteria": {
+        "type": "object",
+        "required": [
+          "criteria_string",
+          "description",
+          "priority"
+        ],
+        "properties": {
+          "criteria_string": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "required": [
+          "job_title",
+          "job_department",
+          "job_location",
+          "job_employment_type",
+          "job_experience_required",
+          "job_ai_criteria",
+          "workers_required"
+        ],
+        "properties": {
+          "job_title": {
+            "type": "string"
+          },
+          "job_department": {
+            "type": "string"
+          },
+          "job_location": {
+            "type": "string"
+          },
+          "job_employment_type": {
+            "type": "string"
+          },
+          "job_salary_min": {
+            "type": "number"
+          },
+          "job_salary_max": {
+            "type": "number"
+          },
+          "job_experience_required": {
+            "type": "string"
+          },
+          "job_ai_criteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobCriteria"
+            }
+          },
+          "workers_required": {
+            "type": "number"
+          },
+          "job_state": {
+            "type": "string",
+            "default": "Uninitialised"
+          },
+          "job_example_form": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "AskGeminiRequest": {
+        "type": "object",
+        "required": [
+          "jobTitle"
+        ],
+        "properties": {
+          "jobTitle": {
+            "type": "string"
+          }
+        }
+      },
+      "ScreeningRelevance": {
+        "type": "object",
+        "required": [
+          "skills_relevance",
+          "education_relevance"
+        ],
+        "properties": {
+          "skills_relevance": {
+            "type": "number"
+          },
+          "education_relevance": {
+            "type": "number"
+          }
+        }
+      },
+      "ScreeningApplicantResult": {
+        "type": "object",
+        "required": [
+          "applicant_id",
+          "applicant_name",
+          "applicant_marks",
+          "applicant_specification_relevance",
+          "applicant_result_description"
+        ],
+        "properties": {
+          "applicant_id": {
+            "type": "string"
+          },
+          "applicant_name": {
+            "type": "string"
+          },
+          "applicant_marks": {
+            "type": "number"
+          },
+          "applicant_specification_relevance": {
+            "$ref": "#/components/schemas/ScreeningRelevance"
+          },
+          "applicant_result_description": {
+            "type": "string"
+          }
+        }
+      },
+      "ScreeningResult": {
+        "type": "object",
+        "required": [
+          "job_title",
+          "applicants_details",
+          "result_verdict"
+        ],
+        "properties": {
+          "job_title": {
+            "type": "string"
+          },
+          "applicants_details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreeningApplicantResult"
+            }
+          },
+          "result_verdict": {
+            "type": "string"
+          }
+        }
+      },
+      "AskGeminiResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "$ref": "#/components/schemas/ScreeningResult"
+          }
+        }
+      },
+      "CompleteJobInner": {
+        "type": "object",
+        "required": [
+          "job_title",
+          "job_department",
+          "job_location",
+          "job_employment_type",
+          "job_experience_required",
+          "job_ai_criteria",
+          "workers_required"
+        ],
+        "properties": {
+          "job_title": {
+            "type": "string"
+          },
+          "job_department": {
+            "type": "string"
+          },
+          "job_location": {
+            "type": "string"
+          },
+          "job_employment_type": {
+            "type": "string"
+          },
+          "job_salary_min": {
+            "type": "number"
+          },
+          "job_salary_max": {
+            "type": "number"
+          },
+          "job_experience_required": {
+            "type": "string"
+          },
+          "job_ai_criteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobCriteria"
+            }
+          },
+          "workers_required": {
+            "type": "number"
+          },
+          "job_state": {
+            "type": "string"
+          },
+          "job_description": {
+            "type": "string",
+            "description": "Optional frontend-sent field; not currently defined in the mongoose model."
+          },
+          "job_responsibilities": {
+            "type": "string",
+            "description": "Optional frontend-sent field; not currently defined in the mongoose model."
+          },
+          "job_qualifications": {
+            "type": "string",
+            "description": "Optional frontend-sent field; not currently defined in the mongoose model."
+          },
+          "job_shortlist_size": {
+            "type": "number",
+            "description": "Optional frontend-sent field; not currently defined in the mongoose model."
+          }
+        }
+      },
+      "CompleteJobRequest": {
+        "type": "object",
+        "required": [
+          "reqBody"
+        ],
+        "properties": {
+          "reqBody": {
+            "$ref": "#/components/schemas/CompleteJobInner"
+          }
+        }
+      },
+      "CompleteJobResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "string"
+          },
+          "job": {
+            "$ref": "#/components/schemas/Job"
           }
         }
       }

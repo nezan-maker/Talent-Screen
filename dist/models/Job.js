@@ -49,6 +49,9 @@ const jobSchema = new mongoose.Schema({
         type: String,
         default: "Uninitialised",
     },
+    job_example_form: {
+        type: Object,
+    },
 });
 const Job = mongoose.model("Job", jobSchema);
 export default Job;

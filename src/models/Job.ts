@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+
 const ai_criteria = new mongoose.Schema({
   criteria_string: {
     type: String,
@@ -48,6 +49,9 @@ const jobSchema = new mongoose.Schema({
   job_state: {
     type: String,
     default: "Uninitialised",
+  },
+  job_example_form: {
+    type: Object,
   },
 });
 const Job = mongoose.model("Job", jobSchema);

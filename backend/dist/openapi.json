@@ -35,14 +35,56 @@
     {
       "name": "Notifications",
       "description": "Candidate communications and shortlist email delivery."
+    },
+    {
+      "name": "Meta",
+      "description": "Machine-readable API metadata and interactive documentation."
     }
   ],
   "paths": {
+    "/openapi.json": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Fetch the OpenAPI document",
+        "description": "Serves the machine-readable OpenAPI specification file from the backend runtime directory.",
+        "responses": {
+          "200": {
+            "description": "OpenAPI JSON returned successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenApiDocument"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Open the interactive API docs",
+        "description": "Serves the Scalar API reference UI configured against `/openapi.json`. The mounted middleware may also serve supporting assets under this path.",
+        "responses": {
+          "200": {
+            "description": "HTML documentation UI.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/signup": {
       "post": {
         "tags": ["Auth"],
         "summary": "Create an account",
-        "description": "Registers a new WiseRank user and sets a short-lived `reference_token` cookie used by `/auth/confirm`.",
+        "description": "Registers a new WiseRank user from `reqBody`, sends the signup OTP email, and sets the `signup_reference_token` cookie used by `/auth/confirm` and `/auth/confirm_link/{confirmation_link_id}`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -51,10 +93,13 @@
                 "$ref": "#/components/schemas/SignUpRequest"
               },
               "example": {
-                "user_name": "Alice Uwimana",
-                "user_email": "alice@example.com",
-                "user_pass": "SecurePass1!",
-                "user_pass_conf": "SecurePass1!"
+                "reqBody": {
+                  "user_name": "Alice Uwimana",
+                  "user_email": "alice@example.com",
+                  "company_name": "WiseRank",
+                  "user_pass": "SecurePass1!",
+                  "user_pass_conf": "SecurePass1!"
+                }
               }
             }
           }
@@ -64,7 +109,7 @@
             "description": "Account created successfully.",
             "headers": {
               "Set-Cookie": {
-                "description": "Sets the `reference_token` cookie for email confirmation.",
+                "description": "Sets the `signup_reference_token` cookie for email confirmation.",
                 "schema": {
                   "type": "string"
                 }
@@ -127,10 +172,10 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Confirm a newly created account",
-        "description": "Validates the OTP sent during signup. Requires the `reference_token` cookie created by `/auth/signup`.",
+        "description": "Validates the OTP sent during signup. Requires the `signup_reference_token` cookie created by `/auth/signup`.",
         "security": [
           {
-            "referenceTokenCookie": []
+            "signupReferenceTokenCookie": []
           }
         ],
         "requestBody": {
@@ -166,11 +211,20 @@
             }
           },
           "401": {
-            "description": "The OTP is invalid.",
+            "description": "The OTP is invalid or the signup handler cookie is missing/expired.",
             "content": {
               "application/json": {
-                "example": {
-                  "auth_error": "Invalid one time password entered"
+                "examples": {
+                  "invalidOtp": {
+                    "value": {
+                      "auth_error": "Invalid one time password entered"
+                    }
+                  },
+                  "expiredCookie": {
+                    "value": {
+                      "expired_error": "Required cookie corrupted or expired"
+                    }
+                  }
                 }
               }
             }
@@ -192,7 +246,12 @@
       "get": {
         "tags": ["Auth"],
         "summary": "Confirm an account from the emailed link",
-        "description": "Marks the matching user as verified, sends the welcome email, and sets the `access_token` cookie. If no user matches the provided link id, the current controller does not return an explicit not-found response.",
+        "description": "Attempts to confirm an account from the emailed confirmation link. The current handler also requires the `signup_reference_token` cookie and compares the path id against the JWT payload's `user_id` before looking up `confirmation_link_id`, so otherwise valid links can still be rejected.",
+        "security": [
+          {
+            "signupReferenceTokenCookie": []
+          }
+        ],
         "parameters": [
           {
             "name": "confirmation_link_id",
@@ -233,6 +292,25 @@
               }
             }
           },
+          "401": {
+            "description": "The signup handler cookie was missing/expired, or the link id did not match the current handler dependency check.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "expiredHandler": {
+                    "value": {
+                      "expired_error": "Required handler expired"
+                    }
+                  },
+                  "dependencyMismatch": {
+                    "value": {
+                      "data_error": "Required handler dependencies expired or missing"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error.",
             "content": {
@@ -250,7 +328,7 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Log in",
-        "description": "Validates credentials for a verified user. The current controller checks the credentials but does not yet set cookies or return an explicit success payload after a valid login.",
+        "description": "Validates credentials for a verified user from `reqBody`. The current handler returns a success payload but does not set an `access_token` cookie.",
         "requestBody": {
           "required": true,
           "content": {
@@ -259,22 +337,41 @@
                 "$ref": "#/components/schemas/LoginRequest"
               },
               "example": {
-                "user_email": "alice@example.com",
-                "user_pass": "SecurePass1!"
+                "reqBody": {
+                  "user_email": "alice@example.com",
+                  "user_pass": "SecurePass1!",
+                  "user_pass_conf": "SecurePass1!"
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Credentials were accepted. The current implementation does not return a response body on the happy path."
-          },
-          "400": {
-            "description": "Input validation failed.",
+            "description": "Credentials were accepted.",
             "content": {
               "application/json": {
                 "example": {
-                  "input_error": "Input requirements not fulfilled"
+                  "success": "Login successful"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input validation failed or the password confirmation did not match.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "validationError": {
+                    "value": {
+                      "input_error": "Input requirements not fulfilled"
+                    }
+                  },
+                  "passwordMismatch": {
+                    "value": {
+                      "input_error": "Passwords must be the same"
+                    }
+                  }
                 }
               }
             }
@@ -325,7 +422,7 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Start password recovery",
-        "description": "Looks up a user by email, creates a password-reset OTP, and sets a temporary `reference_token` cookie used by `/auth/verify`.",
+        "description": "Looks up a user by email from `reqBody`, creates a password-reset OTP, and sets the `recovery_reference_token` cookie used by `/auth/verify`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -334,7 +431,9 @@
                 "$ref": "#/components/schemas/ForgotPasswordRequest"
               },
               "example": {
-                "user_email": "alice@example.com"
+                "reqBody": {
+                  "user_email": "alice@example.com"
+                }
               }
             }
           }
@@ -344,7 +443,7 @@
             "description": "Reset flow started successfully.",
             "headers": {
               "Set-Cookie": {
-                "description": "Sets the `reference_token` cookie for OTP verification.",
+                "description": "Sets the `recovery_reference_token` cookie for OTP verification.",
                 "schema": {
                   "type": "string"
                 }
@@ -353,7 +452,7 @@
             "content": {
               "application/json": {
                 "example": {
-                  "success": "OTP token sent"
+                  "success": "Password token for verification generated successfully"
                 }
               }
             }
@@ -399,10 +498,10 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Verify password-reset OTP",
-        "description": "Checks the recovery OTP sent during `/auth/forgot`. Requires the `reference_token` cookie from that step.",
+        "description": "Checks the recovery OTP sent during `/auth/forgot`. The current handler expects a nested payload shaped like `{ \"token\": { \"token\": \"123456\" } }` and reads the `recovery_reference_token` cookie. It also looks for `payload.id` even though `/auth/forgot` signs `user_id`, so valid recovery cookies can still fail with internal errors.",
         "security": [
           {
-            "referenceTokenCookie": []
+            "recoveryReferenceTokenCookie": []
           }
         ],
         "requestBody": {
@@ -410,10 +509,12 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TokenRequest"
+                "$ref": "#/components/schemas/VerifyCodeRequest"
               },
               "example": {
-                "token": "431928"
+                "token": {
+                  "token": "431928"
+                }
               }
             }
           }
@@ -423,7 +524,7 @@
             "description": "OTP verified successfully.",
             "headers": {
               "Set-Cookie": {
-                "description": "Sets the `reset_token` cookie used by `/auth/reset`.",
+                "description": "Sets the `reset_token` cookie. Note that `/auth/reset` currently reads `reset_reference_token` instead.",
                 "schema": {
                   "type": "string"
                 }
@@ -438,7 +539,7 @@
             }
           },
           "401": {
-            "description": "The OTP is invalid or the request is malformed.",
+            "description": "The OTP is invalid, the request shape failed validation, or the handler fell into its catch-all error branch.",
             "content": {
               "application/json": {
                 "examples": {
@@ -450,6 +551,11 @@
                   "validationError": {
                     "value": {
                       "input_error": "Input requirements not fulfilled"
+                    }
+                  },
+                  "catchAllError": {
+                    "value": {
+                      "server_error": "Internal server error"
                     }
                   }
                 }
@@ -473,10 +579,10 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Reset a password",
-        "description": "Sets a new password after `/auth/verify`. Requires the `reset_token` cookie.",
+        "description": "Attempts to set a new password from `reqBody`. The current handler reads `reset_reference_token`, while `/auth/verify` sets `reset_token`, so the documented recovery flow has a cookie-name mismatch.",
         "security": [
           {
-            "resetTokenCookie": []
+            "resetReferenceTokenCookie": []
           }
         ],
         "requestBody": {
@@ -487,13 +593,25 @@
                 "$ref": "#/components/schemas/ResetPasswordRequest"
               },
               "example": {
-                "user_pass": "NewSecurePass1!",
-                "user_pass_conf": "NewSecurePass1!"
+                "reqBody": {
+                  "user_pass": "NewSecurePass1!",
+                  "user_pass_conf": "NewSecurePass1!"
+                }
               }
             }
           }
         },
         "responses": {
+          "200": {
+            "description": "The reset flow cookie was missing, so the handler reported an expired flow without changing the password.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "expiration_error": "Reset password handlers expired try again later"
+                }
+              }
+            }
+          },
           "201": {
             "description": "Password reset succeeded.",
             "content": {
@@ -505,7 +623,7 @@
             }
           },
           "401": {
-            "description": "Password confirmation failed or the reset flow is invalid.",
+            "description": "Password confirmation failed, validation failed, or the handler entered its catch-all error path.",
             "content": {
               "application/json": {
                 "examples": {
@@ -514,14 +632,14 @@
                       "input_error": "Passwords must be the same"
                     }
                   },
-                  "expiredFlow": {
-                    "value": {
-                      "expiration_error": "Reset password handlers expired try again later"
-                    }
-                  },
                   "validationError": {
                     "value": {
                       "input_error": "Input requirements not fulfilled"
+                    }
+                  },
+                  "catchAllError": {
+                    "value": {
+                      "server_error": "Internal server error"
                     }
                   }
                 }
@@ -529,7 +647,7 @@
             }
           },
           "500": {
-            "description": "Internal server error.",
+            "description": "Internal server error before the catch-all branch handled the failure.",
             "content": {
               "application/json": {
                 "example": {
@@ -545,7 +663,7 @@
       "get": {
         "tags": ["Dashboard"],
         "summary": "Fetch dashboard data",
-        "description": "Returns dashboard data as a JSON-stringified array in the order `[applicants, jobs]`.",
+        "description": "Returns dashboard data as `{ success: \"<stringified JSON>\" }`, where the stringified value is an array in the order `[applicants, jobs]`.",
         "security": [
           {
             "accessTokenCookie": []
@@ -557,10 +675,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string",
-                  "description": "Stringified JSON containing an array with applicants at index 0 and jobs at index 1."
+                  "$ref": "#/components/schemas/DashboardResponse"
                 },
-                "example": "[[{\"applicant_name\":\"John Doe\",\"job_title\":\"Junior Fullstack Developer\",\"skills\":\"Node.js, React\",\"education\":\"BSc Computer Science\",\"experience\":2,\"additional_info\":\"Immediate starter\",\"shortlisted\":false}],[{\"job_title\":\"Junior Fullstack Developer\",\"job_department\":\"Engineering\",\"job_location\":\"Kigali\",\"job_employment_type\":\"Full-time\",\"job_salary_min\":500,\"job_salary_max\":900,\"job_experience_required\":\"2 years\",\"job_description\":[{\"criteria_string\":\"Core requirements\",\"description\":\"Frontend and backend fundamentals\",\"priority\":\"High\"}],\"job_responsibilities\":\"Build and maintain product features.\",\"job_qualifications\":\"Solid React and Node.js fundamentals.\",\"workers_required\":1,\"job_state\":\"Uninitialised\"}]]"
+                "example": {
+                  "success": "[[{\"applicant_name\":\"John Doe\",\"job_title\":\"Junior Fullstack Developer\",\"shortlisted\":false}],[{\"job_title\":\"Junior Fullstack Developer\",\"job_department\":\"Engineering\",\"job_location\":\"Kigali\",\"job_employment_type\":\"Full-time\",\"job_salary_min\":500,\"job_salary_max\":900,\"job_experience_required\":\"2 years\",\"job_description\":[{\"criteria_string\":\"Core requirements\",\"description\":\"Frontend and backend fundamentals\",\"priority\":\"High\"}],\"job_responsibilities\":\"Build and maintain product features.\",\"job_qualifications\":\"Solid React and Node.js fundamentals.\",\"workers_required\":1,\"job_state\":\"Uninitialised\"}]]"
+                }
               }
             }
           },
@@ -610,7 +729,7 @@
       "post": {
         "tags": ["Candidates"],
         "summary": "Register candidates",
-        "description": "Registers candidates either from JSON data or by uploading a spreadsheet together with a ZIP of PDF resumes. This route requires the `access_token` cookie. The JSON flow expects `raw_application_data` as a stringified JSON array. The multipart flow expects `applicants_spreadsheet` and `resume_pdf_zip`. The current JSON branch returns a nonstandard `401` even when registration succeeds.",
+        "description": "Registers candidates either from JSON data or by uploading a spreadsheet together with a ZIP of PDF resumes. This route requires the `access_token` cookie. The JSON flow expects `raw_application_data` as a stringified JSON array. The multipart flow expects `applicants_spreadsheet` and `resume_pdf_zip`. The Multer middleware currently allows XLSX/ZIP MIME types, even though the controller still contains CSV parsing logic.",
         "security": [
           {
             "accessTokenCookie": []
@@ -635,12 +754,21 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Candidates were processed successfully through the spreadsheet upload flow.",
+          "201": {
+            "description": "Candidates were processed successfully.",
             "content": {
               "application/json": {
-                "example": {
-                  "success": "Applicants successfully registered from spreadsheet file"
+                "examples": {
+                  "jsonRegistration": {
+                    "value": {
+                      "success": "Applicant successfully registered"
+                    }
+                  },
+                  "spreadsheetUpload": {
+                    "value": {
+                      "success": "Applicants successfully registered from spreadsheet file"
+                    }
+                  }
                 }
               }
             }
@@ -675,7 +803,7 @@
             }
           },
           "401": {
-            "description": "The request is unauthenticated, a duplicate applicant was found, or the JSON registration flow completed with the controller's current nonstandard status code.",
+            "description": "The request is unauthenticated or a duplicate applicant was found.",
             "content": {
               "application/json": {
                 "examples": {
@@ -687,11 +815,6 @@
                   "duplicateApplicant": {
                     "value": {
                       "data_error": "User named Alice Uwimana is already registered for this job"
-                    }
-                  },
-                  "jsonRegistrationSuccess": {
-                    "value": {
-                      "success": "Applicant successfully registered"
                     }
                   }
                 }
@@ -725,7 +848,7 @@
       "post": {
         "tags": ["AI Screening"],
         "summary": "Generate screening results for a job",
-        "description": "Builds an AI prompt from the matching job and applicants, then stores the generated screening result.",
+        "description": "Builds an AI prompt from the matching job and applicants, then stores the generated screening result. The current handler does not await `Applicant.find(...)` or `askGemini(...)` before constructing the `Result` document, so the returned `success` payload reflects the raw document instance created by that code path.",
         "security": [
           {
             "accessTokenCookie": []
@@ -784,20 +907,11 @@
             }
           },
           "404": {
-            "description": "No applicants were found for the requested job, or the authenticated user could not be resolved from the access token.",
+            "description": "The authenticated user could not be resolved from the access token.",
             "content": {
               "application/json": {
-                "examples": {
-                  "noApplicants": {
-                    "value": {
-                      "data_error": "No active applicants for the job Full Stack Developer yet"
-                    }
-                  },
-                  "missingUser": {
-                    "value": {
-                      "data_error": "User could not be found.Token corrupted or expired"
-                    }
-                  }
+                "example": {
+                  "data_error": "User could not be found.Token corrupted or expired"
                 }
               }
             }
@@ -829,11 +943,11 @@
       "post": {
         "tags": ["AI Screening"],
         "summary": "Create a job and generate its example form",
-        "description": "Creates a job record, asks Gemini for an example candidate form, and stores the generated example on the job. The route is protected by `access_token`, and the current controller also reads `reference_token` to resolve the user that owns the new job.",
+        "description": "Creates a job record, asks Gemini for an example candidate form, and stores the generated example on the job. The route is protected by `access_token`, and the current controller also reads a legacy `reference_token` cookie to resolve the user that owns the new job.",
         "security": [
           {
             "accessTokenCookie": [],
-            "referenceTokenCookie": []
+            "legacyReferenceTokenCookie": []
           }
         ],
         "requestBody": {
@@ -943,7 +1057,7 @@
       "post": {
         "tags": ["AI Screening"],
         "summary": "Apply shortlist decisions",
-        "description": "Updates applicants after manual or AI review by parsing `verdict_string`, a JSON-stringified array of verdict objects. This route requires the `access_token` cookie. The current controller updates matching applicants but does not yet send an explicit success payload.",
+        "description": "Updates applicants after manual or AI review by parsing `verdict_string`, a JSON-stringified array of verdict objects. This route requires the `access_token` cookie. The current controller updates matching applicants but does not terminate the success response with a payload.",
         "security": [
           {
             "accessTokenCookie": []
@@ -964,10 +1078,10 @@
         },
         "responses": {
           "200": {
-            "description": "Shortlist decisions were applied. The current controller does not send an explicit success body."
+            "description": "Intended success state. The current controller does not send an explicit success body."
           },
           "400": {
-            "description": "The verdict payload is missing or invalid.",
+            "description": "The parsed verdict payload was empty or null.",
             "content": {
               "application/json": {
                 "example": {
@@ -1013,7 +1127,7 @@
       "post": {
         "tags": ["Notifications"],
         "summary": "Send shortlist emails",
-        "description": "Looks up shortlisted applicants for the specified job and sends the shortlist email template to each applicant. This route requires the `access_token` cookie. The current controller does not return an explicit success payload after sending messages.",
+        "description": "Looks up shortlisted applicants for the specified job and sends the shortlist email template to each applicant. This route requires the `access_token` cookie. The current controller does not explicitly finish the HTTP response on the happy path, so clients may observe a hanging request even after emails are dispatched.",
         "security": [
           {
             "accessTokenCookie": []
@@ -1034,23 +1148,14 @@
         },
         "responses": {
           "200": {
-            "description": "Emails were sent or queued. The current controller does not send a success body."
+            "description": "Intended success state. The current controller does not send a success body or explicitly end the response."
           },
           "400": {
-            "description": "The job title was missing, or the controller concluded there were no shortlisted applicants.",
+            "description": "The job title was missing.",
             "content": {
               "application/json": {
-                "examples": {
-                  "missingJobTitle": {
-                    "value": {
-                      "data_error": "No job name provided"
-                    }
-                  },
-                  "noShortlistedApplicants": {
-                    "value": {
-                      "data_error": "No shortlisted appplicants for this job yet "
-                    }
-                  }
+                "example": {
+                  "data_error": "No job name provided"
                 }
               }
             }
@@ -1094,23 +1199,58 @@
       "accessTokenCookie": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "access_token"
+        "name": "access_token",
+        "description": "Session cookie required by middleware-protected routes. The current middleware resolves users from an `email` claim, while the confirm handlers sign `userId`, so some issued cookies can still fail authorization."
       },
-      "referenceTokenCookie": {
+      "signupReferenceTokenCookie": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "reference_token"
+        "name": "signup_reference_token",
+        "description": "Signup confirmation cookie set by `/auth/signup` and consumed by `/auth/confirm` and `/auth/confirm_link/{confirmation_link_id}`."
+      },
+      "recoveryReferenceTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "recovery_reference_token",
+        "description": "Password-recovery cookie set by `/auth/forgot` and consumed by `/auth/verify`."
       },
       "resetTokenCookie": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "reset_token"
+        "name": "reset_token",
+        "description": "Cookie currently set by `/auth/verify` after OTP verification."
+      },
+      "resetReferenceTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "reset_reference_token",
+        "description": "Cookie currently read by `/auth/reset`. Note that `/auth/verify` sets `reset_token`, not `reset_reference_token`."
+      },
+      "legacyReferenceTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "reference_token",
+        "description": "Legacy cookie name still read by `/complete-job`. The current auth handlers do not issue this cookie."
       }
     },
     "schemas": {
-      "SignUpRequest": {
+      "OpenApiDocument": {
         "type": "object",
-        "required": ["user_name", "user_email", "user_pass", "user_pass_conf"],
+        "additionalProperties": true
+      },
+      "DashboardResponse": {
+        "type": "object",
+        "required": ["success"],
+        "properties": {
+          "success": {
+            "type": "string",
+            "description": "Stringified JSON containing an array with applicants at index 0 and jobs at index 1."
+          }
+        }
+      },
+      "SignUpPayload": {
+        "type": "object",
+        "required": ["user_name", "user_email", "company_name", "user_pass", "user_pass_conf"],
         "properties": {
           "user_name": {
             "type": "string",
@@ -1119,6 +1259,9 @@
           "user_email": {
             "type": "string",
             "format": "email"
+          },
+          "company_name": {
+            "type": "string"
           },
           "user_pass": {
             "type": "string",
@@ -1132,6 +1275,15 @@
           }
         }
       },
+      "SignUpRequest": {
+        "type": "object",
+        "required": ["reqBody"],
+        "properties": {
+          "reqBody": {
+            "$ref": "#/components/schemas/SignUpPayload"
+          }
+        }
+      },
       "SignUpResponse": {
         "type": "object",
         "required": ["success"],
@@ -1141,9 +1293,9 @@
           }
         }
       },
-      "LoginRequest": {
+      "LoginPayload": {
         "type": "object",
-        "required": ["user_email", "user_pass"],
+        "required": ["user_email", "user_pass", "user_pass_conf"],
         "properties": {
           "user_email": {
             "type": "string",
@@ -1152,10 +1304,23 @@
           "user_pass": {
             "type": "string",
             "format": "password"
+          },
+          "user_pass_conf": {
+            "type": "string",
+            "format": "password"
           }
         }
       },
-      "ForgotPasswordRequest": {
+      "LoginRequest": {
+        "type": "object",
+        "required": ["reqBody"],
+        "properties": {
+          "reqBody": {
+            "$ref": "#/components/schemas/LoginPayload"
+          }
+        }
+      },
+      "ForgotPasswordPayload": {
         "type": "object",
         "required": ["user_email"],
         "properties": {
@@ -1165,16 +1330,45 @@
           }
         }
       },
+      "ForgotPasswordRequest": {
+        "type": "object",
+        "required": ["reqBody"],
+        "properties": {
+          "reqBody": {
+            "$ref": "#/components/schemas/ForgotPasswordPayload"
+          }
+        }
+      },
       "TokenRequest": {
         "type": "object",
         "required": ["token"],
         "properties": {
           "token": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[0-9]{0,6}$"
           }
         }
       },
-      "ResetPasswordRequest": {
+      "VerifyCodeToken": {
+        "type": "object",
+        "required": ["token"],
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[0-9]{0,6}$"
+          }
+        }
+      },
+      "VerifyCodeRequest": {
+        "type": "object",
+        "required": ["token"],
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/VerifyCodeToken"
+          }
+        }
+      },
+      "ResetPasswordPayload": {
         "type": "object",
         "required": ["user_pass", "user_pass_conf"],
         "properties": {
@@ -1185,6 +1379,48 @@
           "user_pass_conf": {
             "type": "string",
             "format": "password"
+          }
+        }
+      },
+      "ResetPasswordRequest": {
+        "type": "object",
+        "required": ["reqBody"],
+        "properties": {
+          "reqBody": {
+            "$ref": "#/components/schemas/ResetPasswordPayload"
+          }
+        }
+      },
+      "UserRecord": {
+        "type": "object",
+        "properties": {
+          "user_name": {
+            "type": "string"
+          },
+          "company_name": {
+            "type": "string"
+          },
+          "user_email": {
+            "type": "string",
+            "format": "email"
+          },
+          "isVerified": {
+            "type": "boolean"
+          },
+          "pass_token": {
+            "type": "string",
+            "nullable": true
+          },
+          "sign_otp_token": {
+            "type": "string",
+            "nullable": true
+          },
+          "refresh_token": {
+            "type": "string",
+            "nullable": true
+          },
+          "confirmation_link_id": {
+            "type": "string"
           }
         }
       },
@@ -1221,7 +1457,7 @@
           "applicants_spreadsheet": {
             "type": "string",
             "format": "binary",
-            "description": "Spreadsheet upload consumed by the Multer `upload.fields` declaration."
+            "description": "Spreadsheet upload consumed by the Multer `upload.fields` declaration. The route middleware currently only accepts the XLSX MIME type."
           },
           "resume_pdf_zip": {
             "type": "string",
@@ -1233,6 +1469,9 @@
       "ApplicantRecord": {
         "type": "object",
         "properties": {
+          "_id": {
+            "type": "string"
+          },
           "applicant_name": {
             "type": "string"
           },
@@ -1257,6 +1496,22 @@
           },
           "shortlisted": {
             "type": "boolean"
+          }
+        }
+      },
+      "ResumeRecord": {
+        "type": "object",
+        "required": ["job_title", "applicant_id", "resume_pdf_url"],
+        "properties": {
+          "job_title": {
+            "type": "string"
+          },
+          "applicant_id": {
+            "type": "string"
+          },
+          "resume_pdf_url": {
+            "type": "string",
+            "format": "uri"
           }
         }
       },
@@ -1358,8 +1613,15 @@
             "default": "Uninitialised"
           },
           "job_example_form": {
-            "type": "object",
-            "additionalProperties": true
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "string"
+              }
+            ]
           }
         }
       },
@@ -1434,7 +1696,9 @@
         "required": ["success"],
         "properties": {
           "success": {
-            "$ref": "#/components/schemas/ScreeningResult"
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Raw Mongoose document instance returned by the current handler. The intended persisted shape follows `ScreeningResult`."
           }
         }
       },

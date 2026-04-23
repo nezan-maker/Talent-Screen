@@ -317,7 +317,7 @@ export const signUp = async (req: I_Request, res: Response) => {
       expiresIn: "10m",
     });
     res.cookie("reference_token", reference_token, {
-      maxAge: 10 * 60 * 1000,
+      maxAge: 60 * 60 * 1000,
       httpOnly: true,
     });
     res.status(201).json({ success: "Sign up successful" });

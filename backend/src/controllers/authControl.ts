@@ -2233,7 +2233,7 @@ export const verifyCode = async (req: I_Request, res: Response) => {
           algorithm: "HS256",
         },
       );
-      res.cookie("reset_token", reset_reference_token, {
+      res.cookie("reset_reference_token", reset_reference_token, {
         httpOnly: true,
         maxAge: 10 * 60 * 1000,
       });

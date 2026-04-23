@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-export type JobStatus = "Draft" | "Active" | "Screening" | "Complete";
+export type JobStatus = 'Draft' | 'Active' | 'Screening' | 'Complete';
 
 export interface Trend {
   label: string;
   value: string;
-  direction: "up" | "down" | "neutral";
+  direction: 'up' | 'down' | 'neutral';
 }
 
 export interface Job {
@@ -60,7 +60,7 @@ export interface Candidate {
   }>;
 }
 
-export type ScoreBucket = "qualified" | "maybe" | "notQualified";
+export type ScoreBucket = 'qualified' | 'maybe' | 'notQualified';
 
 export interface CandidateScore {
   candidateId: string;
@@ -74,6 +74,23 @@ export interface CandidateScore {
   strengths: string[];
   gaps: string[];
   screenedAtISO: string;
+}
+
+export interface ScreeningCandidateAnalysis {
+  candidateId?: string;
+  candidateName: string;
+  score: number;
+  skillsMatchPct: number;
+  educationPct: number;
+  reasoning: string;
+}
+
+export interface ScreeningAnalysis {
+  jobId: string;
+  jobTitle: string;
+  verdict: string;
+  generatedAtISO: string;
+  applicants: ScreeningCandidateAnalysis[];
 }
 
 export interface DashboardStats {
@@ -92,13 +109,20 @@ export interface UiState {
 export const trendSchema = z.object({
   label: z.string(),
   value: z.string(),
-  direction: z.enum(["up", "down", "neutral"]),
+  direction: z.enum(['up', 'down', 'neutral']),
 });
 
 export const dashboardStatsSchema = z.object({
   activeJobs: z.object({ value: z.number(), trend: trendSchema }),
   totalApplicants: z.object({ value: z.number(), trend: trendSchema }),
-  shortlisted: z.object({ value: z.number(), trend: trendSchema, conversionRatePct: z.number() }),
-  inScreening: z.object({ value: z.number(), trend: trendSchema, avgTimePerCandidateMins: z.number() }),
+  shortlisted: z.object({
+    value: z.number(),
+    trend: trendSchema,
+    conversionRatePct: z.number(),
+  }),
+  inScreening: z.object({
+    value: z.number(),
+    trend: trendSchema,
+    avgTimePerCandidateMins: z.number(),
+  }),
 });
-

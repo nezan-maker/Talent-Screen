@@ -1,37 +1,56 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
-import { ArrowLeft, Briefcase, Calendar, CheckCircle2, ExternalLink, Mail } from "lucide-react";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { SkillTag } from "@/components/ui/SkillTag";
-import { useCandidate } from "@/hooks/useCandidates";
-import { formatShortDate, initials } from "@/lib/utils";
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { motion } from 'framer-motion';
+import {
+  ArrowLeft,
+  Briefcase,
+  Calendar,
+  CheckCircle2,
+  ExternalLink,
+  Mail,
+} from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { ScoreCircle } from '@/components/ui/ScoreCircle';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { SkillTag } from '@/components/ui/SkillTag';
+import { useCandidate } from '@/hooks/useCandidates';
+import { findStoredCandidateScreening } from '@/lib/api';
+import { formatShortDate, initials } from '@/lib/utils';
 
-function CandidateMeta({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function CandidateMeta({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-card border border-border bg-bg p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-text-primary">{value}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        {label}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-text-primary">
+        {value}
+      </div>
     </div>
   );
 }
 
 export default function CandidateDetailPage() {
   const params = useParams<{ id: string }>();
-  const id = params?.id ?? "";
+  const id = params?.id ?? '';
   const { data: candidate, isLoading, error } = useCandidate(id);
+  const [screeningMatch, setScreeningMatch] =
+    useState<ReturnType<typeof findStoredCandidateScreening>>(null);
+
+  useEffect(() => {
+    if (!candidate) {
+      setScreeningMatch(null);
+      return;
+    }
+
+    setScreeningMatch(findStoredCandidateScreening(candidate));
+  }, [candidate]);
 
   if (isLoading) {
     return (
@@ -59,25 +78,28 @@ export default function CandidateDetailPage() {
     );
   }
 
-  const appliedRole = candidate.appliedJobTitle || candidate.currentTitle || "Candidate profile";
+  const appliedRole =
+    candidate.appliedJobTitle || candidate.currentTitle || 'Candidate profile';
   const contactLinks = [
     candidate.email
       ? {
           href: `mailto:${candidate.email}`,
-          label: "Email",
+          label: 'Email',
           icon: Mail,
         }
       : null,
     candidate.linkedIn
       ? {
-          href: candidate.linkedIn.startsWith("http")
+          href: candidate.linkedIn.startsWith('http')
             ? candidate.linkedIn
             : `https://${candidate.linkedIn}`,
-          label: "LinkedIn",
+          label: 'LinkedIn',
           icon: ExternalLink,
         }
       : null,
-  ].filter((item): item is { href: string; label: string; icon: typeof Mail } => Boolean(item));
+  ].filter((item): item is { href: string; label: string; icon: typeof Mail } =>
+    Boolean(item)
+  );
 
   return (
     <motion.div
@@ -113,9 +135,13 @@ export default function CandidateDetailPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-xl font-bold text-text-primary">{candidate.name}</div>
-                  <Badge variant={candidate.shortlisted ? "success" : "default"}>
-                    {candidate.shortlisted ? "Shortlisted" : "In review"}
+                  <div className="text-xl font-bold text-text-primary">
+                    {candidate.name}
+                  </div>
+                  <Badge
+                    variant={candidate.shortlisted ? 'success' : 'default'}
+                  >
+                    {candidate.shortlisted ? 'Shortlisted' : 'In review'}
                   </Badge>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-muted">
@@ -132,8 +158,12 @@ export default function CandidateDetailPage() {
                       <a
                         key={item.label}
                         href={item.href}
-                        target={item.label === "LinkedIn" ? "_blank" : undefined}
-                        rel={item.label === "LinkedIn" ? "noreferrer" : undefined}
+                        target={
+                          item.label === 'LinkedIn' ? '_blank' : undefined
+                        }
+                        rel={
+                          item.label === 'LinkedIn' ? 'noreferrer' : undefined
+                        }
                         className="inline-flex items-center gap-2 rounded-input border border-border bg-white px-3 py-2 text-sm text-text-muted transition-colors hover:bg-bg"
                       >
                         <item.icon className="h-4 w-4" />
@@ -143,7 +173,8 @@ export default function CandidateDetailPage() {
                   </div>
                 ) : (
                   <div className="mt-4 rounded-card border border-border bg-bg p-3 text-sm text-text-muted">
-                    This candidate record does not include direct contact links yet.
+                    This candidate record does not include direct contact links
+                    yet.
                   </div>
                 )}
               </div>
@@ -151,22 +182,37 @@ export default function CandidateDetailPage() {
 
             <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
               <CandidateMeta label="Applied Role" value={appliedRole} />
-              <CandidateMeta label="Experience" value={`${candidate.yearsExperience} years`} />
+              <CandidateMeta
+                label="Experience"
+                value={`${candidate.yearsExperience} years`}
+              />
               <CandidateMeta
                 label="Last Updated"
-                value={candidate.updatedAtISO ? formatShortDate(candidate.updatedAtISO) : "Not available"}
+                value={
+                  candidate.updatedAtISO
+                    ? formatShortDate(candidate.updatedAtISO)
+                    : 'Not available'
+                }
               />
             </div>
 
             <div className="mt-6">
-              <div className="text-sm font-semibold text-text-primary">Skills</div>
+              <div className="text-sm font-semibold text-text-primary">
+                Skills
+              </div>
               <div className="mt-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Technical</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                  Technical
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {candidate.skills.technical.length > 0 ? (
-                    candidate.skills.technical.map((skill) => <SkillTag key={skill}>{skill}</SkillTag>)
+                    candidate.skills.technical.map((skill) => (
+                      <SkillTag key={skill}>{skill}</SkillTag>
+                    ))
                   ) : (
-                    <div className="text-sm text-text-muted">No technical skills were captured yet.</div>
+                    <div className="text-sm text-text-muted">
+                      No technical skills were captured yet.
+                    </div>
                   )}
                 </div>
               </div>
@@ -176,7 +222,9 @@ export default function CandidateDetailPage() {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {candidate.skills.soft.length > 0 ? (
-                    candidate.skills.soft.map((signal) => <SkillTag key={signal}>{signal}</SkillTag>)
+                    candidate.skills.soft.map((signal) => (
+                      <SkillTag key={signal}>{signal}</SkillTag>
+                    ))
                   ) : (
                     <div className="text-sm text-text-muted">
                       The backend record has no extra notes attached yet.
@@ -187,17 +235,23 @@ export default function CandidateDetailPage() {
             </div>
 
             <div className="mt-6">
-              <div className="text-sm font-semibold text-text-primary">Education</div>
+              <div className="text-sm font-semibold text-text-primary">
+                Education
+              </div>
               <div className="mt-3 space-y-3">
                 {candidate.education.length > 0 ? (
                   candidate.education.map((entry) => (
-                    <div key={entry} className="rounded-card border border-border bg-bg p-4 text-sm text-text-muted">
+                    <div
+                      key={entry}
+                      className="rounded-card border border-border bg-bg p-4 text-sm text-text-muted"
+                    >
                       {entry}
                     </div>
                   ))
                 ) : (
                   <div className="rounded-card border border-border bg-bg p-4 text-sm text-text-muted">
-                    No education details were captured in this candidate record yet.
+                    No education details were captured in this candidate record
+                    yet.
                   </div>
                 )}
               </div>
@@ -207,14 +261,19 @@ export default function CandidateDetailPage() {
 
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Hiring Context" subtitle="What this record tells the recruiting team today." />
+            <CardHeader
+              title="Hiring Context"
+              subtitle="What this record tells the recruiting team today."
+            />
             <CardBody className="space-y-4">
               <div className="rounded-card border border-border bg-bg p-4">
                 <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
                   <Briefcase className="h-3.5 w-3.5" />
                   Applied role
                 </div>
-                <div className="mt-2 text-sm font-semibold text-text-primary">{appliedRole}</div>
+                <div className="mt-2 text-sm font-semibold text-text-primary">
+                  {appliedRole}
+                </div>
               </div>
 
               <div className="rounded-card border border-border bg-bg p-4">
@@ -224,8 +283,8 @@ export default function CandidateDetailPage() {
                 </div>
                 <div className="mt-2 text-sm text-text-muted">
                   {candidate.shortlisted
-                    ? "This candidate is already marked as shortlisted."
-                    : "This candidate is still in review and has not been shortlisted yet."}
+                    ? 'This candidate is already marked as shortlisted.'
+                    : 'This candidate is still in review and has not been shortlisted yet.'}
                 </div>
               </div>
 
@@ -236,10 +295,16 @@ export default function CandidateDetailPage() {
                 </div>
                 <div className="mt-2 space-y-1 text-sm text-text-muted">
                   <div>
-                    Created: {candidate.createdAtISO ? formatShortDate(candidate.createdAtISO) : "Not available"}
+                    Created:{' '}
+                    {candidate.createdAtISO
+                      ? formatShortDate(candidate.createdAtISO)
+                      : 'Not available'}
                   </div>
                   <div>
-                    Updated: {candidate.updatedAtISO ? formatShortDate(candidate.updatedAtISO) : "Not available"}
+                    Updated:{' '}
+                    {candidate.updatedAtISO
+                      ? formatShortDate(candidate.updatedAtISO)
+                      : 'Not available'}
                   </div>
                 </div>
               </div>
@@ -249,13 +314,66 @@ export default function CandidateDetailPage() {
           <Card>
             <CardHeader
               title="Assessment Status"
-              subtitle="Score breakdowns will appear once the backend exposes screening results."
+              subtitle="Latest AI screening snapshot stored for this candidate in the current session."
             />
             <CardBody>
-              <div className="rounded-card border border-accent/20 bg-accent/8 p-4 text-sm leading-relaxed text-text-muted">
-                This page now shows only real backend candidate data. AI match scores, strengths, and gap analysis
-                still depend on a dedicated screening-results endpoint, so they are intentionally not faked here.
-              </div>
+              {screeningMatch ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-accent/20 bg-accent/8 p-4">
+                    <div>
+                      <div className="text-sm font-semibold text-text-primary">
+                        Latest AI assessment
+                      </div>
+                      <div className="mt-1 text-sm text-text-muted">
+                        {screeningMatch.analysis.jobTitle} •{' '}
+                        {formatShortDate(
+                          screeningMatch.analysis.generatedAtISO
+                        )}
+                      </div>
+                    </div>
+                    <ScoreCircle
+                      score={screeningMatch.result.score}
+                      size={70}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-card border border-border bg-bg p-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                        Skills relevance
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-text-primary">
+                        {screeningMatch.result.skillsMatchPct}%
+                      </div>
+                    </div>
+                    <div className="rounded-card border border-border bg-bg p-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                        Education relevance
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-text-primary">
+                        {screeningMatch.result.educationPct}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-card border border-border bg-bg p-4 text-sm leading-relaxed text-text-muted">
+                    {screeningMatch.result.reasoning}
+                  </div>
+
+                  <Link
+                    href={`/dashboard/screening/${screeningMatch.analysis.jobId}/results`}
+                    className="inline-flex"
+                  >
+                    <Button variant="outline">Open screening results</Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="rounded-card border border-accent/20 bg-accent/8 p-4 text-sm leading-relaxed text-text-muted">
+                  No screening snapshot has been saved for this candidate yet.
+                  Run AI screening for the candidate&apos;s role to populate
+                  score breakdowns and reasoning here.
+                </div>
+              )}
             </CardBody>
           </Card>
         </div>

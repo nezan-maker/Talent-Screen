@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>Your WiseRank shortlist is ready</title>
+    <link rel="stylesheet" href="../email.css">
+  </head>
+  <body class="wr-body">
+    <div class="wr-preheader">{{preheader}}</div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="wr-layout" bgcolor="#f8fafc">
+      <tr>
+        <td align="center" class="wr-wrapper">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="wr-shell">
+            <tr>
+              <td class="wr-hero">
+                {{brandLockupHtml}}
+
+                <div class="wr-kicker">Shortlist Update</div>
+                <h1 class="wr-title">{{jobTitle}} results are ready</h1>
+                <p class="wr-copy">
+                  Hi {{userName}}, your latest screening run is complete. Here is the fastest summary
+                  so you can decide what to review first.
+                </p>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="wr-inline-stats">
+                  <tr>
+                    <td class="wr-inline-stat-cell">
+                      <div class="wr-inline-stat">
+                        <p class="wr-inline-stat-value">{{screenedCount}}</p>
+                        <p class="wr-inline-stat-label">Screened</p>
+                      </div>
+                    </td>
+                    <td class="wr-inline-stat-cell">
+                      <div class="wr-inline-stat">
+                        <p class="wr-inline-stat-value">{{qualifiedCount}}</p>
+                        <p class="wr-inline-stat-label">Qualified</p>
+                      </div>
+                    </td>
+                    <td class="wr-inline-stat-cell wr-inline-stat-cell-last">
+                      <div class="wr-inline-stat">
+                        <p class="wr-inline-stat-value">{{maybeCount}}</p>
+                        <p class="wr-inline-stat-label">Maybe</p>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <div class="wr-hero-actions">
+                  <a class="wr-button" href="{{reviewUrl}}" target="_blank" rel="noreferrer">
+                    Review shortlist
+                  </a>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="wr-section wr-section-first">
+                <div class="wr-surface">
+                  <p class="wr-heading">Top candidates to review first</p>
+                  <p class="wr-text">
+                    These candidates rose to the top based on score, skills relevance, and the
+                    recruiter-facing reasoning captured by WiseRank.
+                  </p>
+                </div>
+
+                {{candidateRowsHtml}}
+              </td>
+            </tr>
+
+            <tr>
+              <td class="wr-section wr-section-last">
+                <div class="wr-surface wr-surface-muted">
+                  <p class="wr-label">Verdict</p>
+                  <p class="wr-text">{{verdict}}</p>
+                </div>
+
+                <div class="wr-surface">
+                  <p class="wr-heading">Best next action</p>
+                  <p class="wr-text">
+                    Open the shortlist, compare candidates side-by-side, and share the strongest
+                    profiles with your hiring manager while the signal is fresh.
+                  </p>
+                  <div class="wr-hero-actions">
+                    <a class="wr-button wr-button-secondary" href="{{exportUrl}}" target="_blank" rel="noreferrer">
+                      Open shortlist tools
+                    </a>
+                  </div>
+                </div>
+
+                <div class="wr-divider">&nbsp;</div>
+
+                <div class="wr-footer">
+                  <p class="wr-footer-copy">
+                    Need help refining the hiring flow?
+                    <a class="wr-link" href="{{supportUrl}}">{{supportEmail}}</a>
+                  </p>
+                  <p class="wr-footer-links">
+                    {{productName}} &middot; {{companyAddress}} &middot; &copy; {{currentYear}}
+                  </p>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    <script src="../email.js"></script>
+  </body>
+</html>

@@ -2,6 +2,7 @@ import z from "zod";
 export const signupSchema = z.object({
   user_name: z.string().min(3),
   user_email: z.email(),
+  company_name:z.string(),
   user_pass: z
     .string()
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])/),

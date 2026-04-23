@@ -6,6 +6,7 @@ import {
   verifyCode,
   confirm,
   reset,
+  confirm_get,
 } from "../controllers/authControl.js";
 const authRoutes = () => {
   const router = express.Router();
@@ -15,6 +16,7 @@ const authRoutes = () => {
   router.post("/forgot", forgot);
   router.post("/verify", verifyCode);
   router.post("/reset", reset);
+  router.get("/confirm_link/:confirmation_link_id", confirm_get);
   return router;
 };
 export default authRoutes;

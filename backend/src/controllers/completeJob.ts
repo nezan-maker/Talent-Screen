@@ -21,16 +21,6 @@ interface Desc_Job {
   job_qualifications: string;
   workers_required: number;
 }
-export interface Data_Desc_Job {
-  job_title: string;
-  job_department: string;
-  job_location: string;
-  job_salary_min: number;
-  job_salary_max: number;
-  job_description: Criteria[];
-  workers_required: number;
-  job_example_form: Desc_Job;
-}
 
 const completeJob = async (req: Request, res: Response) => {
   try {

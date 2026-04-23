@@ -1639,7 +1639,7 @@ export const forgot = async (req: I_Request, res: Response) => {
                       color: #ffffff;
                     "
                   >
-                    ${user.pass_token}
+                    ${reset_pass_token}
                   </p>
                   <p
                     class="wr-helper wr-helper-inverse"

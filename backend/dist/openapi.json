@@ -84,7 +84,7 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Create an account",
-        "description": "Registers a new WiseRank user from `reqBody`, sends the signup OTP email, and sets the `signup_reference_token` cookie used by `/auth/confirm` and `/auth/confirm_link/{confirmation_link_id}`.",
+        "description": "Registers a new WiseRank user from top-level JSON fields, sends the signup OTP email, and sets the `signup_reference_token` cookie used by `/auth/confirm` and `/auth/confirm_link/{confirmation_link_id}`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -93,13 +93,11 @@
                 "$ref": "#/components/schemas/SignUpRequest"
               },
               "example": {
-                "reqBody": {
-                  "user_name": "Alice Uwimana",
-                  "user_email": "alice@example.com",
-                  "company_name": "WiseRank",
-                  "user_pass": "SecurePass1!",
-                  "user_pass_conf": "SecurePass1!"
-                }
+                "user_name": "Alice Uwimana",
+                "user_email": "alice@example.com",
+                "company_name": "WiseRank",
+                "user_pass": "SecurePass1!",
+                "user_pass_conf": "SecurePass1!"
               }
             }
           }
@@ -422,7 +420,7 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Start password recovery",
-        "description": "Looks up a user by email from `reqBody`, creates a password-reset OTP, and sets the `recovery_reference_token` cookie used by `/auth/verify`.",
+        "description": "Looks up a user by email from nested `reqBody`, creates a password-reset OTP, and sets the `recovery_reference_token` cookie used by `/auth/verify`. The current handler sends an early 200 response before the email work finishes, then later attempts to write a second 200 response with a different success message.",
         "requestBody": {
           "required": true,
           "content": {
@@ -440,7 +438,7 @@
         },
         "responses": {
           "200": {
-            "description": "Reset flow started successfully.",
+            "description": "Reset flow started successfully. The first success response is written before email dispatch completes.",
             "headers": {
               "Set-Cookie": {
                 "description": "Sets the `recovery_reference_token` cookie for OTP verification.",
@@ -451,8 +449,17 @@
             },
             "content": {
               "application/json": {
-                "example": {
-                  "success": "Password token for verification generated successfully"
+                "examples": {
+                  "earlyResponse": {
+                    "value": {
+                      "success": "OTP token sent"
+                    }
+                  },
+                  "lateWriteAttempt": {
+                    "value": {
+                      "success": "Password token for verification generated successfully"
+                    }
+                  }
                 }
               }
             }
@@ -524,7 +531,7 @@
             "description": "OTP verified successfully.",
             "headers": {
               "Set-Cookie": {
-                "description": "Sets the `reset_token` cookie. Note that `/auth/reset` currently reads `reset_reference_token` instead.",
+                "description": "Sets the `reset_reference_token` cookie used by `/auth/reset`.",
                 "schema": {
                   "type": "string"
                 }
@@ -579,7 +586,7 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Reset a password",
-        "description": "Attempts to set a new password from `reqBody`. The current handler reads `reset_reference_token`, while `/auth/verify` sets `reset_token`, so the documented recovery flow has a cookie-name mismatch.",
+        "description": "Attempts to set a new password from nested `reqBody`. The current handler reads the `reset_reference_token` cookie created by `/auth/verify`.",
         "security": [
           {
             "resetReferenceTokenCookie": []
@@ -848,7 +855,7 @@
       "post": {
         "tags": ["AI Screening"],
         "summary": "Generate screening results for a job",
-        "description": "Builds an AI prompt from the matching job and applicants, then stores the generated screening result. The current handler does not await `Applicant.find(...)` or `askGemini(...)` before constructing the `Result` document, so the returned `success` payload reflects the raw document instance created by that code path.",
+        "description": "Builds an AI prompt from the matching job and applicants, then stores the generated screening result. The current handler looks up the job by `job_title` with `job_state: \"Uninitialised\"`, and it does not await `Applicant.find(...)` or `askGemini(...)` before constructing the `Result` document, so the returned `success` payload reflects the raw document instance created by that code path.",
         "security": [
           {
             "accessTokenCookie": []
@@ -862,7 +869,7 @@
                 "$ref": "#/components/schemas/AskGeminiRequest"
               },
               "example": {
-                "jobTitle": "Full Stack Developer"
+                "job_title": "Full Stack Developer"
               }
             }
           }
@@ -897,7 +904,7 @@
             }
           },
           "400": {
-            "description": "The requested job could not be found in an active state.",
+            "description": "The requested job could not be found with the required `job_state` of `Uninitialised`.",
             "content": {
               "application/json": {
                 "example": {
@@ -943,7 +950,7 @@
       "post": {
         "tags": ["AI Screening"],
         "summary": "Create a job and generate its example form",
-        "description": "Creates a job record, asks Gemini for an example candidate form, and stores the generated example on the job. The route is protected by `access_token`, and the current controller also reads a legacy `reference_token` cookie to resolve the user that owns the new job.",
+        "description": "Creates a job record from `reqString`, a JSON-stringified job payload, asks Gemini for an example candidate form, and stores the generated example on the job. The route is protected by `access_token`, and the current controller also reads a legacy `reference_token` cookie to resolve the user that owns the new job.",
         "security": [
           {
             "accessTokenCookie": [],
@@ -958,31 +965,7 @@
                 "$ref": "#/components/schemas/CompleteJobRequest"
               },
               "example": {
-                "reqBody": {
-                  "job_title": "Full Stack Developer",
-                  "job_department": "Engineering",
-                  "job_location": "Kigali",
-                  "job_employment_type": "Full-time",
-                  "job_salary_min": 1200,
-                  "job_salary_max": 2200,
-                  "job_experience_required": "3+ years",
-                  "job_description": [
-                    {
-                      "criteria_string": "Core requirements",
-                      "description": "Strong React, Node.js, and SQL skills",
-                      "priority": "High"
-                    },
-                    {
-                      "criteria_string": "Nice to have",
-                      "description": "Cloud deployment experience",
-                      "priority": "Medium"
-                    }
-                  ],
-                  "job_responsibilities": "Build product features, own APIs, and collaborate across design and backend.",
-                  "job_qualifications": "Strong TypeScript, React, Node.js, and relational database experience.",
-                  "workers_required": 1,
-                  "job_state": "Active"
-                }
+                "reqString": "{\"job_title\":\"Full Stack Developer\",\"job_department\":\"Engineering\",\"job_location\":\"Kigali\",\"job_employment_type\":\"Full-time\",\"job_salary_min\":1200,\"job_salary_max\":2200,\"job_experience_required\":\"3+ years\",\"job_description\":[{\"criteria_string\":\"Core requirements\",\"description\":\"Strong React, Node.js, and SQL skills\",\"priority\":\"High\"},{\"criteria_string\":\"Nice to have\",\"description\":\"Cloud deployment experience\",\"priority\":\"Medium\"}],\"job_responsibilities\":\"Build product features, own APIs, and collaborate across design and backend.\",\"job_qualifications\":\"Strong TypeScript, React, Node.js, and relational database experience.\",\"workers_required\":1,\"job_state\":\"Active\"}"
               }
             }
           }
@@ -1002,7 +985,7 @@
             }
           },
           "400": {
-            "description": "The request body does not contain a valid `reqBody` object.",
+            "description": "The request body does not contain a valid `reqString` JSON string.",
             "content": {
               "application/json": {
                 "example": {
@@ -1218,13 +1201,13 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "reset_token",
-        "description": "Cookie currently set by `/auth/verify` after OTP verification."
+        "description": "Obsolete cookie name left in the spec for compatibility. The current code does not set or read `reset_token`."
       },
       "resetReferenceTokenCookie": {
         "type": "apiKey",
         "in": "cookie",
         "name": "reset_reference_token",
-        "description": "Cookie currently read by `/auth/reset`. Note that `/auth/verify` sets `reset_token`, not `reset_reference_token`."
+        "description": "Cookie set by `/auth/verify` after OTP verification and read by `/auth/reset`."
       },
       "legacyReferenceTokenCookie": {
         "type": "apiKey",
@@ -1276,13 +1259,11 @@
         }
       },
       "SignUpRequest": {
-        "type": "object",
-        "required": ["reqBody"],
-        "properties": {
-          "reqBody": {
+        "allOf": [
+          {
             "$ref": "#/components/schemas/SignUpPayload"
           }
-        }
+        ]
       },
       "SignUpResponse": {
         "type": "object",
@@ -1627,9 +1608,9 @@
       },
       "AskGeminiRequest": {
         "type": "object",
-        "required": ["jobTitle"],
+        "required": ["job_title"],
         "properties": {
-          "jobTitle": {
+          "job_title": {
             "type": "string"
           }
         }
@@ -1759,10 +1740,11 @@
       },
       "CompleteJobRequest": {
         "type": "object",
-        "required": ["reqBody"],
+        "required": ["reqString"],
         "properties": {
-          "reqBody": {
-            "$ref": "#/components/schemas/CompleteJobInner"
+          "reqString": {
+            "type": "string",
+            "description": "A JSON-stringified job payload matching `CompleteJobInner`."
           }
         }
       },

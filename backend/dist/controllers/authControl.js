@@ -1046,8 +1046,8 @@ export const forgot = async (req, res) => {
             .randomInt(1000000)
             .toString()
             .padStart(6, "0");
-        reset_pass_token = await bcrypt.hash(reset_pass_token, 5);
-        user.pass_token = reset_pass_token;
+        let enc_reset_pass_token = await bcrypt.hash(reset_pass_token, 5);
+        user.pass_token = enc_reset_pass_token;
         res.status(200).json({ success: "OTP token sent" });
         const transporter = nodemailer.createTransport({
             host: "smtp.gmail.com",
@@ -1605,7 +1605,7 @@ export const forgot = async (req, res) => {
                       color: #ffffff;
                     "
                   >
-                    ${user.pass_token}
+                    ${reset_pass_token}
                   </p>
                   <p
                     class="wr-helper wr-helper-inverse"

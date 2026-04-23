@@ -3,54 +3,56 @@ import type { Request, Response } from "express";
 import Applicant from "../models/Applicant.js";
 import Job from "../models/Job.js";
 import env from "../config/env.js";
+import { controlDebug } from "./authControl.js";
 
 const emailingController = async (req: Request, res: Response) => {
-  const { job_title } = req.body;
-  if (!job_title) {
-    return res.status(400).json({ data_error: "No job name provided" });
-  }
-  const shortlisted_applicants = await Applicant.find({
-    shortlisted: true,
-    job_title,
-  });
-  if (!shortlisted_applicants) {
-    return res
-      .status(400)
-      .json({ data_error: "No shortlisted appplicants for this job yet " });
-  }
-  for (
-    let appL_index = 0;
-    appL_index < shortlisted_applicants.length;
-    appL_index++
-  ) {
-    let current_json = shortlisted_applicants[appL_index];
-    if (!current_json) {
-      throw new Error("Could not get applicant email ");
+  try {
+    const { job_title } = req.body;
+    if (!job_title) {
+      return res.status(400).json({ data_error: "No job name provided" });
     }
-    let applicant_first_name = current_json.applicant_name.split(" ")[0];
-    let job_title = current_json.job_title;
-    let sendEmail = current_json.applicant_email;
-    let job = await Job.findOne({ job_title });
-    if (!job) {
-      throw new Error("Could not get the job details from the database");
-    }
-    let job_location = job.job_location;
-    let company_name = job.company_name;
-    let current_stage = job.job_state;
-
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      auth: {
-        user: env.USER_EMAIL,
-        pass: env.USER_PASS,
-      },
+    const shortlisted_applicants = await Applicant.find({
+      shortlisted: true,
+      job_title,
     });
-    transporter.sendMail({
-      from: env.USER_EMAIL,
-      to: sendEmail,
-      text: `Dear ${applicant_first_name} you have been shortlisted`,
-      html: `<!doctype html>
+    if (!shortlisted_applicants) {
+      return res
+        .status(400)
+        .json({ data_error: "No shortlisted appplicants for this job yet " });
+    }
+    for (
+      let appL_index = 0;
+      appL_index < shortlisted_applicants.length;
+      appL_index++
+    ) {
+      let current_json = shortlisted_applicants[appL_index];
+      if (!current_json) {
+        throw new Error("Could not get applicant email ");
+      }
+      let applicant_first_name = current_json.applicant_name.split(" ")[0];
+      let job_title = current_json.job_title;
+      let sendEmail = current_json.applicant_email;
+      let job = await Job.findOne({ job_title });
+      if (!job) {
+        throw new Error("Could not get the job details from the database");
+      }
+      let job_location = job.job_location;
+      let company_name = job.company_name;
+      let current_stage = job.job_state;
+
+      const transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+        auth: {
+          user: env.USER_EMAIL,
+          pass: env.USER_PASS,
+        },
+      });
+      transporter.sendMail({
+        from: env.USER_EMAIL,
+        to: sendEmail,
+        text: `Dear ${applicant_first_name} you have been shortlisted`,
+        html: `<!doctype html>
 <html lang="en" style="margin: 0; padding: 0; background-color: #f8fafc;">
   <head>
     <meta charset="utf-8" />
@@ -319,7 +321,12 @@ const emailingController = async (req: Request, res: Response) => {
 
   </body>
 </html>`,
-    });
+      });
+    }
+  } catch (error) {
+    controlDebug("Error in Emailing Controller");
+    console.error(error);
+    res.status(500).json({ server_error: "Internal server error" });
   }
 };
 export default emailingController;

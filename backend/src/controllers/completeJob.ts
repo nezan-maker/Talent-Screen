@@ -62,7 +62,8 @@ const completeJob = async (req: Request, res: Response) => {
     await job.save();
     res.status(201).json({ success: "Job successfully created" });
   } catch (error) {
-    controlDebug(error);
+    controlDebug("Error in complete job controller");
+    console.error(error);
     res.status(500).json({ server_error: "Internal server error" });
   }
 };

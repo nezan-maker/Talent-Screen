@@ -18,7 +18,7 @@ const dashBoardControl = async (_: any, res: any) => {
     }
     const information_array = [applicants, jobs];
     const response = JSON.stringify(information_array);
-    res.status(200).json(response);
+    res.status(200).json({ success: response });
   } catch (error) {
     controlDebug(error);
     res.status(500).json({ message: "Internal server error" });

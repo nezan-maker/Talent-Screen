@@ -346,7 +346,8 @@ export const signUp = async (req: I_Request, res: Response) => {
     });
     res.status(201).json({ success: "Sign up successful" });
   } catch (error) {
-    controlDebug(error);
+    controlDebug("Error sign up controller");
+    console.error(error);
     if (error instanceof z.ZodError) {
       return res
         .status(401)
@@ -674,7 +675,8 @@ export const confirm = async (req: I_Request, res: Response) => {
       res.status(200).json({ success: "Confirmation successful" });
     }
   } catch (error) {
-    controlDebug(error);
+    controlDebug("Error in post request confirm controller");
+    console.error(error);
     res.status(500).json({ server_error: "Internal server error" });
   }
 };
@@ -995,7 +997,8 @@ export const confirm_get = async (req: I_Request, res: Response) => {
       }
     }
   } catch (error) {
-    controlDebug(error);
+    controlDebug("Error in get reuest confirm  controller");
+    console.error(error);
     res.status(500).json({ server_error: "Internal server error" });
   }
 };
@@ -1030,7 +1033,8 @@ export const logIn = async (req: Request, res: Response) => {
         .status(400)
         .json({ input_error: "Input requirements not fulfilled" });
     }
-    controlDebug(error);
+    controlDebug("Error in login controller");
+    console.error(error);
     res.status(500).json({ server_error: "Internal server error" });
   }
 };
@@ -2182,7 +2186,8 @@ export const forgot = async (req: I_Request, res: Response) => {
       success: "Password token for verification generated successfully",
     });
   } catch (error) {
-    controlDebug(error);
+    controlDebug("Error in forgot password controller");
+    console.error(error);
     if (error instanceof z.ZodError) {
       return res
         .status(400)
@@ -2235,7 +2240,8 @@ export const verifyCode = async (req: I_Request, res: Response) => {
       res.status(200).json({ success: "Token verification successful" });
     }
   } catch (error) {
-    controlDebug(error);
+    controlDebug("Error in verify code controller");
+    console.error(error);
     if (error instanceof z.ZodError) {
       return res
         .status(401)
@@ -2280,7 +2286,8 @@ export const reset = async (req: any, res: any) => {
       }
     }
   } catch (error) {
-    controlDebug(error);
+    controlDebug("Error in reset password controller");
+    console.error(error);
     if (error instanceof z.ZodError) {
       return res
         .status(401)

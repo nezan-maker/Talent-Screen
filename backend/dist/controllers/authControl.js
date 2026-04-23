@@ -6,6 +6,7 @@ import z from "zod";
 import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import crypto from "crypto";
+import nodemailer from "nodemailer";
 export const controlDebug = debug("app:controller");
 const ACCESS_SECRET = env.ACCESS_SECRET;
 const REFRESH_SECRET = env.REFRESH_SECRET;
@@ -33,6 +34,7 @@ export const signUp = async (req, res) => {
             sign_otp_token: otpToken,
         });
         await newUser.save();
+        const transporter = nodemailer.createTransport({});
         let rec_info = { user_id: newUser._id };
         if (!env.ACCESS_SECRET)
             return res.status(500).json({ server_error: "Internal server error" });

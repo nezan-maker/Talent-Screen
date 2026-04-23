@@ -28,3 +28,4 @@ const emailingController = async (req: Request, res: Response) => {
     let sendEmail = current_json.applicant_email;
   }
 };
+export default emailingController;

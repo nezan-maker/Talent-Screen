@@ -28,5 +28,9 @@ const startServer = async () => {
         serverDebug(`Server connected on port ${PORT}`);
     });
 };
-startServer();
+startServer().catch((error) => {
+    serverDebug("Server failed to start");
+    serverDebug(error);
+    process.exit(1);
+});
 //# sourceMappingURL=server.js.map

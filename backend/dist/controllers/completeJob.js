@@ -10,12 +10,8 @@ const completeJob = async (req, res) => {
         if (oldJob)
             return res.status(401).json({ message: "Job already registered" });
         const job = new Job(reqBody);
-        const sample_job = await Job.findOne({ _id: job._id });
-        if (!sample_job) {
-            return res.status(500).json({ server_error: "Internal server error" });
-        }
         let guidelines = "You are to create  an example resume that addresses all the job details that will be presented to the user as a reference to ensure all needed info are given.P.S the values of main properties must be in capital letters and the response you give me back must be a json stringified string I will pass into an object that I will store in the database";
-        let prompt_object = { sample_job, guidelines };
+        let prompt_object = { job, guidelines };
         let prompt = JSON.stringify(prompt_object);
         let result = await askGemini(prompt);
         if (result.startsWith("```json")) {
@@ -23,6 +19,7 @@ const completeJob = async (req, res) => {
         }
         job.job_example_form = result;
         await job.save();
+        res.status(201).json({ success: "Job successfully created" });
     }
     catch (error) {
         controlDebug(error);

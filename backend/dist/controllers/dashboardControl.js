@@ -5,7 +5,7 @@ import debug from "debug";
 const controlDebug = debug("app:controller");
 const dashBoardControl = async (_, res) => {
     try {
-        const applicants = await Applicant.find();
+        const applicants = await Applicant.find({}, { applicant_name: 1, job_title: 1, shortlisted: 1 });
         if (!applicants) {
             return res.status(500).json({ error: "Internal server error" });
         }

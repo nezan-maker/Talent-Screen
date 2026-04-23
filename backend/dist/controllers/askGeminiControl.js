@@ -39,7 +39,7 @@ const exampleResult = {
     ],
 };
 const askGeminiCont = async (req, res) => {
-    const { jobTitle } = req.body();
+    const { jobTitle } = req.body;
     const job = await Job.findOne({
         job_title: jobTitle,
         job_state: "Uninitialised",
@@ -61,7 +61,7 @@ const askGeminiCont = async (req, res) => {
         return res
             .status(404)
             .json({ data_error: `No active applicants for the job ${jobTitle} yet` });
-    const ai_guidelines = "We need you to review these information about these candidates on the job sent with this stringified json we need that the results must be in the same structure also sent with the request.Remember that is a sample make sure to elaborate more about the details of the verdict and various reasons for your decision";
+    const ai_guidelines = "We need you to review these information about these candidates on the job sent with this stringified json we need that the results must be in the same structure also sent with the request.Remember that is a sample make sure to elaborate efficiently not too much but not too little about the details of the verdict and various reasons for your decision and send back a JSON stringified string of the results.";
     const prompt_object_array = [];
     prompt_object_array.push(exampleResult, applicants, ai_guidelines, job);
     const prompt = JSON.stringify(prompt_object_array);

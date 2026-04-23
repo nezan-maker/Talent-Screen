@@ -8,6 +8,7 @@ interface User_ {
   pass_token: string | null;
   sign_otp_token: string | null;
   refresh_token: string | null;
+  confirmation_link_id: string;
 }
 const userSchema = new mongoose.Schema(
   {
@@ -42,6 +43,9 @@ const userSchema = new mongoose.Schema(
     isVerified: {
       type: Boolean,
       default: false,
+    },
+    confirmation_link_id: {
+      type: String,
     },
   },
   { timestamps: true },

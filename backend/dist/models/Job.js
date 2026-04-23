@@ -40,7 +40,15 @@ const jobSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    job_ai_criteria: [ai_criteria],
+    job_description: [ai_criteria],
+    job_responsibilities: {
+        type: String,
+        required: true,
+    },
+    job_qualifications: {
+        type: String,
+        required: true,
+    },
     workers_required: {
         type: Number,
         required: true,

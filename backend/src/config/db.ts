@@ -1,24 +1,26 @@
 import mongoose from "mongoose";
 import debug from "debug";
 import dotenv from "dotenv";
+
 dotenv.config();
-const MONGO_URI = process.env.MONGO_URI;
-console.log(MONGO_URI);
+
 export const dbDebug = debug("app:db");
+
 const connectDB = async () => {
+  const { MONGO_URI } = process.env;
+
+  if (!MONGO_URI) {
+    throw new Error("MONGO_URI is not set");
+  }
+
   try {
-    if (MONGO_URI) {
-      const conn = mongoose.connect(MONGO_URI);
-      conn
-        .then(() => {
-          dbDebug("MONGO_DB connected");
-        })
-        .catch(() => {
-          dbDebug("Error connecting to the database");
-        });
-    }
+    await mongoose.connect(MONGO_URI);
+    dbDebug("MongoDB connected");
   } catch (error) {
+    dbDebug("Error connecting to the database");
     dbDebug(error);
+    throw error;
   }
 };
+
 export default connectDB;

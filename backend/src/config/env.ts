@@ -9,5 +9,7 @@ const env = {
   CLOUDINARY_API_NAME: process.env.CLOUDINARY_API_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+  USER_EMAIL: process.env.USER_EMAIL,
+  USER_PASS: process.env.USER_PASS,
 };
 export default env;

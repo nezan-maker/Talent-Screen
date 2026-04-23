@@ -4,6 +4,10 @@ const applicantSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    applicant_email: {
+        type: String,
+        required: true
+    },
     job_title: {
         type: String,
         required: true,

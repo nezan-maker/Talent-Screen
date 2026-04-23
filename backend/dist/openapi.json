@@ -36,9 +36,7 @@
   "paths": {
     "/auth/signup": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "Create an account",
         "description": "Registers a new WiseRank user and sets a short-lived `reference_token` cookie used by `/auth/confirm`.",
         "requestBody": {
@@ -124,9 +122,7 @@
     },
     "/auth/confirm": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "Confirm a newly created account",
         "description": "Validates the OTP sent during signup. Requires the `reference_token` cookie created by `/auth/signup`.",
         "security": [
@@ -191,9 +187,7 @@
     },
     "/auth/login": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "Log in",
         "description": "Authenticates a verified user.",
         "requestBody": {
@@ -275,9 +269,7 @@
     },
     "/auth/forgot": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "Start password recovery",
         "description": "Looks up a user by email, creates a password-reset OTP, and sets a temporary `reference_token` cookie used by `/auth/verify`.",
         "requestBody": {
@@ -351,9 +343,7 @@
     },
     "/auth/verify": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "Verify password-reset OTP",
         "description": "Checks the recovery OTP sent during `/auth/forgot`. Requires the `reference_token` cookie from that step.",
         "security": [
@@ -427,9 +417,7 @@
     },
     "/auth/reset": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "Reset a password",
         "description": "Sets a new password after `/auth/verify`. Requires the `reset_token` cookie.",
         "security": [
@@ -501,9 +489,7 @@
     },
     "/dashboard": {
       "get": {
-        "tags": [
-          "Dashboard"
-        ],
+        "tags": ["Dashboard"],
         "summary": "Fetch dashboard data",
         "description": "Returns dashboard data as a JSON-stringified array in the order `[applicants, jobs]`.",
         "responses": {
@@ -543,9 +529,7 @@
     },
     "/register-candidate": {
       "post": {
-        "tags": [
-          "Candidates"
-        ],
+        "tags": ["Candidates"],
         "summary": "Register candidates",
         "description": "Registers candidates either from JSON data or by uploading a spreadsheet together with a ZIP of PDF resumes. The JSON flow expects `raw_application_data` as a stringified JSON array. The multipart flow expects the spreadsheet and ZIP fields used by the controller (`applicant_spreadsheet` and `pdf_resume_zip`).",
         "requestBody": {
@@ -635,9 +619,7 @@
     },
     "/ask": {
       "post": {
-        "tags": [
-          "AI Screening"
-        ],
+        "tags": ["AI Screening"],
         "summary": "Generate screening results for a job",
         "description": "Builds an AI prompt from the matching job and applicants, then stores the generated screening result.",
         "requestBody": {
@@ -717,9 +699,7 @@
     },
     "/complete-job": {
       "post": {
-        "tags": [
-          "AI Screening"
-        ],
+        "tags": ["AI Screening"],
         "summary": "Create a job and generate its example form",
         "description": "Creates a job record, asks Gemini for an example candidate form, and stores the generated example on the job.",
         "requestBody": {
@@ -785,11 +765,7 @@
                     "workers_required": 1,
                     "job_state": "Uninitialised",
                     "job_example_form": {
-                      "SKILLS": [
-                        "React",
-                        "Node.js",
-                        "SQL"
-                      ]
+                      "SKILLS": ["React", "Node.js", "SQL"]
                     }
                   }
                 }
@@ -846,12 +822,7 @@
     "schemas": {
       "SignUpRequest": {
         "type": "object",
-        "required": [
-          "user_name",
-          "user_email",
-          "user_pass",
-          "user_pass_conf"
-        ],
+        "required": ["user_name", "user_email", "user_pass", "user_pass_conf"],
         "properties": {
           "user_name": {
             "type": "string",
@@ -875,10 +846,7 @@
       },
       "SignUpResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "token"
-        ],
+        "required": ["success", "token"],
         "properties": {
           "success": {
             "type": "string"
@@ -891,10 +859,7 @@
       },
       "LoginRequest": {
         "type": "object",
-        "required": [
-          "user_email",
-          "user_pass"
-        ],
+        "required": ["user_email", "user_pass"],
         "properties": {
           "user_email": {
             "type": "string",
@@ -908,9 +873,7 @@
       },
       "ForgotPasswordRequest": {
         "type": "object",
-        "required": [
-          "user_email"
-        ],
+        "required": ["user_email"],
         "properties": {
           "user_email": {
             "type": "string",
@@ -920,9 +883,7 @@
       },
       "TokenRequest": {
         "type": "object",
-        "required": [
-          "token"
-        ],
+        "required": ["token"],
         "properties": {
           "token": {
             "type": "string"
@@ -931,10 +892,7 @@
       },
       "ResetPasswordRequest": {
         "type": "object",
-        "required": [
-          "user_pass",
-          "user_pass_conf"
-        ],
+        "required": ["user_pass", "user_pass_conf"],
         "properties": {
           "user_pass": {
             "type": "string",
@@ -948,10 +906,7 @@
       },
       "ApplicantInput": {
         "type": "object",
-        "required": [
-          "applicant_name",
-          "job_title"
-        ],
+        "required": ["applicant_name", "job_title"],
         "properties": {
           "applicant_name": {
             "type": "string"
@@ -963,9 +918,7 @@
       },
       "CandidateJsonRegistrationRequest": {
         "type": "object",
-        "required": [
-          "raw_application_data"
-        ],
+        "required": ["raw_application_data"],
         "properties": {
           "raw_application_data": {
             "type": "string",
@@ -975,10 +928,7 @@
       },
       "CandidateMultipartRegistrationRequest": {
         "type": "object",
-        "required": [
-          "applicant_spreadsheet",
-          "pdf_resume_zip"
-        ],
+        "required": ["applicant_spreadsheet", "pdf_resume_zip"],
         "properties": {
           "applicant_spreadsheet": {
             "type": "string",
@@ -1018,13 +968,9 @@
           }
         }
       },
-      "JobCriteria": {
+      "JobDescription": {
         "type": "object",
-        "required": [
-          "criteria_string",
-          "description",
-          "priority"
-        ],
+        "required": ["criteria_string", "description", "priority"],
         "properties": {
           "criteria_string": {
             "type": "string"
@@ -1073,7 +1019,7 @@
           "job_ai_criteria": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/JobCriteria"
+              "$ref": "#/components/schemas/JobDescription"
             }
           },
           "workers_required": {
@@ -1091,9 +1037,7 @@
       },
       "AskGeminiRequest": {
         "type": "object",
-        "required": [
-          "jobTitle"
-        ],
+        "required": ["jobTitle"],
         "properties": {
           "jobTitle": {
             "type": "string"
@@ -1102,10 +1046,7 @@
       },
       "ScreeningRelevance": {
         "type": "object",
-        "required": [
-          "skills_relevance",
-          "education_relevance"
-        ],
+        "required": ["skills_relevance", "education_relevance"],
         "properties": {
           "skills_relevance": {
             "type": "number"
@@ -1144,11 +1085,7 @@
       },
       "ScreeningResult": {
         "type": "object",
-        "required": [
-          "job_title",
-          "applicants_details",
-          "result_verdict"
-        ],
+        "required": ["job_title", "applicants_details", "result_verdict"],
         "properties": {
           "job_title": {
             "type": "string"
@@ -1166,9 +1103,7 @@
       },
       "AskGeminiResponse": {
         "type": "object",
-        "required": [
-          "success"
-        ],
+        "required": ["success"],
         "properties": {
           "success": {
             "$ref": "#/components/schemas/ScreeningResult"
@@ -1183,7 +1118,9 @@
           "job_location",
           "job_employment_type",
           "job_experience_required",
-          "job_ai_criteria",
+          "job_description",
+          "job_responsibilities",
+          "job_qualificatons",
           "workers_required"
         ],
         "properties": {
@@ -1208,10 +1145,10 @@
           "job_experience_required": {
             "type": "string"
           },
-          "job_ai_criteria": {
+          "job_desciption": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/JobCriteria"
+              "$ref": "#/components/schemas/JobDescription"
             }
           },
           "workers_required": {
@@ -1221,28 +1158,20 @@
             "type": "string"
           },
           "job_description": {
-            "type": "string",
-            "description": "Optional frontend-sent field; not currently defined in the mongoose model."
+            "type": "string"
+            
           },
           "job_responsibilities": {
-            "type": "string",
-            "description": "Optional frontend-sent field; not currently defined in the mongoose model."
+            "type": "string"
           },
           "job_qualifications": {
-            "type": "string",
-            "description": "Optional frontend-sent field; not currently defined in the mongoose model."
-          },
-          "job_shortlist_size": {
-            "type": "number",
-            "description": "Optional frontend-sent field; not currently defined in the mongoose model."
+            "type": "string"
           }
         }
       },
       "CompleteJobRequest": {
         "type": "object",
-        "required": [
-          "reqBody"
-        ],
+        "required": ["reqBody"],
         "properties": {
           "reqBody": {
             "$ref": "#/components/schemas/CompleteJobInner"
@@ -1251,9 +1180,7 @@
       },
       "CompleteJobResponse": {
         "type": "object",
-        "required": [
-          "success"
-        ],
+        "required": ["success"],
         "properties": {
           "success": {
             "type": "string"

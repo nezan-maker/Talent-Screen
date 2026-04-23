@@ -13,7 +13,9 @@ interface Desc_Job {
   job_location: string;
   job_salary_min: number;
   job_salary_max: number;
-  job_ai_criteria: Criteria[];
+  job_description: Criteria[];
+  job_responsibilities: string;
+  job_qualifications: string;
   workers_required: number;
 }
 export interface Data_Desc_Job {
@@ -22,7 +24,7 @@ export interface Data_Desc_Job {
   job_location: string;
   job_salary_min: number;
   job_salary_max: number;
-  job_ai_criteria: Criteria[];
+  job_description: Criteria[];
   workers_required: number;
   job_example_form: Desc_Job;
 }

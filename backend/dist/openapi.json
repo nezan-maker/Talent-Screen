@@ -492,6 +492,11 @@
         "tags": ["Dashboard"],
         "summary": "Fetch dashboard data",
         "description": "Returns dashboard data as a JSON-stringified array in the order `[applicants, jobs]`.",
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Dashboard payload returned successfully.",
@@ -523,6 +528,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "The request is missing a valid authenticated session.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "user_error": "You currently do not have an account please create an account or sign in if you have an account already"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The authenticated user could not be resolved from the access token.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "User could not be found.Token corrupted or expired"
+                }
+              }
+            }
           }
         }
       }
@@ -531,7 +556,12 @@
       "post": {
         "tags": ["Candidates"],
         "summary": "Register candidates",
-        "description": "Registers candidates either from JSON data or by uploading a spreadsheet together with a ZIP of PDF resumes. The JSON flow expects `raw_application_data` as a stringified JSON array. The multipart flow expects the spreadsheet and ZIP fields used by the controller (`applicant_spreadsheet` and `pdf_resume_zip`).",
+        "description": "Registers candidates either from JSON data or by uploading a spreadsheet together with a ZIP of PDF resumes. This route requires the `access_token` cookie. The JSON flow expects `raw_application_data` as a stringified JSON array. The multipart flow currently has an inconsistency in source: the middleware/controller reference `applicant_spreadsheet`, while `upload.fields` declares `applicants_spreadsheet`. The ZIP field is `resume_pdf_zip`.",
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -595,11 +625,30 @@
             }
           },
           "401": {
-            "description": "A duplicate applicant was found.",
+            "description": "The request is unauthenticated or a duplicate applicant was found.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "unauthorized": {
+                    "value": {
+                      "user_error": "You currently do not have an account please create an account or sign in if you have an account already"
+                    }
+                  },
+                  "duplicateApplicant": {
+                    "value": {
+                      "data_error": "User named Alice Uwimana is already registered for this job"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The authenticated user could not be resolved from the access token.",
             "content": {
               "application/json": {
                 "example": {
-                  "data_error": "User named Alice Uwimana is already registered for this job"
+                  "data_error": "User could not be found.Token corrupted or expired"
                 }
               }
             }
@@ -622,6 +671,11 @@
         "tags": ["AI Screening"],
         "summary": "Generate screening results for a job",
         "description": "Builds an AI prompt from the matching job and applicants, then stores the generated screening result.",
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -675,11 +729,30 @@
             }
           },
           "404": {
-            "description": "No applicants were found for the requested job.",
+            "description": "No applicants were found for the requested job, or the authenticated user could not be resolved from the access token.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "noApplicants": {
+                    "value": {
+                      "data_error": "No active applicants for the job Full Stack Developer yet"
+                    }
+                  },
+                  "missingUser": {
+                    "value": {
+                      "data_error": "User could not be found.Token corrupted or expired"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request is missing a valid authenticated session.",
             "content": {
               "application/json": {
                 "example": {
-                  "data_error": "No active applicants for the job Full Stack Developer yet"
+                  "user_error": "You currently do not have an account please create an account or sign in if you have an account already"
                 }
               }
             }
@@ -702,6 +775,11 @@
         "tags": ["AI Screening"],
         "summary": "Create a job and generate its example form",
         "description": "Creates a job record, asks Gemini for an example candidate form, and stores the generated example on the job.",
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -783,11 +861,107 @@
             }
           },
           "401": {
-            "description": "A job with the same title already exists.",
+            "description": "The request is unauthenticated or a job with the same title already exists.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "unauthorized": {
+                    "value": {
+                      "user_error": "You currently do not have an account please create an account or sign in if you have an account already"
+                    }
+                  },
+                  "duplicateJob": {
+                    "value": {
+                      "message": "Job already registered"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The authenticated user could not be resolved from the access token.",
             "content": {
               "application/json": {
                 "example": {
-                  "message": "Job already registered"
+                  "data_error": "User could not be found.Token corrupted or expired"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/review-result": {
+      "post": {
+        "tags": ["AI Screening"],
+        "summary": "Apply shortlist decisions",
+        "description": "Updates applicants after manual or AI review by parsing `verdict_string`, a JSON-stringified array of verdict objects. This route requires the `access_token` cookie. The current controller updates matching applicants but does not yet send an explicit success payload.",
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewResultRequest"
+              },
+              "example": {
+                "verdict_string": "[{\"applicant_name\":\"Alice Uwimana\",\"job_title\":\"Full Stack Developer\",\"shortlisted\":true},{\"applicant_name\":\"Eric Ndayisaba\",\"job_title\":\"Full Stack Developer\",\"shortlisted\":false}]"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Shortlist decisions were applied successfully.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Applicants reviewed successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The verdict payload is missing or invalid.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "Please send a valid JSON string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request is missing a valid authenticated session.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "user_error": "You currently do not have an account please create an account or sign in if you have an account already"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The authenticated user could not be resolved from the access token.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "User could not be found.Token corrupted or expired"
                 }
               }
             }
@@ -808,6 +982,11 @@
   },
   "components": {
     "securitySchemes": {
+      "accessTokenCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token"
+      },
       "referenceTokenCookie": {
         "type": "apiKey",
         "in": "cookie",
@@ -928,14 +1107,18 @@
       },
       "CandidateMultipartRegistrationRequest": {
         "type": "object",
-        "required": ["applicant_spreadsheet", "pdf_resume_zip"],
         "properties": {
           "applicant_spreadsheet": {
             "type": "string",
             "format": "binary",
-            "description": "CSV or XLSX spreadsheet containing applicant rows."
+            "description": "Spreadsheet field referenced by the controller and file filter."
           },
-          "pdf_resume_zip": {
+          "applicants_spreadsheet": {
+            "type": "string",
+            "format": "binary",
+            "description": "Spreadsheet field name currently declared in `upload.fields`. The source presently uses inconsistent spreadsheet field names."
+          },
+          "resume_pdf_zip": {
             "type": "string",
             "format": "binary",
             "description": "ZIP archive containing applicant resumes as PDFs."
@@ -947,6 +1130,10 @@
         "properties": {
           "applicant_name": {
             "type": "string"
+          },
+          "applicant_email": {
+            "type": "string",
+            "format": "email"
           },
           "job_title": {
             "type": "string"
@@ -965,6 +1152,31 @@
           },
           "shortlisted": {
             "type": "boolean"
+          }
+        }
+      },
+      "ReviewVerdictItem": {
+        "type": "object",
+        "required": ["applicant_name", "job_title", "shortlisted"],
+        "properties": {
+          "applicant_name": {
+            "type": "string"
+          },
+          "job_title": {
+            "type": "string"
+          },
+          "shortlisted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReviewResultRequest": {
+        "type": "object",
+        "required": ["verdict_string"],
+        "properties": {
+          "verdict_string": {
+            "type": "string",
+            "description": "A JSON-stringified array of shortlist verdict objects."
           }
         }
       },

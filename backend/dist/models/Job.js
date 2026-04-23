@@ -36,6 +36,9 @@ const jobSchema = new mongoose.Schema({
     job_salary_max: {
         type: Number,
     },
+    company_name: {
+        type: String,
+    },
     job_experience_required: {
         type: String,
         required: true,

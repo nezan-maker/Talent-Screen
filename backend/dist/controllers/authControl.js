@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import User from "../models/User.js";
-import { signupSchema, loginSchema, forgotSchema, resetSchema, } from "../validations/authValidations.js";
+import { signupSchema, loginSchema, forgotSchema, resetSchema, verifyCSchema, } from "../validations/authValidations.js";
 import debug from "debug";
 import z from "zod";
 import jwt from "jsonwebtoken";
@@ -12,9 +12,12 @@ const ACCESS_SECRET = env.ACCESS_SECRET;
 const REFRESH_SECRET = env.REFRESH_SECRET;
 export const signUp = async (req, res) => {
     try {
-        const reqBody = req.body;
+        const { reqBody } = req.body;
         const user_details = signupSchema.parse(reqBody);
         const oldUser = await User.findOne({ user_email: user_details.user_email });
+        if (!env.ACCESS_SECRET) {
+            throw new Error("Could not load necessary environment variables");
+        }
         if (oldUser) {
             return res
                 .status(401)
@@ -302,17 +305,20 @@ export const signUp = async (req, res) => {
         let rec_info = { user_id: newUser._id };
         if (!env.ACCESS_SECRET)
             return res.status(500).json({ server_error: "Internal server error" });
-        const reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
+        const signup_reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
             expiresIn: "10m",
+            algorithm: "HS256",
         });
-        res.cookie("reference_token", reference_token, {
+        res.cookie("signup_reference_token", signup_reference_token, {
             maxAge: 10 * 60 * 1000,
             httpOnly: true,
+            sameSite: true,
         });
         res.status(201).json({ success: "Sign up successful" });
     }
     catch (error) {
-        controlDebug(error);
+        controlDebug("Error sign up controller");
+        console.error(error);
         if (error instanceof z.ZodError) {
             return res
                 .status(401)
@@ -324,16 +330,23 @@ export const signUp = async (req, res) => {
 export const confirm = async (req, res) => {
     try {
         const { token } = req.body;
-        const detail_cookie = req.cookies.reference_token;
+        const signup_reference_token = req.cookies.signup_reference_token;
+        if (!signup_reference_token) {
+            res
+                .status(401)
+                .json({ expired_error: "Required cookie corrupted or expired" });
+        }
         if (!env.ACCESS_SECRET)
             return res.status(500).json({ server_error: "Internal server error" });
-        const payload = jwt.verify(detail_cookie, env.ACCESS_SECRET);
+        const payload = jwt.verify(signup_reference_token, env.ACCESS_SECRET, {
+            algorithms: ["HS256"],
+        });
         if (!payload) {
             return res.status(500).json({ server_error: "Internal server error" });
         }
         if (typeof payload == "string")
             return res.status(500).json({ server_error: "Internal server errror" });
-        const user = await User.findOne({ _id: payload.id });
+        const user = await User.findOne({ _id: payload.user_id });
         if (!user) {
             return res.status(500).json({ server_error: "Internal server error" });
         }
@@ -348,13 +361,16 @@ export const confirm = async (req, res) => {
         if (ACCESS_SECRET && REFRESH_SECRET) {
             const access_token = jwt.sign(user_cookie_details, ACCESS_SECRET, {
                 algorithm: "HS256",
+                expiresIn: "1h",
             });
             const refresh_token = jwt.sign(user_cookie_details, REFRESH_SECRET, {
                 algorithm: "HS256",
+                expiresIn: "14d",
             });
             res.cookie("access_token", access_token, {
                 httpOnly: true,
-                maxAge: 20 * 60 * 60,
+                maxAge: 60 * 60 * 1000,
+                sameSite: true,
             });
             user.refresh_token = refresh_token;
             const transporter = nodemailer.createTransport({
@@ -628,7 +644,8 @@ export const confirm = async (req, res) => {
         }
     }
     catch (error) {
-        controlDebug(error);
+        controlDebug("Error in post request confirm controller");
+        console.error(error);
         res.status(500).json({ server_error: "Internal server error" });
     }
 };
@@ -638,10 +655,27 @@ export const confirm_get = async (req, res) => {
         if (req.params) {
             conf_id = req.params.confirmation_link_id;
         }
+        const signup_reference_token = req.cookies.signup_reference_token;
+        if (!signup_reference_token) {
+            return res
+                .status(401)
+                .json({ expired_error: "Required handler expired" });
+        }
+        if (!env.ACCESS_SECRET) {
+            throw new Error("Could not load environment variables");
+        }
+        let payload = jwt.verify(signup_reference_token, env.ACCESS_SECRET, {
+            algorithms: ["HS256"],
+        });
         if (!conf_id) {
             return res
                 .status(400)
                 .json({ data_error: "Url incorrect check the url and try again" });
+        }
+        if (conf_id !== payload.user_id) {
+            return res.status(401).json({
+                data_error: "Required handler dependencies expired or missing",
+            });
         }
         const user = await User.findOne({ confirmation_link_id: conf_id });
         if (user) {
@@ -932,19 +966,25 @@ export const confirm_get = async (req, res) => {
         }
     }
     catch (error) {
-        controlDebug(error);
+        controlDebug("Error in get reuest confirm  controller");
+        console.error(error);
         res.status(500).json({ server_error: "Internal server error" });
     }
 };
 export const logIn = async (req, res) => {
     try {
-        const reqBody = req.body;
+        const { reqBody } = req.body;
         const user_details = loginSchema.parse(reqBody);
         const user = await User.findOne({ user_email: user_details.user_email });
         if (!user) {
             return res.status(404).json({
                 data_error: "User is not found.Kindly consider creating an account",
             });
+        }
+        if (user_details.user_pass !== user_details.user_pass_conf) {
+            return res
+                .status(400)
+                .json({ input_error: "Passwords must be the same" });
         }
         if (!user.isVerified) {
             return res
@@ -955,6 +995,7 @@ export const logIn = async (req, res) => {
         if (!check) {
             return res.status(401).json({ auth_error: "Invalid credentials" });
         }
+        res.status(200).json({ success: "Login successful" });
     }
     catch (error) {
         if (error instanceof z.ZodError) {
@@ -962,13 +1003,14 @@ export const logIn = async (req, res) => {
                 .status(400)
                 .json({ input_error: "Input requirements not fulfilled" });
         }
-        controlDebug(error);
+        controlDebug("Error in login controller");
+        console.error(error);
         res.status(500).json({ server_error: "Internal server error" });
     }
 };
 export const forgot = async (req, res) => {
     try {
-        const reqBody = req.body;
+        const { reqBody } = req.body;
         const forget_details = forgotSchema.parse(reqBody);
         const user = await User.findOne({ user_email: forget_details.user_email });
         if (!user) {
@@ -979,12 +1021,13 @@ export const forgot = async (req, res) => {
         let rec_info = { user_id: user._id };
         if (!env.ACCESS_SECRET)
             return res.status(500).json({ server_error: "Internal server error" });
-        const reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
+        const recovery_reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
             expiresIn: "10m",
         });
-        res.cookie("reference_token", reference_token, {
+        res.cookie("recovery_reference_token", recovery_reference_token, {
             maxAge: 10 * 60 * 1000,
             httpOnly: true,
+            sameSite: true,
         });
         let reset_pass_token = crypto
             .randomInt(1000000)
@@ -2107,9 +2150,13 @@ export const forgot = async (req, res) => {
 `,
         });
         await user.save();
+        res.status(200).json({
+            success: "Password token for verification generated successfully",
+        });
     }
     catch (error) {
-        controlDebug(error);
+        controlDebug("Error in forgot password controller");
+        console.error(error);
         if (error instanceof z.ZodError) {
             return res
                 .status(400)
@@ -2121,10 +2168,14 @@ export const forgot = async (req, res) => {
 export const verifyCode = async (req, res) => {
     try {
         const { token } = req.body;
-        const detail_cookie = req.cookies.reference_token;
+        const validate_result_token = verifyCSchema.parse(token);
+        let used_token = validate_result_token.token;
+        const recovery_reference_token = req.cookies.recovery_reference_token;
         if (!env.ACCESS_SECRET)
             return res.status(500).json({ server_error: "Internal server error" });
-        const payload = jwt.verify(detail_cookie, env.ACCESS_SECRET);
+        const payload = jwt.verify(recovery_reference_token, env.ACCESS_SECRET, {
+            algorithms: ["HS256"],
+        });
         if (!payload) {
             return res.status(500).json({ server_error: "Internal server error" });
         }
@@ -2137,23 +2188,24 @@ export const verifyCode = async (req, res) => {
         if (!user.pass_token) {
             return res.status(500).json({ server_error: "Internal server error" });
         }
-        const check = await bcrypt.compare(token, user.pass_token);
+        const check = await bcrypt.compare(used_token, user.pass_token);
         if (!check)
             return res.status(401).json({ input_error: "Invalid one time password" });
         const user_cookie_details = { userId: user._id };
         if (ACCESS_SECRET) {
-            const access_token = jwt.sign(user_cookie_details, ACCESS_SECRET, {
+            const reset_reference_token = jwt.sign(user_cookie_details, ACCESS_SECRET, {
                 algorithm: "HS256",
             });
-            res.cookie("reset_token", access_token, {
+            res.cookie("reset_token", reset_reference_token, {
                 httpOnly: true,
-                maxAge: 5 * 60 * 60,
+                maxAge: 10 * 60 * 1000,
             });
             res.status(200).json({ success: "Token verification successful" });
         }
     }
     catch (error) {
-        controlDebug(error);
+        controlDebug("Error in verify code controller");
+        console.error(error);
         if (error instanceof z.ZodError) {
             return res
                 .status(401)
@@ -2164,8 +2216,8 @@ export const verifyCode = async (req, res) => {
 };
 export const reset = async (req, res) => {
     try {
-        const reset_info = req.cookies.reset_token;
-        const reqBody = req.body;
+        const reset_info = req.cookies.reset_reference_token;
+        const { reqBody } = req.body;
         const passwords = resetSchema.parse(reqBody);
         if (passwords.user_pass !== passwords.user_pass_conf) {
             return res
@@ -2199,7 +2251,8 @@ export const reset = async (req, res) => {
         }
     }
     catch (error) {
-        controlDebug(error);
+        controlDebug("Error in reset password controller");
+        console.error(error);
         if (error instanceof z.ZodError) {
             return res
                 .status(401)

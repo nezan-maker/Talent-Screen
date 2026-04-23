@@ -25,7 +25,8 @@ const verdictControl = async (req, res) => {
         }
     }
     catch (error) {
-        controlDebug(error);
+        controlDebug("Error in verdict controller");
+        console.error(error);
         res.status(500).json({ server_error: "Internal server error" });
     }
 };

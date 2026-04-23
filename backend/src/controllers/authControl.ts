@@ -9,7 +9,7 @@ import {
 } from "../validations/authValidations.js";
 import debug from "debug";
 import z from "zod";
-import jwt, { verify } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";

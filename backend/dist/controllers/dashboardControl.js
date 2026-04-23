@@ -15,7 +15,7 @@ const dashBoardControl = async (_, res) => {
         }
         const information_array = [applicants, jobs];
         const response = JSON.stringify(information_array);
-        res.status(200).json(response);
+        res.status(200).json({ success: response });
     }
     catch (error) {
         controlDebug(error);

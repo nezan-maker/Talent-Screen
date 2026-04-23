@@ -6,6 +6,7 @@ import completeJob from "../controllers/completeJob.js";
 import multer from "multer";
 import { middleAuth } from "../middlewares/authMiddleware.js";
 import verdictControl from "../controllers/verdictControl.js";
+import emailingController from "../controllers/shortListEmails.js";
 const storage = multer.memoryStorage();
 export let fieldnames = ["applicants_spreadsheet", "resume_pdf_zip"];
 const fileFilter = (req, file, cb) => {
@@ -33,6 +34,7 @@ const dashRoutes = () => {
     router.post("/ask", middleAuth, askGeminiCont);
     router.post("/complete-job", middleAuth, completeJob);
     router.post("/review-result", middleAuth, verdictControl);
+    router.post("/sendEmails", middleAuth, emailingController);
     return router;
 };
 export default dashRoutes;

@@ -7,7 +7,6 @@ const exampleResult = {
     result_verdict: "Top candidates shortlisted based on overall performance and relevance",
     applicants_details: [
         {
-            applicant_id: "APP-001",
             applicant_name: "Alice Uwimana",
             applicant_marks: 87.5,
             applicant_specification_relevance: {
@@ -17,7 +16,6 @@ const exampleResult = {
             applicant_result_description: "Strong in both frontend and backend technologies. Demonstrated solid understanding of system design and APIs.",
         },
         {
-            applicant_id: "APP-002",
             applicant_name: "Eric Ndayisaba",
             applicant_marks: 78.2,
             applicant_specification_relevance: {
@@ -27,7 +25,6 @@ const exampleResult = {
             applicant_result_description: "Good technical skills with practical experience. Needs improvement in advanced backend concepts.",
         },
         {
-            applicant_id: "APP-003",
             applicant_name: "Claudine Mukamana",
             applicant_marks: 91.0,
             applicant_specification_relevance: {

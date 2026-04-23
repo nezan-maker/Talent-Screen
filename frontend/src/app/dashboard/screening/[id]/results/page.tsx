@@ -481,7 +481,7 @@ export default function ResultsPage() {
             <input
               value={q}
               onChange={(event) => setQ(event.target.value)}
-              className="h-10 w-full rounded-input border border-border bg-white pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-accent/30"
+              className="h-10 w-full rounded-input border border-border bg-card pl-10 pr-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:ring-2 focus:ring-accent/30"
               placeholder="Search candidates…"
             />
           </div>

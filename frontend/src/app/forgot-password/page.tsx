@@ -28,7 +28,7 @@ const isStrongPassword = (password: string) => {
 };
 
 function inputClass(hasError?: boolean) {
-  return `mt-2 h-11 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+  return `mt-2 h-11 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
     hasError
       ? 'border-danger focus:border-danger focus:ring-danger/20'
       : 'border-border focus:border-accent/40 focus:ring-accent/20'

@@ -237,7 +237,7 @@ export default function RegisterPage() {
               inputMode="numeric"
               value={verificationCode}
               onChange={(event) => setVerificationCode(event.target.value)}
-              className="mt-2 h-11 w-full rounded-input border border-border bg-white px-3 text-sm outline-none transition-all focus:border-accent/40 focus:ring-2 focus:ring-accent/20"
+              className="mt-2 h-11 w-full rounded-input border border-border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:border-accent/40 focus:ring-2 focus:ring-accent/20"
               placeholder="Enter the 6-digit code"
             />
             <p className="mt-1.5 text-xs text-text-muted">
@@ -279,7 +279,7 @@ export default function RegisterPage() {
             value={name}
             onChange={(event) => handleNameChange(event.target.value)}
             onBlur={() => handleBlur("name")}
-            className={`mt-2 h-11 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+            className={`mt-2 h-11 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
               errors.name && touched.name
                 ? "border-danger focus:border-danger focus:ring-danger/20"
                 : "border-border focus:border-accent/40 focus:ring-accent/20"
@@ -303,7 +303,7 @@ export default function RegisterPage() {
             value={email}
             onChange={(event) => handleEmailChange(event.target.value)}
             onBlur={() => handleBlur("email")}
-            className={`mt-2 h-11 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+            className={`mt-2 h-11 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
               errors.email && touched.email
                 ? "border-danger focus:border-danger focus:ring-danger/20"
                 : "border-border focus:border-accent/40 focus:ring-accent/20"
@@ -327,7 +327,7 @@ export default function RegisterPage() {
             value={password}
             onChange={(event) => handlePasswordChange(event.target.value)}
             onBlur={() => handleBlur("password")}
-            className={`mt-2 h-11 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+            className={`mt-2 h-11 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
               errors.password && touched.password
                 ? "border-danger focus:border-danger focus:ring-danger/20"
                 : "border-border focus:border-accent/40 focus:ring-accent/20"
@@ -351,7 +351,7 @@ export default function RegisterPage() {
             value={confirm}
             onChange={(event) => handleConfirmChange(event.target.value)}
             onBlur={() => handleBlur("confirm")}
-            className={`mt-2 h-11 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+            className={`mt-2 h-11 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
               errors.confirm && touched.confirm
                 ? "border-danger focus:border-danger focus:ring-danger/20"
                 : "border-border focus:border-accent/40 focus:ring-accent/20"

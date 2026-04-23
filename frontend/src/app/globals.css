@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -27,8 +25,8 @@
   --sidebar-border: #e2e8f0;
   --sidebar-text: #0f172a;
   --sidebar-text-muted: #64748b;
-  --font-sans: 'Manrope', 'Segoe UI', sans-serif;
-  --font-jetbrains: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', 'Source Code Pro', 'Droid Sans Mono', 'DejaVu Sans Mono', monospace;
+  --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-jetbrains: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
 }
 
 .dark {

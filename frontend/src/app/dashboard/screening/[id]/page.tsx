@@ -53,7 +53,7 @@ function splitCommaList(value: string) {
 
 function inputClass(hasError?: boolean) {
   return [
-    'mt-2 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all focus:ring-2',
+    'mt-2 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2',
     hasError
       ? 'border-danger focus:border-danger focus:ring-danger/20'
       : 'border-border focus:border-accent/40 focus:ring-accent/20',
@@ -464,7 +464,7 @@ export default function ScreeningIngestionPage() {
                     <input
                       value={q}
                       onChange={(event) => setQ(event.target.value)}
-                      className="h-10 w-full rounded-input border border-border bg-white pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-accent/30"
+                      className="h-10 w-full rounded-input border border-border bg-card pl-10 pr-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:ring-2 focus:ring-accent/30"
                       placeholder="Search by name, role, or skill"
                     />
                   </div>

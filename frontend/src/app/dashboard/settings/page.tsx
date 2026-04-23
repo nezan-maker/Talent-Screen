@@ -130,7 +130,7 @@ export default function SettingsPage() {
                 <input 
                   type="email" 
                   placeholder="colleague@company.com" 
-                  className="w-full rounded-input border border-border bg-bg px-4 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
+                  className="w-full rounded-input border border-border bg-bg px-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
                 />
               </div>
               <div className="pt-4 border-t border-border">

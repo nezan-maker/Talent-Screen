@@ -242,7 +242,7 @@ export default function ContactPage() {
                           value={formData.name}
                           onChange={(e) => handleChange("name", e.target.value)}
                           onBlur={() => handleBlur("name")}
-                          className={`w-full rounded-input border bg-bg px-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-all ${
+                          className={`w-full rounded-input border bg-bg px-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 transition-all ${
                             errors.name && touched.name
                               ? "border-danger focus:border-danger focus:ring-danger/20"
                               : "border-border focus:border-accent focus:ring-accent/20"
@@ -264,7 +264,7 @@ export default function ContactPage() {
                           value={formData.email}
                           onChange={(e) => handleChange("email", e.target.value)}
                           onBlur={() => handleBlur("email")}
-                          className={`w-full rounded-input border bg-bg px-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-all ${
+                          className={`w-full rounded-input border bg-bg px-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 transition-all ${
                             errors.email && touched.email
                               ? "border-danger focus:border-danger focus:ring-danger/20"
                               : "border-border focus:border-accent focus:ring-accent/20"
@@ -288,7 +288,7 @@ export default function ContactPage() {
                         value={formData.subject}
                         onChange={(e) => handleChange("subject", e.target.value)}
                         onBlur={() => handleBlur("subject")}
-                        className={`w-full rounded-input border bg-bg px-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-all ${
+                        className={`w-full rounded-input border bg-bg px-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 transition-all ${
                           errors.subject && touched.subject
                             ? "border-danger focus:border-danger focus:ring-danger/20"
                             : "border-border focus:border-accent focus:ring-accent/20"
@@ -311,7 +311,7 @@ export default function ContactPage() {
                         onChange={(e) => handleChange("message", e.target.value)}
                         onBlur={() => handleBlur("message")}
                         rows={6}
-                        className={`w-full rounded-input border bg-bg px-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-all resize-none ${
+                        className={`w-full rounded-input border bg-bg px-4 py-3 text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 transition-all resize-none ${
                           errors.message && touched.message
                             ? "border-danger focus:border-danger focus:ring-danger/20"
                             : "border-border focus:border-accent focus:ring-accent/20"

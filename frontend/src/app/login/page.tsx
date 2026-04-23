@@ -130,7 +130,7 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => handleEmailChange(e.target.value)}
             onBlur={() => handleBlur('email')}
-            className={`mt-2 h-11 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+            className={`mt-2 h-11 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
               errors.email && touched.email
                 ? 'border-danger focus:border-danger focus:ring-danger/20'
                 : 'border-border focus:border-accent/40 focus:ring-accent/20'
@@ -167,7 +167,7 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => handlePasswordChange(e.target.value)}
             onBlur={() => handleBlur('password')}
-            className={`mt-2 h-11 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+            className={`mt-2 h-11 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
               errors.password && touched.password
                 ? 'border-danger focus:border-danger focus:ring-danger/20'
                 : 'border-border focus:border-accent/40 focus:ring-accent/20'

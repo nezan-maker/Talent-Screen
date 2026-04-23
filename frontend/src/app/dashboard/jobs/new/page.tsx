@@ -172,7 +172,7 @@ function FieldError({ message }: { message?: string }) {
 
 function InputClass(hasError?: boolean) {
   return [
-    "mt-2 w-full rounded-input border bg-white px-3 text-sm outline-none transition-all focus:ring-2",
+    "mt-2 w-full rounded-input border bg-card px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2",
     hasError
       ? "border-danger focus:border-danger focus:ring-danger/20"
       : "border-border focus:border-accent/40 focus:ring-accent/20",

@@ -22,4 +22,5 @@ const emailingController = async (req, res) => {
         let sendEmail = current_json.applicant_email;
     }
 };
+export default emailingController;
 //# sourceMappingURL=shortListEmails.js.map

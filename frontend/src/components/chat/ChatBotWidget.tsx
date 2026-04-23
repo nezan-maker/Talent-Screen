@@ -161,7 +161,7 @@ export function ChatBotWidget() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") send();
                   }}
-                  className="h-10 flex-1 rounded-input border border-border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-accent/30"
+                  className="h-10 flex-1 rounded-input border border-border bg-card px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:ring-2 focus:ring-accent/30"
                   placeholder="Ask about jobs, screening, scores…"
                 />
                 <Button

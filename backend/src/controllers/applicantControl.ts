@@ -13,6 +13,7 @@ import { fieldnames } from "../routes/dashRoutes.js";
 import { controlDebug } from "./authControl.js";
 interface Applicant_ {
   applicant_name: string;
+  applicant_email: string;
   job_title: string;
 }
 interface HeaderText {
@@ -34,6 +35,7 @@ const applicantControl = async (req: Request, res: Response) => {
         let applicant_json: Applicant_ = {
           applicant_name: current_json.applicant_name,
           job_title: current_json.job_title,
+          applicant_email: current_json.applicant_email,
         };
         const oldApplicant = await Applicant.findOne({
           applicant_name: current_json.applicant_name,
@@ -158,6 +160,7 @@ const applicantControl = async (req: Request, res: Response) => {
           });
         let applicant_json: Applicant_ = {
           applicant_name: current_json.applicant_name,
+          applicant_email: current_json.applicant_email,
           job_title: current_json.job_title,
         };
         const oldApplicant = await Applicant.findOne({

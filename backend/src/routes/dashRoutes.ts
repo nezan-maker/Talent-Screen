@@ -4,7 +4,10 @@ import applicantControl from "../controllers/applicantControl.js";
 import askGeminiCont from "../controllers/askGeminiControl.js";
 import completeJob from "../controllers/completeJob.js";
 import multer from "multer";
+import { middleAuth } from "../middlewares/authMiddleware.js";
 import type { Request, Response } from "express";
+import verdictControl from "../controllers/verdictControl.js";
+
 const storage = multer.memoryStorage();
 export let fieldnames = ["applicant_spreadsheet", "resume_pdf_zip"];
 const fileFilter = (req: Request, file: Express.Multer.File, cb: Function) => {
@@ -32,10 +35,11 @@ let fields = upload.fields([
 ]);
 const dashRoutes = () => {
   const router = express.Router();
-  router.get("/dashboard", dashBoardControl);
-  router.post("/register-candidate", fields, applicantControl);
-  router.post("/ask", askGeminiCont);
-  router.post("/complete-job", completeJob);
+  router.get("/dashboard", middleAuth, dashBoardControl);
+  router.post("/register-candidate", middleAuth, fields, applicantControl);
+  router.post("/ask", middleAuth, askGeminiCont);
+  router.post("/complete-job", middleAuth, completeJob);
+  router.post("/review-result", middleAuth, verdictControl);
   return router;
 };
 export default dashRoutes;

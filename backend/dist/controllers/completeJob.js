@@ -6,7 +6,8 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 const completeJob = async (req, res) => {
     try {
-        const { reqBody } = req.body;
+        const { reqString } = req.body;
+        const reqBody = JSON.parse(reqString);
         const access_token = req.cookies.reference_token;
         if (!access_token) {
             throw new Error("Could not find user_details cookie missing or expired");

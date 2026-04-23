@@ -1055,7 +1055,8 @@ export const logIn = async (req: Request, res: Response) => {
 
 export const forgot = async (req: I_Request, res: Response) => {
   try {
-    const { reqBody }: { reqBody: Forgot } = req.body;
+    const { user_email }: { user_email: string } = req.body;
+    let reqBody: Forgot = { user_email };
     const forget_details = forgotSchema.parse(reqBody);
     const user = await User.findOne({ user_email: forget_details.user_email });
     if (!user) {
@@ -1078,8 +1079,8 @@ export const forgot = async (req: I_Request, res: Response) => {
       .randomInt(1000000)
       .toString()
       .padStart(6, "0");
-    reset_pass_token = await bcrypt.hash(reset_pass_token, 5);
-    user.pass_token = reset_pass_token;
+    let enc_reset_pass_token = await bcrypt.hash(reset_pass_token, 5);
+    user.pass_token = enc_reset_pass_token;
     res.status(200).json({ success: "OTP token sent" });
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",

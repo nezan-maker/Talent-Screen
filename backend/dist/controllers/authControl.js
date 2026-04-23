@@ -61,6 +61,7 @@ export const signUp = async (req, res) => {
         transporter.sendMail({
             from: env.USER_EMAIL,
             to: newUser.user_email,
+            subject: "WiseRank Sign up Verification",
             text: `This is your token ${otpToken}`,
             html: `<!doctype html>
 <html lang="en" style="margin: 0; padding: 0; background-color: #f8fafc; background: #f8fafc;">
@@ -233,7 +234,7 @@ export const signUp = async (req, res) => {
 
                 <p class="wr-fallback-link" style="font-family: Segoe UI, Arial, sans-serif; margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: rgba(241, 245, 249, 0.74); word-break: break-all;">
                   Button not working? Copy this link into your browser:<br />
-                  <a class="wr-link-light" href=${confirmation_link} target="_blank" rel="noreferrer" style="font-family: Segoe UI, Arial, sans-serif; color: inherit; text-decoration: none; color: #d1fae5 !important; font-weight: 700; text-decoration: underline;">https://app.rankwise.dev/register</a>
+                  <a class="wr-link-light" href=${confirmation_link} target="_blank" rel="noreferrer" style="font-family: Segoe UI, Arial, sans-serif; color: inherit; text-decoration: none; color: #d1fae5 !important; font-weight: 700; text-decoration: underline;">${confirmation_link}</a>
                 </p>
               </td>
             </tr>
@@ -394,6 +395,7 @@ export const confirm = async (req, res) => {
             transporter.sendMail({
                 from: env.USER_EMAIL,
                 to: user.user_email,
+                subject: "Onboarding, WiseRank",
                 text: `Welcome to WiseRank`,
                 html: `<!doctype html>
 <html lang="en" style="margin: 0; padding: 0; background-color: #f8fafc; background: #f8fafc;">
@@ -715,6 +717,7 @@ export const confirm_get = async (req, res) => {
                 transporter.sendMail({
                     from: env.USER_EMAIL,
                     to: user.user_email,
+                    subject: "Onboarding, WiseRank",
                     text: `Welcome to WiseRank`,
                     html: `<!doctype html>
 <html lang="en" style="margin: 0; padding: 0; background-color: #f8fafc; background: #f8fafc;">
@@ -1019,7 +1022,8 @@ export const logIn = async (req, res) => {
 };
 export const forgot = async (req, res) => {
     try {
-        const { reqBody } = req.body;
+        const { user_email } = req.body;
+        let reqBody = { user_email };
         const forget_details = forgotSchema.parse(reqBody);
         const user = await User.findOne({ user_email: forget_details.user_email });
         if (!user) {
@@ -1057,6 +1061,7 @@ export const forgot = async (req, res) => {
         transporter.sendMail({
             from: env.USER_EMAIL,
             to: user.user_email,
+            subject: "Password Recovery Code",
             text: `Here is your password resest token ${reset_pass_token}`,
             html: `<!doctype html>
 <html

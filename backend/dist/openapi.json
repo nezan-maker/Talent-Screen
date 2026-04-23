@@ -72,8 +72,7 @@
                   "$ref": "#/components/schemas/SignUpResponse"
                 },
                 "example": {
-                  "success": "Sign up successful",
-                  "token": "431928"
+                  "success": "Sign up successful"
                 }
               }
             }
@@ -1029,10 +1028,6 @@
         "properties": {
           "success": {
             "type": "string"
-          },
-          "token": {
-            "type": "string",
-            "description": "Development OTP token returned by the current backend implementation."
           }
         }
       },

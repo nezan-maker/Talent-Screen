@@ -320,7 +320,7 @@ export const signUp = async (req: I_Request, res: Response) => {
       maxAge: 10 * 60 * 1000,
       httpOnly: true,
     });
-    res.status(201).json({ success: "Sign up successful", token: otpToken });
+    res.status(201).json({ success: "Sign up successful" });
   } catch (error) {
     controlDebug(error);
     if (error instanceof z.ZodError) {

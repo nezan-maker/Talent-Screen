@@ -12,7 +12,15 @@ const ACCESS_SECRET = env.ACCESS_SECRET;
 const REFRESH_SECRET = env.REFRESH_SECRET;
 export const signUp = async (req, res) => {
     try {
-        const { reqBody } = req.body;
+        const { user_name, user_email, user_pass, user_pass_conf, company_name } = req.body;
+        console.log(company_name);
+        let reqBody = {
+            user_name,
+            user_email,
+            user_pass,
+            user_pass_conf,
+            company_name,
+        };
         const user_details = signupSchema.parse(reqBody);
         const oldUser = await User.findOne({ user_email: user_details.user_email });
         if (!env.ACCESS_SECRET) {
@@ -34,6 +42,7 @@ export const signUp = async (req, res) => {
             user_name: user_details.user_name,
             user_email: user_details.user_email,
             user_pass: hashedPassword,
+            company_name: user_details.company_name,
             sign_otp_token: otpToken,
         });
         const randomId = crypto.randomBytes(16).toString("hex");

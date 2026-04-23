@@ -24,7 +24,8 @@ interface Desc_Job {
 
 const completeJob = async (req: Request, res: Response) => {
   try {
-    const { reqBody }: { reqBody: Desc_Job } = req.body;
+    const { reqString } = req.body;
+    const reqBody: Desc_Job = JSON.parse(reqString);
     const access_token = req.cookies.reference_token;
     if (!access_token) {
       throw new Error("Could not find user_details cookie missing or expired");

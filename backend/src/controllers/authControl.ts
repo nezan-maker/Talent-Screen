@@ -29,6 +29,7 @@ interface SignUp {
   user_email: string;
   user_pass: string;
   user_pass_conf: string;
+  company_name: string;
 }
 interface Login {
   user_email: string;
@@ -41,7 +42,16 @@ interface Forgot {
 
 export const signUp = async (req: I_Request, res: Response) => {
   try {
-    const { reqBody }: { reqBody: SignUp } = req.body;
+    const { user_name, user_email, user_pass, user_pass_conf, company_name } =
+      req.body;
+    console.log(company_name);
+    let reqBody: SignUp = {
+      user_name,
+      user_email,
+      user_pass,
+      user_pass_conf,
+      company_name,
+    };
     const user_details = signupSchema.parse(reqBody);
     const oldUser = await User.findOne({ user_email: user_details.user_email });
     if (!env.ACCESS_SECRET) {
@@ -63,6 +73,7 @@ export const signUp = async (req: I_Request, res: Response) => {
       user_name: user_details.user_name,
       user_email: user_details.user_email,
       user_pass: hashedPassword,
+      company_name: user_details.company_name,
       sign_otp_token: otpToken,
     });
     const randomId = crypto.randomBytes(16).toString("hex");
@@ -82,6 +93,7 @@ export const signUp = async (req: I_Request, res: Response) => {
     transporter.sendMail({
       from: env.USER_EMAIL,
       to: newUser.user_email,
+      subject: "WiseRank Sign up Verification",
       text: `This is your token ${otpToken}`,
       html: `<!doctype html>
 <html lang="en" style="margin: 0; padding: 0; background-color: #f8fafc; background: #f8fafc;">
@@ -254,7 +266,7 @@ export const signUp = async (req: I_Request, res: Response) => {
 
                 <p class="wr-fallback-link" style="font-family: Segoe UI, Arial, sans-serif; margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: rgba(241, 245, 249, 0.74); word-break: break-all;">
                   Button not working? Copy this link into your browser:<br />
-                  <a class="wr-link-light" href=${confirmation_link} target="_blank" rel="noreferrer" style="font-family: Segoe UI, Arial, sans-serif; color: inherit; text-decoration: none; color: #d1fae5 !important; font-weight: 700; text-decoration: underline;">https://app.rankwise.dev/register</a>
+                  <a class="wr-link-light" href=${confirmation_link} target="_blank" rel="noreferrer" style="font-family: Segoe UI, Arial, sans-serif; color: inherit; text-decoration: none; color: #d1fae5 !important; font-weight: 700; text-decoration: underline;">${confirmation_link}</a>
                 </p>
               </td>
             </tr>
@@ -417,6 +429,7 @@ export const confirm = async (req: I_Request, res: Response) => {
       transporter.sendMail({
         from: env.USER_EMAIL,
         to: user.user_email,
+        subject: "Onboarding, WiseRank",
         text: `Welcome to WiseRank`,
         html: `<!doctype html>
 <html lang="en" style="margin: 0; padding: 0; background-color: #f8fafc; background: #f8fafc;">
@@ -738,6 +751,7 @@ export const confirm_get = async (req: I_Request, res: Response) => {
         transporter.sendMail({
           from: env.USER_EMAIL,
           to: user.user_email,
+          subject: "Onboarding, WiseRank",
           text: `Welcome to WiseRank`,
           html: `<!doctype html>
 <html lang="en" style="margin: 0; padding: 0; background-color: #f8fafc; background: #f8fafc;">
@@ -1080,6 +1094,7 @@ export const forgot = async (req: I_Request, res: Response) => {
     transporter.sendMail({
       from: env.USER_EMAIL,
       to: user.user_email,
+      subject: "Password Recovery Code",
       text: `Here is your password resest token ${reset_pass_token}`,
       html: `<!doctype html>
 <html

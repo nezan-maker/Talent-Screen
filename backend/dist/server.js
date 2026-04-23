@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import debug from "debug";
 import cookie from "cookie-parser";
+import morgan from "morgan";
 import authRoutes from "./routes/authRoutes.js";
 import connectDB from "./config/db.js";
 import { fileURLToPath } from "url";
@@ -34,6 +35,7 @@ const startServer = async () => {
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
     app.use(cookie());
+    app.use(morgan("dev"));
     app.get("/openapi.json", (req, res) => {
         res.sendFile(path.join(__dirname, "openapi.json"));
     });

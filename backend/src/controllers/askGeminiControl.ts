@@ -9,7 +9,6 @@ interface Relevance {
 }
 
 interface Applicant_R {
-
   applicant_name: string;
   applicant_marks: number;
   applicant_specification_relevance: Relevance;
@@ -60,9 +59,9 @@ const exampleResult: Result_R = {
   ],
 };
 const askGeminiCont = async (req: Request, res: Response) => {
-  const { jobTitle }: { jobTitle: string } = req.body;
+  const { job_title }: { job_title: string } = req.body;
   const job = await Job.findOne({
-    job_title: jobTitle,
+    job_title: job_title,
     job_state: "Uninitialised",
   });
   if (!job)
@@ -70,7 +69,7 @@ const askGeminiCont = async (req: Request, res: Response) => {
       data_error: `Could not find an active job that matches what is specified`,
     });
   const applicants = Applicant.find(
-    { job_title: jobTitle },
+    { job_title: job_title },
     {
       _id: 1,
       applicant_name: 1,
@@ -84,7 +83,9 @@ const askGeminiCont = async (req: Request, res: Response) => {
   if (!applicants)
     return res
       .status(404)
-      .json({ data_error: `No active applicants for the job ${jobTitle} yet` });
+      .json({
+        data_error: `No active applicants for the job ${job_title} yet`,
+      });
   const ai_guidelines =
     "We need you to review these information about these candidates on the job sent with this stringified json we need that the results must be in the same structure also sent with the request.Remember that is a sample make sure to elaborate efficiently not too much but not too little about the details of the verdict and various reasons for your decision and send back a JSON stringified string of the results.";
   const prompt_object_array: any = [];

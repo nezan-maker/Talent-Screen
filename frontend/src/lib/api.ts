@@ -15,7 +15,11 @@ import type {
 } from '@/types';
 import { dashboardStatsSchema } from '@/types';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'mock://local';
+const baseURL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'development'
+    ? 'http://localhost:5000'
+    : 'mock://local');
 
 export const api: AxiosInstance = axios.create({
   baseURL,
@@ -735,7 +739,10 @@ export async function runScreening(
     return analysis;
   }
 
-  const response = await api.post<ScreeningRunResponse>('/ask', { jobTitle });
+  const response = await api.post<ScreeningRunResponse>('/ask', {
+    jobId,
+    jobTitle,
+  });
   const result = response.data.success;
   const analysis: ScreeningAnalysis = {
     jobId,

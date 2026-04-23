@@ -6,7 +6,7 @@ const applicantSchema = new mongoose.Schema({
     },
     applicant_email: {
         type: String,
-        required: true
+        required: true,
     },
     job_title: {
         type: String,
@@ -28,7 +28,7 @@ const applicantSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
-});
+}, { timestamps: true });
 const Applicant = mongoose.model("applicants", applicantSchema);
 export default Applicant;
 //# sourceMappingURL=Applicant.js.map

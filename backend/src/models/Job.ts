@@ -44,7 +44,15 @@ const jobSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  job_description: [ai_criteria],
+  job_description: {
+    type: mongoose.Schema.Types.Mixed,
+    required: true,
+  },
+  job_ai_criteria: [ai_criteria],
+  job_shortlist_size: {
+    type: Number,
+    default: 10,
+  },
   job_responsibilities: {
     type: String,
     required: true,
@@ -64,6 +72,8 @@ const jobSchema = new mongoose.Schema({
   job_example_form: {
     type: Object,
   },
-});
+},
+{ timestamps: true });
+
 const Job = mongoose.model("Job", jobSchema);
 export default Job;

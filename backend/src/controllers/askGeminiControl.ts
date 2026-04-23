@@ -63,7 +63,7 @@ const exampleResult: Result_R = {
   ],
 };
 const askGeminiCont = async (req: Request, res: Response) => {
-  const { jobTitle }: { jobTitle: string } = req.body();
+  const { jobTitle }: { jobTitle: string } = req.body;
   const job = await Job.findOne({
     job_title: jobTitle,
     job_state: "Uninitialised",

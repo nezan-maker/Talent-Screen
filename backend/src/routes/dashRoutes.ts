@@ -6,10 +6,10 @@ import completeJob from "../controllers/completeJob.js";
 import multer from "multer";
 import type { Request, Response } from "express";
 const storage = multer.memoryStorage();
-export let fieldnames = ["applicant_spreadsheet", "pdf_resume_zip"];
+export let fieldnames = ["applicant_spreadsheet", "resume_pdf_zip"];
 const fileFilter = (req: Request, file: Express.Multer.File, cb: Function) => {
   const allowedMimes = [
-    "application/vnd.openxmlformats-officedocument.spreadsheet.sheet",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/zip",
   ];
   if (

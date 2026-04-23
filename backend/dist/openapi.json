@@ -31,6 +31,10 @@
     {
       "name": "AI Screening",
       "description": "AI-assisted job setup and applicant screening."
+    },
+    {
+      "name": "Notifications",
+      "description": "Candidate communications and shortlist email delivery."
     }
   ],
   "paths": {
@@ -184,11 +188,69 @@
         }
       }
     },
+    "/auth/confirm_link/{confirmation_link_id}": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Confirm an account from the emailed link",
+        "description": "Marks the matching user as verified, sends the welcome email, and sets the `access_token` cookie. If no user matches the provided link id, the current controller does not return an explicit not-found response.",
+        "parameters": [
+          {
+            "name": "confirmation_link_id",
+            "in": "path",
+            "required": true,
+            "description": "The confirmation link identifier stored on the user record during signup.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account confirmed successfully.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Sets the `access_token` cookie on success.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Confirmation successful"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The confirmation link id was missing or malformed.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "Url incorrect check the url and try again"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/login": {
       "post": {
         "tags": ["Auth"],
         "summary": "Log in",
-        "description": "Authenticates a verified user.",
+        "description": "Validates credentials for a verified user. The current controller checks the credentials but does not yet set cookies or return an explicit success payload after a valid login.",
         "requestBody": {
           "required": true,
           "content": {
@@ -205,14 +267,7 @@
         },
         "responses": {
           "200": {
-            "description": "Login succeeded.",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": "Login successful"
-                }
-              }
-            }
+            "description": "Credentials were accepted. The current implementation does not return a response body on the happy path."
           },
           "400": {
             "description": "Input validation failed.",
@@ -505,7 +560,7 @@
                   "type": "string",
                   "description": "Stringified JSON containing an array with applicants at index 0 and jobs at index 1."
                 },
-                "example": "[[{\"applicant_name\":\"John Doe\",\"job_title\":\"Junior Fullstack Developer\",\"skills\":\"Node.js, React\",\"education\":\"BSc Computer Science\",\"experience\":2,\"additional_info\":\"Immediate starter\",\"shortlisted\":false}],[{\"job_title\":\"Junior Fullstack Developer\",\"job_department\":\"Engineering\",\"job_location\":\"Kigali\",\"job_employment_type\":\"Full-time\",\"job_salary_min\":500,\"job_salary_max\":900,\"job_experience_required\":\"2 years\",\"job_ai_criteria\":[{\"criteria_string\":\"Core requirements\",\"description\":\"Frontend and backend fundamentals\",\"priority\":\"High\"}],\"workers_required\":1,\"job_state\":\"Uninitialised\"}]]"
+                "example": "[[{\"applicant_name\":\"John Doe\",\"job_title\":\"Junior Fullstack Developer\",\"skills\":\"Node.js, React\",\"education\":\"BSc Computer Science\",\"experience\":2,\"additional_info\":\"Immediate starter\",\"shortlisted\":false}],[{\"job_title\":\"Junior Fullstack Developer\",\"job_department\":\"Engineering\",\"job_location\":\"Kigali\",\"job_employment_type\":\"Full-time\",\"job_salary_min\":500,\"job_salary_max\":900,\"job_experience_required\":\"2 years\",\"job_description\":[{\"criteria_string\":\"Core requirements\",\"description\":\"Frontend and backend fundamentals\",\"priority\":\"High\"}],\"job_responsibilities\":\"Build and maintain product features.\",\"job_qualifications\":\"Solid React and Node.js fundamentals.\",\"workers_required\":1,\"job_state\":\"Uninitialised\"}]]"
               }
             }
           },
@@ -555,7 +610,7 @@
       "post": {
         "tags": ["Candidates"],
         "summary": "Register candidates",
-        "description": "Registers candidates either from JSON data or by uploading a spreadsheet together with a ZIP of PDF resumes. This route requires the `access_token` cookie. The JSON flow expects `raw_application_data` as a stringified JSON array. The multipart flow currently has an inconsistency in source: the middleware/controller reference `applicant_spreadsheet`, while `upload.fields` declares `applicants_spreadsheet`. The ZIP field is `resume_pdf_zip`.",
+        "description": "Registers candidates either from JSON data or by uploading a spreadsheet together with a ZIP of PDF resumes. This route requires the `access_token` cookie. The JSON flow expects `raw_application_data` as a stringified JSON array. The multipart flow expects `applicants_spreadsheet` and `resume_pdf_zip`. The current JSON branch returns a nonstandard `401` even when registration succeeds.",
         "security": [
           {
             "accessTokenCookie": []
@@ -569,7 +624,7 @@
                 "$ref": "#/components/schemas/CandidateJsonRegistrationRequest"
               },
               "example": {
-                "raw_application_data": "[{\"applicant_name\":\"Alice Uwimana\",\"job_title\":\"Full Stack Developer\"},{\"applicant_name\":\"Eric Ndayisaba\",\"job_title\":\"Full Stack Developer\"}]"
+                "raw_application_data": "[{\"applicant_name\":\"Alice Uwimana\",\"applicant_email\":\"alice@example.com\",\"job_title\":\"Full Stack Developer\"},{\"applicant_name\":\"Eric Ndayisaba\",\"applicant_email\":\"eric@example.com\",\"job_title\":\"Full Stack Developer\"}]"
               }
             },
             "multipart/form-data": {
@@ -581,20 +636,11 @@
         },
         "responses": {
           "200": {
-            "description": "Candidates were processed successfully.",
+            "description": "Candidates were processed successfully through the spreadsheet upload flow.",
             "content": {
               "application/json": {
-                "examples": {
-                  "spreadsheetUpload": {
-                    "value": {
-                      "success": "Applicants successfully registered from spreadsheet file"
-                    }
-                  },
-                  "jsonRegistration": {
-                    "value": {
-                      "success": "Applicant successfully registered"
-                    }
-                  }
+                "example": {
+                  "success": "Applicants successfully registered from spreadsheet file"
                 }
               }
             }
@@ -618,13 +664,18 @@
                     "value": {
                       "data_error": "Spreadsheet does not match required structure"
                     }
+                  },
+                  "missingApplicantForResume": {
+                    "value": {
+                      "data_error": "No matching name in the database for applicant Alice Uwimana"
+                    }
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "The request is unauthenticated or a duplicate applicant was found.",
+            "description": "The request is unauthenticated, a duplicate applicant was found, or the JSON registration flow completed with the controller's current nonstandard status code.",
             "content": {
               "application/json": {
                 "examples": {
@@ -636,6 +687,11 @@
                   "duplicateApplicant": {
                     "value": {
                       "data_error": "User named Alice Uwimana is already registered for this job"
+                    }
+                  },
+                  "jsonRegistrationSuccess": {
+                    "value": {
+                      "success": "Applicant successfully registered"
                     }
                   }
                 }
@@ -773,10 +829,11 @@
       "post": {
         "tags": ["AI Screening"],
         "summary": "Create a job and generate its example form",
-        "description": "Creates a job record, asks Gemini for an example candidate form, and stores the generated example on the job.",
+        "description": "Creates a job record, asks Gemini for an example candidate form, and stores the generated example on the job. The route is protected by `access_token`, and the current controller also reads `reference_token` to resolve the user that owns the new job.",
         "security": [
           {
-            "accessTokenCookie": []
+            "accessTokenCookie": [],
+            "referenceTokenCookie": []
           }
         ],
         "requestBody": {
@@ -795,7 +852,7 @@
                   "job_salary_min": 1200,
                   "job_salary_max": 2200,
                   "job_experience_required": "3+ years",
-                  "job_ai_criteria": [
+                  "job_description": [
                     {
                       "criteria_string": "Core requirements",
                       "description": "Strong React, Node.js, and SQL skills",
@@ -807,6 +864,8 @@
                       "priority": "Medium"
                     }
                   ],
+                  "job_responsibilities": "Build product features, own APIs, and collaborate across design and backend.",
+                  "job_qualifications": "Strong TypeScript, React, Node.js, and relational database experience.",
                   "workers_required": 1,
                   "job_state": "Active"
                 }
@@ -823,28 +882,7 @@
                   "$ref": "#/components/schemas/CompleteJobResponse"
                 },
                 "example": {
-                  "success": "Job created successfully",
-                  "job": {
-                    "job_title": "Full Stack Developer",
-                    "job_department": "Engineering",
-                    "job_location": "Kigali",
-                    "job_employment_type": "Full-time",
-                    "job_salary_min": 1200,
-                    "job_salary_max": 2200,
-                    "job_experience_required": "3+ years",
-                    "job_ai_criteria": [
-                      {
-                        "criteria_string": "Core requirements",
-                        "description": "Strong React, Node.js, and SQL skills",
-                        "priority": "High"
-                      }
-                    ],
-                    "workers_required": 1,
-                    "job_state": "Uninitialised",
-                    "job_example_form": {
-                      "SKILLS": ["React", "Node.js", "SQL"]
-                    }
-                  }
+                  "success": "Job successfully created"
                 }
               }
             }
@@ -926,14 +964,7 @@
         },
         "responses": {
           "200": {
-            "description": "Shortlist decisions were applied successfully.",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": "Applicants reviewed successfully"
-                }
-              }
-            }
+            "description": "Shortlist decisions were applied. The current controller does not send an explicit success body."
           },
           "400": {
             "description": "The verdict payload is missing or invalid.",
@@ -941,6 +972,85 @@
               "application/json": {
                 "example": {
                   "data_error": "Please send a valid JSON string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request is missing a valid authenticated session.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "user_error": "You currently do not have an account please create an account or sign in if you have an account already"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The authenticated user could not be resolved from the access token.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data_error": "User could not be found.Token corrupted or expired"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "server_error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sendEmails": {
+      "post": {
+        "tags": ["Notifications"],
+        "summary": "Send shortlist emails",
+        "description": "Looks up shortlisted applicants for the specified job and sends the shortlist email template to each applicant. This route requires the `access_token` cookie. The current controller does not return an explicit success payload after sending messages.",
+        "security": [
+          {
+            "accessTokenCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendEmailsRequest"
+              },
+              "example": {
+                "job_title": "Full Stack Developer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Emails were sent or queued. The current controller does not send a success body."
+          },
+          "400": {
+            "description": "The job title was missing, or the controller concluded there were no shortlisted applicants.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "missingJobTitle": {
+                    "value": {
+                      "data_error": "No job name provided"
+                    }
+                  },
+                  "noShortlistedApplicants": {
+                    "value": {
+                      "data_error": "No shortlisted appplicants for this job yet "
+                    }
+                  }
                 }
               }
             }
@@ -1024,7 +1134,7 @@
       },
       "SignUpResponse": {
         "type": "object",
-        "required": ["success", "token"],
+        "required": ["success"],
         "properties": {
           "success": {
             "type": "string"
@@ -1080,10 +1190,14 @@
       },
       "ApplicantInput": {
         "type": "object",
-        "required": ["applicant_name", "job_title"],
+        "required": ["applicant_name", "applicant_email", "job_title"],
         "properties": {
           "applicant_name": {
             "type": "string"
+          },
+          "applicant_email": {
+            "type": "string",
+            "format": "email"
           },
           "job_title": {
             "type": "string"
@@ -1102,11 +1216,12 @@
       },
       "CandidateMultipartRegistrationRequest": {
         "type": "object",
+        "required": ["applicants_spreadsheet", "resume_pdf_zip"],
         "properties": {
-          "applicant_spreadsheet": {
+          "applicants_spreadsheet": {
             "type": "string",
             "format": "binary",
-            "description": "Spreadsheet field referenced by the controller and file filter."
+            "description": "Spreadsheet upload consumed by the Multer `upload.fields` declaration."
           },
           "resume_pdf_zip": {
             "type": "string",
@@ -1193,7 +1308,9 @@
           "job_location",
           "job_employment_type",
           "job_experience_required",
-          "job_ai_criteria",
+          "job_description",
+          "job_responsibilities",
+          "job_qualifications",
           "workers_required"
         ],
         "properties": {
@@ -1215,14 +1332,23 @@
           "job_salary_max": {
             "type": "number"
           },
+          "company_name": {
+            "type": "string"
+          },
           "job_experience_required": {
             "type": "string"
           },
-          "job_ai_criteria": {
+          "job_description": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/JobDescription"
             }
+          },
+          "job_responsibilities": {
+            "type": "string"
+          },
+          "job_qualifications": {
+            "type": "string"
           },
           "workers_required": {
             "type": "number"
@@ -1322,7 +1448,7 @@
           "job_experience_required",
           "job_description",
           "job_responsibilities",
-          "job_qualificatons",
+          "job_qualifications",
           "workers_required"
         ],
         "properties": {
@@ -1347,7 +1473,7 @@
           "job_experience_required": {
             "type": "string"
           },
-          "job_desciption": {
+          "job_description": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/JobDescription"
@@ -1357,9 +1483,6 @@
             "type": "number"
           },
           "job_state": {
-            "type": "string"
-          },
-          "job_description": {
             "type": "string"
           },
           "job_responsibilities": {
@@ -1385,9 +1508,15 @@
         "properties": {
           "success": {
             "type": "string"
-          },
-          "job": {
-            "$ref": "#/components/schemas/Job"
+          }
+        }
+      },
+      "SendEmailsRequest": {
+        "type": "object",
+        "required": ["job_title"],
+        "properties": {
+          "job_title": {
+            "type": "string"
           }
         }
       }

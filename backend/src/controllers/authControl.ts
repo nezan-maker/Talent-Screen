@@ -5,10 +5,11 @@ import {
   loginSchema,
   forgotSchema,
   resetSchema,
+  verifyCSchema,
 } from "../validations/authValidations.js";
 import debug from "debug";
 import z from "zod";
-import jwt from "jsonwebtoken";
+import jwt, { verify } from "jsonwebtoken";
 import env from "../config/env.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
@@ -19,12 +20,33 @@ export interface I_Request extends Request {
 }
 const ACCESS_SECRET = env.ACCESS_SECRET;
 const REFRESH_SECRET = env.REFRESH_SECRET;
+interface Reset {
+  user_pass: string;
+  user_pass_conf: string;
+}
+interface SignUp {
+  user_name: string;
+  user_email: string;
+  user_pass: string;
+  user_pass_conf: string;
+}
+interface Login {
+  user_email: string;
+  user_pass: string;
+  user_pass_conf: string;
+}
+interface Forgot {
+  user_email: string;
+}
 
 export const signUp = async (req: I_Request, res: Response) => {
   try {
-    const reqBody = req.body;
+    const { reqBody }: { reqBody: SignUp } = req.body;
     const user_details = signupSchema.parse(reqBody);
     const oldUser = await User.findOne({ user_email: user_details.user_email });
+    if (!env.ACCESS_SECRET) {
+      throw new Error("Could not load necessary environment variables");
+    }
     if (oldUser) {
       return res
         .status(401)
@@ -313,12 +335,14 @@ export const signUp = async (req: I_Request, res: Response) => {
     let rec_info = { user_id: newUser._id };
     if (!env.ACCESS_SECRET)
       return res.status(500).json({ server_error: "Internal server error" });
-    const reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
+    const signup_reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
       expiresIn: "10m",
+      algorithm: "HS256",
     });
-    res.cookie("reference_token", reference_token, {
-      maxAge: 60 * 60 * 1000,
+    res.cookie("signup_reference_token", signup_reference_token, {
+      maxAge: 10 * 60 * 1000,
       httpOnly: true,
+      sameSite: true,
     });
     res.status(201).json({ success: "Sign up successful" });
   } catch (error) {
@@ -335,17 +359,24 @@ export const signUp = async (req: I_Request, res: Response) => {
 export const confirm = async (req: I_Request, res: Response) => {
   try {
     const { token } = req.body;
-    const detail_cookie = req.cookies.reference_token;
+    const signup_reference_token = req.cookies.signup_reference_token;
+    if (!signup_reference_token) {
+      res
+        .status(401)
+        .json({ expired_error: "Required cookie corrupted or expired" });
+    }
     if (!env.ACCESS_SECRET)
       return res.status(500).json({ server_error: "Internal server error" });
-    const payload = jwt.verify(detail_cookie, env.ACCESS_SECRET);
+    const payload = jwt.verify(signup_reference_token, env.ACCESS_SECRET, {
+      algorithms: ["HS256"],
+    });
 
     if (!payload) {
       return res.status(500).json({ server_error: "Internal server error" });
     }
     if (typeof payload == "string")
       return res.status(500).json({ server_error: "Internal server errror" });
-    const user = await User.findOne({ _id: payload.id });
+    const user = await User.findOne({ _id: payload.user_id });
     if (!user) {
       return res.status(500).json({ server_error: "Internal server error" });
     }
@@ -360,14 +391,17 @@ export const confirm = async (req: I_Request, res: Response) => {
     if (ACCESS_SECRET && REFRESH_SECRET) {
       const access_token = jwt.sign(user_cookie_details, ACCESS_SECRET, {
         algorithm: "HS256",
+        expiresIn: "1h",
       });
       const refresh_token = jwt.sign(user_cookie_details, REFRESH_SECRET, {
         algorithm: "HS256",
+        expiresIn: "14d",
       });
 
       res.cookie("access_token", access_token, {
         httpOnly: true,
-        maxAge: 20 * 60 * 60,
+        maxAge: 60 * 60 * 1000,
+        sameSite: true,
       });
       user.refresh_token = refresh_token;
       const transporter = nodemailer.createTransport({
@@ -650,10 +684,27 @@ export const confirm_get = async (req: I_Request, res: Response) => {
     if (req.params) {
       conf_id = req.params.confirmation_link_id as string;
     }
+    const signup_reference_token = req.cookies.signup_reference_token;
+    if (!signup_reference_token) {
+      return res
+        .status(401)
+        .json({ expired_error: "Required handler expired" });
+    }
+    if (!env.ACCESS_SECRET) {
+      throw new Error("Could not load environment variables");
+    }
+    let payload = jwt.verify(signup_reference_token, env.ACCESS_SECRET, {
+      algorithms: ["HS256"],
+    }) as jwt.JwtPayload;
     if (!conf_id) {
       return res
         .status(400)
         .json({ data_error: "Url incorrect check the url and try again" });
+    }
+    if (conf_id !== payload.user_id) {
+      return res.status(401).json({
+        data_error: "Required handler dependencies expired or missing",
+      });
     }
     const user = await User.findOne({ confirmation_link_id: conf_id });
     if (user) {
@@ -950,13 +1001,18 @@ export const confirm_get = async (req: I_Request, res: Response) => {
 };
 export const logIn = async (req: Request, res: Response) => {
   try {
-    const reqBody = req.body;
+    const { reqBody }: { reqBody: Login } = req.body;
     const user_details = loginSchema.parse(reqBody);
     const user = await User.findOne({ user_email: user_details.user_email });
     if (!user) {
       return res.status(404).json({
         data_error: "User is not found.Kindly consider creating an account",
       });
+    }
+    if (user_details.user_pass !== user_details.user_pass_conf) {
+      return res
+        .status(400)
+        .json({ input_error: "Passwords must be the same" });
     }
     if (!user.isVerified) {
       return res
@@ -967,6 +1023,7 @@ export const logIn = async (req: Request, res: Response) => {
     if (!check) {
       return res.status(401).json({ auth_error: "Invalid credentials" });
     }
+    res.status(200).json({ success: "Login successful" });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res
@@ -980,7 +1037,7 @@ export const logIn = async (req: Request, res: Response) => {
 
 export const forgot = async (req: I_Request, res: Response) => {
   try {
-    const reqBody = req.body;
+    const { reqBody }: { reqBody: Forgot } = req.body;
     const forget_details = forgotSchema.parse(reqBody);
     const user = await User.findOne({ user_email: forget_details.user_email });
     if (!user) {
@@ -991,12 +1048,13 @@ export const forgot = async (req: I_Request, res: Response) => {
     let rec_info = { user_id: user._id };
     if (!env.ACCESS_SECRET)
       return res.status(500).json({ server_error: "Internal server error" });
-    const reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
+    const recovery_reference_token = jwt.sign(rec_info, env.ACCESS_SECRET, {
       expiresIn: "10m",
     });
-    res.cookie("reference_token", reference_token, {
+    res.cookie("recovery_reference_token", recovery_reference_token, {
       maxAge: 10 * 60 * 1000,
       httpOnly: true,
+      sameSite: true,
     });
     let reset_pass_token = crypto
       .randomInt(1000000)
@@ -2120,6 +2178,9 @@ export const forgot = async (req: I_Request, res: Response) => {
 `,
     });
     await user.save();
+    res.status(200).json({
+      success: "Password token for verification generated successfully",
+    });
   } catch (error) {
     controlDebug(error);
     if (error instanceof z.ZodError) {
@@ -2133,10 +2194,15 @@ export const forgot = async (req: I_Request, res: Response) => {
 export const verifyCode = async (req: I_Request, res: Response) => {
   try {
     const { token } = req.body;
-    const detail_cookie = req.cookies.reference_token;
+    const validate_result_token = verifyCSchema.parse(token);
+    let used_token = validate_result_token.token;
+
+    const recovery_reference_token = req.cookies.recovery_reference_token;
     if (!env.ACCESS_SECRET)
       return res.status(500).json({ server_error: "Internal server error" });
-    const payload = jwt.verify(detail_cookie, env.ACCESS_SECRET);
+    const payload = jwt.verify(recovery_reference_token, env.ACCESS_SECRET, {
+      algorithms: ["HS256"],
+    });
 
     if (!payload) {
       return res.status(500).json({ server_error: "Internal server error" });
@@ -2150,17 +2216,21 @@ export const verifyCode = async (req: I_Request, res: Response) => {
     if (!user.pass_token) {
       return res.status(500).json({ server_error: "Internal server error" });
     }
-    const check = await bcrypt.compare(token, user.pass_token);
+    const check = await bcrypt.compare(used_token, user.pass_token);
     if (!check)
       return res.status(401).json({ input_error: "Invalid one time password" });
     const user_cookie_details = { userId: user._id };
     if (ACCESS_SECRET) {
-      const access_token = jwt.sign(user_cookie_details, ACCESS_SECRET, {
-        algorithm: "HS256",
-      });
-      res.cookie("reset_token", access_token, {
+      const reset_reference_token = jwt.sign(
+        user_cookie_details,
+        ACCESS_SECRET,
+        {
+          algorithm: "HS256",
+        },
+      );
+      res.cookie("reset_token", reset_reference_token, {
         httpOnly: true,
-        maxAge: 5 * 60 * 60,
+        maxAge: 10 * 60 * 1000,
       });
       res.status(200).json({ success: "Token verification successful" });
     }
@@ -2176,8 +2246,8 @@ export const verifyCode = async (req: I_Request, res: Response) => {
 };
 export const reset = async (req: any, res: any) => {
   try {
-    const reset_info = req.cookies.reset_token;
-    const reqBody = req.body;
+    const reset_info = req.cookies.reset_reference_token;
+    const { reqBody }: { reqBody: Reset } = req.body;
     const passwords = resetSchema.parse(reqBody);
     if (passwords.user_pass !== passwords.user_pass_conf) {
       return res

@@ -9,7 +9,7 @@ interface Relevance {
 }
 
 interface Applicant_R {
-  applicant_id: string;
+
   applicant_name: string;
   applicant_marks: number;
   applicant_specification_relevance: Relevance;
@@ -28,7 +28,6 @@ const exampleResult: Result_R = {
 
   applicants_details: [
     {
-      applicant_id: "APP-001",
       applicant_name: "Alice Uwimana",
       applicant_marks: 87.5,
       applicant_specification_relevance: {
@@ -39,7 +38,6 @@ const exampleResult: Result_R = {
         "Strong in both frontend and backend technologies. Demonstrated solid understanding of system design and APIs.",
     },
     {
-      applicant_id: "APP-002",
       applicant_name: "Eric Ndayisaba",
       applicant_marks: 78.2,
       applicant_specification_relevance: {
@@ -50,7 +48,6 @@ const exampleResult: Result_R = {
         "Good technical skills with practical experience. Needs improvement in advanced backend concepts.",
     },
     {
-      applicant_id: "APP-003",
       applicant_name: "Claudine Mukamana",
       applicant_marks: 91.0,
       applicant_specification_relevance: {

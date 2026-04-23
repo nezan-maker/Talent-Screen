@@ -48,7 +48,7 @@ const applicantControl = async (req: Request, res: Response) => {
         applicant.save();
       }
       return res
-        .status(401)
+        .status(201)
         .json({ success: "Applicant successfully registered" });
     }
 
@@ -348,7 +348,7 @@ const applicantControl = async (req: Request, res: Response) => {
             }
           }
         }
-        res.status(200).json({
+        res.status(201).json({
           success: "Applicants successfully registered from spreadsheet file",
         });
       }

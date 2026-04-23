@@ -1113,11 +1113,6 @@
             "format": "binary",
             "description": "Spreadsheet field referenced by the controller and file filter."
           },
-          "applicants_spreadsheet": {
-            "type": "string",
-            "format": "binary",
-            "description": "Spreadsheet field name currently declared in `upload.fields`. The source presently uses inconsistent spreadsheet field names."
-          },
           "resume_pdf_zip": {
             "type": "string",
             "format": "binary",
@@ -1371,7 +1366,6 @@
           },
           "job_description": {
             "type": "string"
-            
           },
           "job_responsibilities": {
             "type": "string"

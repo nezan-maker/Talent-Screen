@@ -9,7 +9,7 @@ import type { Request, Response } from "express";
 import verdictControl from "../controllers/verdictControl.js";
 
 const storage = multer.memoryStorage();
-export let fieldnames = ["applicant_spreadsheet", "resume_pdf_zip"];
+export let fieldnames = ["applicants_spreadsheet", "resume_pdf_zip"];
 const fileFilter = (req: Request, file: Express.Multer.File, cb: Function) => {
   const allowedMimes = [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

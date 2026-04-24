@@ -69,9 +69,13 @@ import Job from "../models/Job.js";
 import Applicant from "../models/Applicant.js";
 import ScreeningRunModel from "../models/ScreeningRun.js";
 import { ScreeningResultModel } from "../models/ScreenResult.js";
-import { screenWithGemini } from "../lib/gemini.js";
+import { screenWithGemini, assistantWithGemini } from "../lib/gemini.js";
 import env from "../config/env.js";
 import { controlDebug } from "../controllers/authControl.js";
+import {
+  triggerSchema,
+  askSchema,
+} from "../validations/functionValidations.js";
 
 if (
   !env.GOOGLE_API_KEY ||
@@ -102,11 +106,6 @@ const getModels = async (req: Request, res: Response) => {
   res.json(text);
 };
 
-const triggerSchema = z.object({
-  jobId: z.string().min(1),
-  applicantIds: z.array(z.string().min(1)).optional(),
-  topK: z.number().int().min(1).max(50).default(10),
-});
 const runModel = async (req: Request, res: Response) => {
   try {
     if (
@@ -118,15 +117,15 @@ const runModel = async (req: Request, res: Response) => {
       throw new Error("Could not load environment variables");
     }
     const input = triggerSchema.parse(req.body);
-    const job = await Job.findById(input.jobId).lean();
+    const job = await Job.findById(input.job_id).lean();
     if (!job) {
       return res.status(404).json({ missing_data_error: "No jobs found" });
     }
 
     const applicants = await Applicant.find(
-      input.applicantIds?.length
-        ? { _id: { $in: input.applicantIds } }
-        : { jobId: input.jobId },
+      input.applicant_ids?.length
+        ? { _id: { $in: input.applicant_ids } }
+        : { jobId: input.job_id },
     )
       .limit(500)
       .lean();
@@ -139,7 +138,7 @@ const runModel = async (req: Request, res: Response) => {
 
     const topK = Math.min(input.topK, applicants.length);
     const run = await ScreeningRunModel.create({
-      job_id: input.jobId,
+      job_id: input.job_id,
       applicants_ids: applicants.map((a) => a._id),
       topK,
       status: "queued",
@@ -158,11 +157,11 @@ const runModel = async (req: Request, res: Response) => {
               location: env.VERTEX_LOCATION!,
             }),
         job: {
-          jobId: String(job._id),
+          job_id: String(job._id),
           title: job.job_title,
           requirements: job.job_requirements ?? [],
           skills: job.job_skills ?? [],
-          experienceYearsMin: job.job_experience ?? undefined,
+          experience: job.job_experience ?? undefined,
           education: job.job_qualifications ?? [],
           notes: job.job_notes ?? undefined,
         },
@@ -177,14 +176,14 @@ const runModel = async (req: Request, res: Response) => {
           resume_text: a.resume_text,
         })),
       });
-      
+
       await ScreeningResultModel.insertMany(
         ai.shortlist.map((s) => ({
           screening_run_id: run._id,
-          job_id: input.jobId,
-          applicant_id: s.applicantId,
+          job_id: input.job_id,
+          applicant_id: s.applicant_id,
           rank: s.rank,
-          match_score: s.matchScore,
+          match_score: s.match_score,
           strengths: s.strengths,
           gaps: s.gaps,
           recommendation: s.recommendation,
@@ -247,11 +246,84 @@ const getRunsResult = async (req: Request, res: Response) => {
   }
 };
 
+const askGem = async (req: Request, res: Response) => {
+  try {
+    if (
+      !env.GOOGLE_API_KEY ||
+      !env.GOOGLE_AI_MODEL ||
+      env.VERTEX_PROJECT_ID ||
+      env.VERTEX_LOCATION
+    ) {
+      throw new Error("Could not load environment variables");
+    }
 
+    const input = askSchema.parse(req.body);
 
+    const job = input.job_id ? await Job.findById(input.job_id).lean() : null;
+    if (input.job_id && !job) {
+      return res.status(404).json({ data_error: "Job not found" });
+    }
 
+<<<<<<< HEAD
 
 
 
 
 >>>>>>> a0dac98 (Refined the screening ai service)
+=======
+    const applicants = await Applicant.find(
+      input.applicant_ids?.length
+        ? { _id: { $in: input.applicant_ids } }
+        : input.job_id
+          ? { jobId: input.job_id }
+          : {},
+    )
+      .limit(input.max_applicants)
+      .lean();
+    const ai = await assistantWithGemini({
+      model: env.GOOGLE_AI_MODEL,
+      question: input.question,
+      ...(env.GOOGLE_API_KEY
+        ? { provider: "ai-studio" as const, apiKey: env.GOOGLE_API_KEY }
+        : {
+            provider: "vertex" as const,
+            projectId: env.VERTEX_PROJECT_ID!,
+            location: env.VERTEX_PROJECT_ID!,
+          }),
+      job: job
+        ? {
+            job_id: String(job._id),
+            title: job.job_title,
+            requirements: job.job_requirements ?? [],
+            skills: job.job_skills ?? [],
+            experience: job.job_experience ?? undefined,
+            education: job.job_qualifications ?? [],
+            notes: job.job_notes,
+          }
+        : undefined,
+      candidates: applicants.map((a) => ({
+        applicant_id: String(a._id),
+        applicant_name: a.applicant_name ?? undefined,
+        applicant_email: a.applicant_email ?? undefined,
+        location: a.location ?? undefined,
+        skills: (a.skills as string[] | undefined) ?? [],
+        experience: a.experience ?? undefined,
+        education: (a.education as string[] | undefined) ?? [],
+        resume_text: a.resume_text ?? undefined,
+      })),
+    });
+    res.json({
+      answer: ai.answer,
+      suggestedNextQuestions: ai.suggestedNextQuestions,
+      context: {
+        jobId: input.job_id ?? null,
+        applicantCount: applicants.length,
+      },
+    });
+  } catch (error) {
+    controlDebug("Error in AI assistant controller");
+    console.error(error);
+    res.status(500).json({ server_error: "Internal server error" });
+  }
+};
+>>>>>>> b93dd6c (Added the AI assistant capability)

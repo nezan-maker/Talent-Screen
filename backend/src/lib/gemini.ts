@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import env from "../config/env.js";
 =======
 import { VertexAI } from "@google-cloud/vertexai";
+import { geminiOutputSchema } from "../validations/functionValidations.js";
 import { z } from "zod";
 
 export type ScreeningCandidateInput = {
@@ -16,30 +17,17 @@ export type ScreeningCandidateInput = {
   resume_text: string | null | undefined;
 };
 
-export type ScreeningJobInput = {
-  jobId: string;
-  title: string;
-  requirements: string[];
-  skills: string[];
-  experienceYearsMin?: number;
-  education: string[];
-  notes?: string | undefined;
-};
-
-export const geminiOutputSchema = z.object({
-  shortlist: z
-    .array(
-      z.object({
-        applicantId: z.string().min(1),
-        rank: z.number().int().min(1),
-        matchScore: z.number().min(0).max(100),
-        strengths: z.array(z.string()).default([]),
-        gaps: z.array(z.string()).default([]),
-        recommendation: z.string().min(1),
-      }),
-    )
-    .min(1),
-});
+export type ScreeningJobInput =
+  | {
+      job_id: string;
+      title: string;
+      requirements: string[];
+      skills: string[];
+      experience?: number;
+      education: string[];
+      notes?: string | null | undefined;
+    }
+  | undefined;
 
 type AiStudioAuth = {
   provider: "ai-studio";

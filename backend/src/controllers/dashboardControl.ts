@@ -1,4 +1,3 @@
-import express from "express";
 import Applicant from "../models/Applicant.js";
 import Job from "../models/Job.js";
 import debug from "debug";

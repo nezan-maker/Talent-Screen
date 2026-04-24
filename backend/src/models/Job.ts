@@ -1,19 +1,5 @@
 import mongoose from "mongoose";
 
-const ai_criteria = new mongoose.Schema({
-  criteria_string: {
-    type: String,
-    required: true,
-  },
-  description: {
-    type: String,
-    required: true,
-  },
-  priority: {
-    type: String,
-    required: true,
-  },
-});
 const jobSchema = new mongoose.Schema({
   job_title: {
     type: String,
@@ -31,38 +17,31 @@ const jobSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  job_salary_min: {
-    type: Number,
+  job_requirements: {
+    type: [String],
+    default: [],
   },
-  job_salary_max: {
-    type: Number,
+  job_skills: {
+    type: [String],
+    default: [],
   },
   company_name: {
     type: String,
   },
-  job_experience_required: {
-    type: String,
-    required: true,
-  },
-  job_description: [ai_criteria],
-  job_responsibilities: {
-    type: String,
+  job_experience: {
+    type: Number,
     required: true,
   },
   job_qualifications: {
-    type: String,
+    type: [String],
     required: true,
   },
   workers_required: {
     type: Number,
     required: true,
   },
-  job_state: {
+  job_notes: {
     type: String,
-    default: "Uninitialised",
-  },
-  job_example_form: {
-    type: Object,
   },
 });
 const Job = mongoose.model("Job", jobSchema);

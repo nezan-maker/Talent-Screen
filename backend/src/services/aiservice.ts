@@ -1,54 +1,191 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import debug from "debug";
+import { Router, type Request, type Response } from "express";
+import { z } from "zod";
+import Job from "../models/Job.js";
+import Applicant from "../models/Applicant.js";
+import ScreeningRunModel from "../models/ScreeningRun.js";
+import { ScreeningResultModel } from "../models/ScreenResult.js";
+import { screenWithGemini } from "../lib/gemini.js";
 import env from "../config/env.js";
+import { controlDebug } from "../controllers/authControl.js";
 
-const GOOGLE_API_KEY: string | undefined = env.GOOGLE_API_KEY;
-const ai_debug = debug("app:gemini");
-
-if (!GOOGLE_API_KEY) {
-  throw new Error("GOOGLE_API_KEY is missing");
+if (
+  !env.GOOGLE_API_KEY ||
+  !env.VERTEX_PROJECT_ID ||
+  !env.VERTEX_LOCATION ||
+  !env.GOOGLE_AI_MODEL
+) {
+  throw new Error("Could not load environment variables");
 }
 
-ai_debug("🔑 API Key loaded:", GOOGLE_API_KEY.substring(0, 10) + "...");
-const genai = new GoogleGenerativeAI(GOOGLE_API_KEY);
+const router = Router();
 
-const model = genai.getGenerativeModel(
-  { model: "gemini-2.5-flash" },
-  { apiVersion: "v1", timeout: 30000 },
-);
-
-async function askGemini(prompt: string, retries = 5): Promise<string> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      ai_debug(`📤 Sending request to Gemini... (Attempt ${i + 1}/${retries})`);
-      const result = await model.generateContent(prompt);
-      const response = result.response.text();
-      ai_debug("✅ Gemini says:", response);
-      return response;
-    } catch (error: any) {
-      const isLast = i === retries - 1;
-      const status = error.status || error.code;
-      const message = error.message || String(error);
-
-      ai_debug(`❌ Attempt ${i + 1} failed:`, {
-        status,
-        message: message.substring(0, 150),
-      });
-
-      // Retry on transient errors (503, network failures, etc.)
-      if (!isLast && (status === 503 || message.includes("fetch"))) {
-        const delay = Math.pow(2, i) * 1000;
-        ai_debug(`⏳ Retrying in ${delay}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        continue;
-      }
-
-      // Last attempt or permanent error
-      ai_debug("❌ Final error:", error);
-      throw error;
-    }
+const getModels = async (req: Request, res: Response) => {
+  if (!env.GOOGLE_API_KEY) {
+    return res
+      .status(400)
+      .json({ data_error: "GEMINI_API_KEY is requires to list models" });
   }
-  throw new Error("Max retries exceeded");
-}
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${env.GOOGLE_API_KEY}`,
+  );
+  const text = await r.text();
+  if (!r.ok) {
+    return res
+      .status(r.status)
+      .json({ ai_error: "Could not list models" + r.text });
+  }
+  res.json(text);
+};
 
-export default askGemini;
+const triggerSchema = z.object({
+  jobId: z.string().min(1),
+  applicantIds: z.array(z.string().min(1)).optional(),
+  topK: z.number().int().min(1).max(50).default(10),
+});
+const runModel = async (req: Request, res: Response) => {
+  try {
+    if (
+      !env.GOOGLE_API_KEY ||
+      !env.GOOGLE_AI_MODEL ||
+      env.VERTEX_PROJECT_ID ||
+      env.VERTEX_LOCATION
+    ) {
+      throw new Error("Could not load environment variables");
+    }
+    const input = triggerSchema.parse(req.body);
+    const job = await Job.findById(input.jobId).lean();
+    if (!job) {
+      return res.status(404).json({ missing_data_error: "No jobs found" });
+    }
+
+    const applicants = await Applicant.find(
+      input.applicantIds?.length
+        ? { _id: { $in: input.applicantIds } }
+        : { jobId: input.jobId },
+    )
+      .limit(500)
+      .lean();
+
+    if (!applicants.length) {
+      return res
+        .status(404)
+        .json({ data_error: "No applicants found for this job" });
+    }
+
+    const topK = Math.min(input.topK, applicants.length);
+    const run = await ScreeningRunModel.create({
+      job_id: input.jobId,
+      applicants_ids: applicants.map((a) => a._id),
+      topK,
+      status: "queued",
+      model: env.GOOGLE_AI_MODEL,
+    });
+
+    try {
+      const ai = await screenWithGemini({
+        model: env.GOOGLE_AI_MODEL,
+        topK,
+        ...(env.GOOGLE_API_KEY
+          ? { provider: "ai-studio" as const, apiKey: env.GOOGLE_API_KEY }
+          : {
+              provider: "vertex" as const,
+              projectId: env.VERTEX_PROJECT_ID!,
+              location: env.VERTEX_LOCATION!,
+            }),
+        job: {
+          jobId: String(job._id),
+          title: job.job_title,
+          requirements: job.job_requirements ?? [],
+          skills: job.job_skills ?? [],
+          experienceYearsMin: job.job_experience ?? undefined,
+          education: job.job_qualifications ?? [],
+          notes: job.job_notes ?? undefined,
+        },
+        candidates: applicants.map((a) => ({
+          applicant_id: String(a._id),
+          applicant_name: a.applicant_name,
+          applicant_email: a.applicant_email,
+          location: a.location,
+          skills: (a.skills as string[] | undefined) ?? [],
+          experience: a.experience,
+          education: (a.education as string[] | undefined) ?? [],
+          resume_text: a.resume_text,
+        })),
+      });
+      
+      await ScreeningResultModel.insertMany(
+        ai.shortlist.map((s) => ({
+          screening_run_id: run._id,
+          job_id: input.jobId,
+          applicant_id: s.applicantId,
+          rank: s.rank,
+          match_score: s.matchScore,
+          strengths: s.strengths,
+          gaps: s.gaps,
+          recommendation: s.recommendation,
+        })),
+      );
+
+      await ScreeningRunModel.findByIdAndUpdate(run._id, {
+        status: "completed",
+      });
+      const results = await ScreeningResultModel.find({
+        screeningRunId: run._id,
+      })
+        .sort({ rank: 1 })
+        .lean();
+      res.status(201).json({ runId: run._id, results });
+    } catch (e) {
+      await ScreeningRunModel.findByIdAndUpdate(run._id, {
+        status: "failed",
+        error: e instanceof Error ? e.message : "Unknown error",
+      });
+      throw e;
+    }
+  } catch (error) {
+    controlDebug("Error in screen route handler");
+    console.error(error);
+    res.status(500).json({ server_error: "Internal server error" });
+  }
+};
+const getRuns = async (req: Request, res: Response) => {
+  try {
+    const jobId = z.string().optional().parse(req.query.jobId);
+    const q = jobId ? { jobId } : {};
+    const docs = await ScreeningRunModel.find(q)
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+    res.json(docs);
+  } catch (error) {
+    controlDebug("Error in getting screen runs");
+    console.error(error);
+    res.status(500).json({ server_error: "Internal server error" });
+  }
+};
+
+const getRunsResult = async (req: Request, res: Response) => {
+  try {
+    const runId = z.string().min(1).parse(req.params.runId);
+    const run = await ScreeningRunModel.findById(runId).lean();
+    if (!run) {
+      return res.status(404).json({ data_error: "Run not found" });
+    }
+    const results = await ScreeningResultModel.find({ screeningRunId: runId })
+      .sort({ rank: 1 })
+      .lean();
+    res.json({ run, results });
+  } catch (error) {
+    controlDebug("Error in getting screen run results");
+    console.error(error);
+    res.status(500).json({ server_error: "Internal server error" });
+  }
+};
+
+
+
+
+
+
+
+

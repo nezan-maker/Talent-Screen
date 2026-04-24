@@ -4,24 +4,27 @@ const applicantSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  applicant_email:{
-    type:String,
-    required:true
+  applicant_email: {
+    type: String,
+    required: true,
   },
+  location:{
+    type:String,
+  }
   job_title: {
     type: String,
     required: true,
   },
   skills: {
-    type: String,
+    type: [String],
   },
   education: {
-    type: String,
+    type: [String],
   },
   experience: {
     type: Number,
   },
-  additional_info: {
+  resume_text: {
     type: String,
   },
   shortlisted: {

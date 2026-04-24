@@ -174,7 +174,7 @@ export const signUp = async (req: I_Request, res: Response) => {
       <!--[if mso]>
       <div style="width:46px;height:46px;line-height:46px;text-align:center;border-radius:14px;background:#0f172a;color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:20px;font-weight:800;">W</div>
       <![endif]-->
-      <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png"/>
+      <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png" width="46" height="46" />
     </td>
     <td class="wr-brand-copy-cell" valign="middle" style="font-family: Segoe UI, Arial, sans-serif; padding-left: 12px; vertical-align: middle;">
       <div class="wr-brand-title" style="font-family: Segoe UI, Arial, sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.03em; color: #f8fafc;">WiseRank</div>
@@ -450,7 +450,7 @@ export const confirm = async (req: I_Request, res: Response) => {
       <!--[if mso]>
       <div style="width:46px;height:46px;line-height:46px;text-align:center;border-radius:14px;background:#0f172a;color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:20px;font-weight:800;">W</div>
       <![endif]-->
-      <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png"/>
+      <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png" width="46" height="46" />
     </td>
     <td class="wr-brand-copy-cell" valign="middle" style="font-family: Segoe UI, Arial, sans-serif; padding-left: 12px; vertical-align: middle;">
       <div class="wr-brand-title" style="font-family: Segoe UI, Arial, sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.03em; color: #f8fafc;">WiseRank</div>
@@ -713,7 +713,7 @@ export const confirm_get = async (req: I_Request, res: Response) => {
       <div style="width:46px;height:46px;line-height:46px;text-align:center;border-radius:14px;background:#0f172a;color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:20px;font-weight:800;">W</div>
       <![endif]-->
       
-      <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png"/>      
+      <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png" width="46" height="46" />      
     </td>
     <td class="wr-brand-copy-cell" valign="middle" style="font-family: Segoe UI, Arial, sans-serif; padding-left: 12px; vertical-align: middle;">
       <div class="wr-brand-title" style="font-family: Segoe UI, Arial, sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.03em; color: #f8fafc;">WiseRank</div>
@@ -1160,7 +1160,7 @@ export const forgot = async (req: I_Request, res: Response) => {
                         </div>
                       <![endif]-->
       
-                    <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png"/>
+                    <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png" width="46" height="46" />
                     </td>
                     <td
                       class="wr-brand-copy-cell"

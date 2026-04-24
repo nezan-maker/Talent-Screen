@@ -7,6 +7,7 @@ const skillSchema = new Schema(
     level: { type: String, default: "Intermediate" },
     yearsOfExperience: { type: Number, default: 0 },
   },
+<<<<<<< HEAD
   { _id: false },
 );
 
@@ -47,6 +48,24 @@ const certificationSchema = new Schema(
     name: { type: String, default: "" },
     issuer: { type: String, default: "" },
     issue_date: { type: String, default: "" },
+=======
+  applicant_email: {
+    type: String,
+    required: true,
+  },
+  location:{
+    type:String,
+  }
+  job_title: {
+    type: String,
+    required: true,
+  },
+  skills: {
+    type: [String],
+  },
+  education: {
+    type: [String],
+>>>>>>> a0dac98 (Refined the screening ai service)
   },
   { _id: false },
 );
@@ -61,6 +80,7 @@ const projectSchema = new Schema(
     start_date: { type: String, default: "" },
     end_date: { type: String, default: "" },
   },
+<<<<<<< HEAD
   { _id: false },
 );
 
@@ -69,6 +89,10 @@ const availabilitySchema = new Schema(
     status: { type: String, default: "Open to Opportunities" },
     type: { type: String, default: "Full-time" },
     start_date: { type: String, default: null },
+=======
+  resume_text: {
+    type: String,
+>>>>>>> a0dac98 (Refined the screening ai service)
   },
   { _id: false },
 );

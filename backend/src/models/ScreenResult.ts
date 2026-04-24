@@ -1,4 +1,5 @@
 import { Schema, model } from "mongoose";
+<<<<<<< HEAD
 import { buildEntityId } from "../utils/ids.js";
 
 const scoreWithReasoningSchema = new Schema(
@@ -126,10 +127,39 @@ const ScreeningResultSchema = new Schema(
 
 ScreeningResultSchema.index({ screening_run_id: 1, rank: 1 }, { unique: true });
 ScreeningResultSchema.index({ screening_run_id: 1, candidate_id: 1 }, { unique: true });
+=======
+
+const ScreeningResultSchema = new Schema(
+  {
+    screening_run_id: {
+      type: Schema.Types.ObjectId,
+      ref: "ScreeningRun",
+      required: true,
+    },
+    job_id: { type: Schema.Types.ObjectId, ref: "Job", required: true },
+    applicant_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Applicant",
+      required: true,
+    },
+    rank: { type: Number, required: true },
+    match_score: { type: Number, required: true },
+    strengths: { type: [String], default: [] },
+    gaps: { type: [String], default: [] },
+    recommendation: { type: String, required: true },
+  },
+  { timestamps: true },
+);
+
+ScreeningResultSchema.index({ screeningRunId: 1, rank: 1 }, { unique: true });
+>>>>>>> a0dac98 (Refined the screening ai service)
 
 export const ScreeningResultModel = model(
   "ScreeningResult",
   ScreeningResultSchema,
 );
+<<<<<<< HEAD
 
 export default ScreeningResultModel;
+=======
+>>>>>>> a0dac98 (Refined the screening ai service)

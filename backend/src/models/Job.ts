@@ -41,7 +41,7 @@ const jobSchema = new mongoose.Schema({
     required: true,
   },
   job_notes: {
-    type: String,
+    type: [String],
   },
 });
 const Job = mongoose.model("Job", jobSchema);

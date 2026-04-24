@@ -1,44 +1,22 @@
-import mongoose from "mongoose";
-const relevanceSchema = new mongoose.Schema({
-    skills_relevance: {
-        type: Number,
+import { Schema, model } from "mongoose";
+const ScreeningResultSchema = new Schema({
+    screening_run_id: {
+        type: Schema.Types.ObjectId,
+        ref: "ScreeningRun",
         required: true,
     },
-    education_relevance: {
-        type: Number,
-        required: true,
-    },
-});
-const applicant_schema = new mongoose.Schema({
+    job_id: { type: Schema.Types.ObjectId, ref: "Job", required: true },
     applicant_id: {
-        type: String,
+        type: Schema.Types.ObjectId,
+        ref: "Applicant",
         required: true,
     },
-    applicant_name: {
-        type: String,
-        required: true,
-    },
-    applicant_marks: {
-        type: Number,
-        required: true,
-    },
-    applicant_specification_relevance: relevanceSchema,
-    applicant_result_description: {
-        type: String,
-        required: true,
-    },
-});
-const resultSchema = new mongoose.Schema({
-    job_title: {
-        type: String,
-        required: true,
-    },
-    applicants_details: [applicant_schema],
-    result_verdict: {
-        type: String,
-        required: true,
-    },
-});
-const Result = mongoose.model("screening_results", resultSchema);
-export default Result;
+    rank: { type: Number, required: true },
+    match_score: { type: Number, required: true },
+    strengths: { type: [String], default: [] },
+    gaps: { type: [String], default: [] },
+    recommendation: { type: String, required: true },
+}, { timestamps: true });
+ScreeningResultSchema.index({ screeningRunId: 1, rank: 1 }, { unique: true });
+export const ScreeningResultModel = model("ScreeningResult", ScreeningResultSchema);
 //# sourceMappingURL=ScreenResult.js.map

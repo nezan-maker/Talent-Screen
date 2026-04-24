@@ -6,7 +6,7 @@ const dashBoardControl = async (_: any, res: any) => {
   try {
     const applicants = await Applicant.find(
       {},
-      { applicant_name: 1, job_title: 1, shortlisted: 1 },
+      { applicant_name: 1, job_title: 1, applicant_state: 1 },
     );
     if (!applicants) {
       return res.status(500).json({ error: "Internal server error" });

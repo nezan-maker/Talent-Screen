@@ -1,7 +1,7 @@
 import express from "express";
 import dashBoardControl from "../controllers/dashboardControl.js";
 import applicantControl from "../controllers/applicantControl.js";
-import askGeminiCont from "../controllers/askGeminiControl.js";
+import askGeminiCont from "../controllers/shortList.js";
 import completeJob from "../controllers/completeJob.js";
 import multer from "multer";
 import { middleAuth } from "../middlewares/authMiddleware.js";
@@ -15,16 +15,18 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: Function) => {
   const allowedMimes = [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/zip",
+    "text/csv",
   ];
   if (
-    (file.mimetype === allowedMimes[0] && file.fieldname === fieldnames[0]) ||
+    ((file.mimetype === allowedMimes[0] || file.mimetype === allowedMimes[2]) &&
+      file.fieldname === fieldnames[0]) ||
     (file.mimetype === allowedMimes[1] && file.fieldname === fieldnames[1])
   ) {
     cb(null, true);
   } else {
     cb(
       new Error(
-        "File type not supported only ZIP and PDF formats allowed respectively",
+        "File type not supported only ZIP,XLSX and CSV file formats allowed respectively",
       ),
     );
   }

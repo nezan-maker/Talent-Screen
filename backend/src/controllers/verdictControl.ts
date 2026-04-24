@@ -25,7 +25,7 @@ const verdictControl = async (req: Request, res: Response) => {
         job_title: current_json.job_title,
       });
       if (reviewed_applicant && current_json.shortlisted) {
-        reviewed_applicant.shortlisted = true;
+        reviewed_applicant.set('shortlisted', true);
         await reviewed_applicant.save();
       }
     }

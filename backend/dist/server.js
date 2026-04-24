@@ -10,6 +10,7 @@ import path, { dirname } from "path";
 import { apiReference } from "@scalar/express-api-reference";
 import dashRoutes from "./routes/dashRoutes.js";
 import env from "./config/env.js";
+import aiRoutes from "./services/aiservice.js";
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,6 +28,7 @@ const startServer = async () => {
     app.use(cookie());
     app.use("/auth", authRoutes());
     app.use("/", dashRoutes());
+    app.use("/ai", aiRoutes);
     app.listen(PORT, () => {
         serverDebug(`Server connected on port ${PORT}`);
     });

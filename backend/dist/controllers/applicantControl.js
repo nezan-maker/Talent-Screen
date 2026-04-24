@@ -10,6 +10,8 @@ import * as pdfLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import Resume from "../models/Resume.js";
 import { fieldnames } from "../routes/dashRoutes.js";
 import { controlDebug } from "./authControl.js";
+import { string } from "zod";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 const applicantControl = async (req, res) => {
     try {
         if (!req.files) {
@@ -22,16 +24,17 @@ const applicantControl = async (req, res) => {
             for (let i = 0; i < application_data.length; i++) {
                 const current_json = application_data[i];
                 let applicant_json = {
-                    applicant_name: current_json.applicant_name,
-                    job_title: current_json.job_title,
-                    applicant_email: current_json.applicant_email,
+                    first_name: current_json.first_name || current_json.applicant_name?.split(" ")[0] || "",
+                    last_name: current_json.last_name || current_json.applicant_name?.split(" ").slice(1).join(" ") || "",
+                    email: current_json.email || current_json.applicant_email || "",
+                    job_title: current_json.job_title || "",
                 };
                 const oldApplicant = await Applicant.findOne({
-                    applicant_name: current_json.applicant_name,
+                    email: applicant_json.email,
                 });
                 if (oldApplicant)
                     return res.status(401).json({
-                        data_error: `User named ${current_json.applicant_name} is already registered for this job`,
+                        data_error: `User with email ${applicant_json.email} is already registered for this job`,
                     });
                 const applicant = new Applicant(applicant_json);
                 applicant.save();
@@ -43,6 +46,27 @@ const applicantControl = async (req, res) => {
         let files;
         let pdf_resume_zip;
         let applicants_spreadsheet;
+        const normalizeHeader = (s) => {
+            s.trim().toLowerCase().replace(/\s+/g, " ").replace(/_/g, " ");
+        };
+        function splitList(value) {
+            if (typeof value !== "string")
+                return [];
+            return value
+                .split(/[,;|]/g)
+                .map((x) => x.trim())
+                .filter(Boolean);
+        }
+        function toNumber(value) {
+            if (typeof value === "number" && Number.isFinite(value))
+                return value;
+            if (typeof value === "string") {
+                const n = Number(value.trim());
+                if (Number.isFinite(n))
+                    return n;
+            }
+            return undefined;
+        }
         if (req.files) {
             files = req.files;
             if (!fieldnames) {
@@ -92,6 +116,9 @@ const applicantControl = async (req, res) => {
                         });
                     if (rowNumber === 1) {
                         headers = rowValues;
+                        for (const header of headers) {
+                            normalizeHeader(header);
+                        }
                     }
                     for (let i = 0; i < headers.length; i++) {
                         let header = headers[i];
@@ -140,16 +167,17 @@ const applicantControl = async (req, res) => {
                         data_error: "Spreadsheet does not match required structure",
                     });
                 let applicant_json = {
-                    applicant_name: current_json.applicant_name,
-                    applicant_email: current_json.applicant_email,
-                    job_title: current_json.job_title,
+                    first_name: current_json.first_name || current_json["first name"] || current_json.applicant_name?.split(" ")[0] || "",
+                    last_name: current_json.last_name || current_json["last name"] || current_json.applicant_name?.split(" ").slice(1).join(" ") || "",
+                    email: current_json.email || current_json.applicant_email || current_json["email address"] || "",
+                    job_title: current_json.job_title || current_json["job title"] || "",
                 };
                 const oldApplicant = await Applicant.findOne({
-                    applicant_name: current_json.applicant_name,
+                    email: applicant_json.email,
                 });
                 if (oldApplicant)
                     return res.status(401).json({
-                        data_error: `User named ${current_json.applicant_name} is already registered for this job`,
+                        data_error: `User with email ${applicant_json.email} is already registered for this job`,
                     });
                 const applicant = new Applicant(applicant_json);
                 const directory = await unzipper.Open.buffer(pdf_resume_zip.buffer);
@@ -168,9 +196,16 @@ const applicantControl = async (req, res) => {
                     const applicant_file_name = entry.path.split(".")[0];
                     let applicant;
                     if (applicant_file_name) {
-                        applicant = await Applicant.findOne({
-                            applicant_name: applicant_file_name,
-                        });
+                        applicant = await Applicant.findOne({ email: applicant_file_name });
+                        if (!applicant) {
+                            const parts = applicant_file_name.split(" ");
+                            if (parts.length >= 2) {
+                                applicant = await Applicant.findOne({
+                                    first_name: parts[0],
+                                    last_name: parts.slice(1).join(" "),
+                                });
+                            }
+                        }
                     }
                     if (!applicant) {
                         return res.status(400).json({
@@ -228,80 +263,57 @@ const applicantControl = async (req, res) => {
                     const loadingTask = pdfLib.getDocument({ data: pdfData });
                     const pdf = await loadingTask.promise;
                     const pages = pdf.numPages;
-                    const fontSizes = [];
-                    const selected_headers = [];
+                    let fullResumeText = "";
                     for (let page_n = 1; page_n <= pages; page_n++) {
                         const page = await pdf.getPage(page_n);
                         const text = await page.getTextContent();
-                        text.items.forEach((item) => {
-                            let isUpper = item.str === item.str.toUpperCase();
-                            if (isUpper) {
-                                fontSizes.push(item.height);
-                                selected_headers.push(item.str);
+                        const pageText = text.items.map((item) => item.str).join(" ");
+                        fullResumeText += pageText + "\\n";
+                    }
+                    try {
+                        const genAI = new GoogleGenerativeAI(env?.GOOGLE_API_KEY || "");
+                        const model = genAI.getGenerativeModel({
+                            model: env?.GOOGLE_AI_MODEL || "gemini-1.5-flash",
+                            generationConfig: {
+                                responseMimeType: "application/json",
+                                responseSchema: {
+                                    type: SchemaType.OBJECT,
+                                    properties: {
+                                        skills: { type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: { name: { type: SchemaType.STRING }, level: { type: SchemaType.STRING }, years_of_experience: { type: SchemaType.NUMBER } } } },
+                                        language: { type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: { name: { type: SchemaType.STRING }, proficiency: { type: SchemaType.STRING } } } },
+                                        experience: { type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: { company: { type: SchemaType.STRING }, role: { type: SchemaType.STRING }, start_date: { type: SchemaType.STRING }, end_date: { type: SchemaType.STRING }, technologies: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }, is_current: { type: SchemaType.BOOLEAN } } } },
+                                        education: { type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: { institution: { type: SchemaType.STRING }, degree: { type: SchemaType.STRING }, field_of_study: { type: SchemaType.STRING }, start_year: { type: SchemaType.NUMBER }, end_year: { type: SchemaType.NUMBER } } } },
+                                        certifications: { type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: { name: { type: SchemaType.STRING }, issuer: { type: SchemaType.STRING }, issuer_date: { type: SchemaType.STRING } } } },
+                                        projects: { type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: { name: { type: SchemaType.STRING }, description: { type: SchemaType.STRING }, technologies: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }, role: { type: SchemaType.STRING }, link: { type: SchemaType.STRING }, start_date: { type: SchemaType.STRING }, end_date: { type: SchemaType.STRING } } } },
+                                        availability: { type: SchemaType.OBJECT, properties: { status: { type: SchemaType.STRING }, type: { type: SchemaType.STRING }, start_date: { type: SchemaType.STRING } } },
+                                        social_links: { type: SchemaType.OBJECT, properties: { linked_in: { type: SchemaType.STRING }, github: { type: SchemaType.STRING }, portfolio: { type: SchemaType.STRING } } }
+                                    }
+                                }
                             }
                         });
-                        let headers = [
-                            "SKILLS",
-                            "EDUCATION",
-                            "EXPERIENCE",
-                            "ADDITIONAL INFORMATION",
-                        ];
-                        if (headers) {
-                            let database_headers = headers.map((header) => header.toLowerCase() || "");
-                            if (database_headers) {
-                                let add_info = database_headers?.[3] ?? "";
-                                let temp_info_header_array = add_info.split(" ");
-                                database_headers[3] =
-                                    temp_info_header_array[0] + "_" + temp_info_header_array[1];
+                        const prompt = `Extract the structured information from the following resume text. Do your best to map the text to the schema fields. Text:
+${fullResumeText}`;
+                        const aiResult = await model.generateContent(prompt);
+                        const aiResponse = aiResult.response.text();
+                        const parsedData = JSON.parse(aiResponse);
+                        const updateApplic = await Applicant.findOneAndUpdate({ _id: applicant_id }, {
+                            $set: {
+                                skills: parsedData.skills,
+                                language: parsedData.language,
+                                experience: parsedData.experience,
+                                education: parsedData.education,
+                                certifications: parsedData.certifications,
+                                projects: parsedData.projects,
+                                availability: parsedData.availability,
+                                social_links: parsedData.social_links
                             }
+                        });
+                        if (updateApplic) {
+                            await updateApplic.save();
                         }
-                        let header_text;
-                        let header_array = [];
-                        let skill_obj = {};
-                        let educ_obj = {};
-                        let exp_obj = {};
-                        let add_obj = {};
-                        for (let head = 0; head < selected_headers.length; head++) {
-                            const current_header = selected_headers[head] || "";
-                            let pattern;
-                            let real_head = 0;
-                            if (headers.includes(current_header)) {
-                                pattern = new RegExp(`${selected_headers[head]}(*?)${selected_headers[head + 1]}`);
-                                const strings = text.items.map((item) => item.str);
-                                const fullText = strings.join(" ").trim();
-                                header_text = fullText.match(pattern);
-                                const headerObject = {};
-                                headerObject[real_head] = header_text;
-                                header_array.push(headerObject);
-                                real_head++;
-                            }
-                            else {
-                                continue;
-                            }
-                            if (header_array[0] &&
-                                header_array[1] &&
-                                header_array[2] &&
-                                header_array[3]) {
-                                skill_obj = header_array[0];
-                                educ_obj = header_array[1];
-                                exp_obj = header_array[2];
-                                add_obj = header_array[3];
-                            }
-                            const updateApplic = await Applicant.findOneAndUpdate({
-                                _id: applicant_id,
-                            }, {
-                                skills: skill_obj.skills,
-                                education: educ_obj.education,
-                                experience: exp_obj.education,
-                                additional_info: add_obj.additional_information,
-                            });
-                            if (updateApplic) {
-                                await updateApplic.save();
-                            }
-                            else {
-                                throw new Error("Could not parse uploaded file");
-                            }
-                        }
+                    }
+                    catch (err) {
+                        controlDebug("Error parsing PDF with AI: " + err);
                     }
                 }
                 res.status(201).json({

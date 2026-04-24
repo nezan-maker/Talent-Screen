@@ -100,15 +100,19 @@ const runModel = async (req: Request, res: Response) => {
           education: job.job_qualifications ?? [],
           notes: job.job_notes ?? undefined,
         },
-        candidates: applicants.map((a) => ({
+        candidates: applicants.map((a: any) => ({
           applicant_id: String(a._id),
-          applicant_name: a.applicant_name,
-          applicant_email: a.applicant_email,
+          applicant_name: a.first_name + " " + a.last_name,
+          applicant_email: a.email,
           location: a.location,
-          skills: (a.skills as string[] | undefined) ?? [],
+          skills: a.skills,
           experience: a.experience,
-          education: (a.education as string[] | undefined) ?? [],
-          resume_text: a.resume_text,
+          education: a.education,
+          languages: a.language,
+          projects: a.projects,
+          certifications: a.certifications,
+          availability: a.availability,
+          social_links: a.social_links,
         })),
       });
 
@@ -229,15 +233,19 @@ const askGem = async (req: Request, res: Response) => {
             notes: job.job_notes,
           }
         : undefined,
-      candidates: applicants.map((a) => ({
+      candidates: applicants.map((a: any) => ({
         applicant_id: String(a._id),
-        applicant_name: a.applicant_name ?? undefined,
-        applicant_email: a.applicant_email ?? undefined,
-        location: a.location ?? undefined,
-        skills: (a.skills as string[] | undefined) ?? [],
-        experience: a.experience ?? undefined,
-        education: (a.education as string[] | undefined) ?? [],
-        resume_text: a.resume_text ?? undefined,
+        applicant_name: a.first_name + " " + a.last_name,
+        applicant_email: a.email,
+        location: a.location,
+        skills: a.skills,
+        experience: a.experience,
+        education: a.education,
+        languages: a.language,
+        projects: a.projects,
+        certifications: a.certifications,
+        availability: a.availability,
+        social_links: a.social_links,
       })),
     });
     res.json({
@@ -254,3 +262,11 @@ const askGem = async (req: Request, res: Response) => {
     res.status(500).json({ server_error: "Internal server error" });
   }
 };
+
+router.get("/models", getModels);
+router.post("/run", runModel);
+router.get("/runs", getRuns);
+router.get("/runs/:runId", getRunsResult);
+router.post("/ask", askGem);
+
+export default router;

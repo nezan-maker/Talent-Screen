@@ -1,17 +1,31 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { VertexAI } from "@google-cloud/vertexai";
 import { geminiOutputSchema } from "../validations/functionValidations.js";
+import type {
+  Skill,
+  Education,
+  Work,
+  Language,
+  Project,
+  Social,
+  Certification,
+  Availability,
+} from "../controllers/applicantControl.js";
 import { z } from "zod";
 
 export type ScreeningCandidateInput = {
   applicant_id: string;
   applicant_name: string;
   applicant_email: string;
-  location: string | null | undefined;
-  skills: string[];
-  experience: number | null | undefined;
-  education: string[];
-  resume_text: string | null | undefined;
+  location: string;
+  skills: Skill[];
+  languages: Language[];
+  experience: Work[];
+  education: Education[];
+  projects: Project[];
+  certifications: Certification[];
+  availability: Availability;
+  social_links: Social;
 };
 
 export type ScreeningJobInput =
@@ -22,7 +36,7 @@ export type ScreeningJobInput =
       skills: string[];
       experience?: number;
       education: string[];
-      notes?: string | null | undefined;
+      notes?: string[] | null | undefined;
     }
   | undefined;
 
@@ -120,7 +134,11 @@ export async function screenWithGemini(
     skills: c.skills ?? [],
     yearsExperience: c.experience,
     education: c.education ?? [],
-    resumeText: (c.resume_text ?? "").slice(0, 4000),
+    languages: c.languages,
+    projects: c.projects,
+    certifications: c.certifications,
+    availability: c.availability,
+    social_links: c.social_links,
   }));
 
   const prompt = [
@@ -181,7 +199,11 @@ export async function assistantWithGemini(
     skills: c.skills ?? [],
     yearsExperience: c.experience,
     education: c.education ?? [],
-    resumeText: (c.resume_text ?? "").slice(0, 2500),
+    languages: c.languages,
+    projects: c.projects,
+    certifications: c.certifications,
+    availability: c.availability,
+    social_links: c.social_links,
   }));
 
   const prompt = [

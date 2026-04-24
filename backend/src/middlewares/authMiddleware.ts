@@ -23,8 +23,8 @@ export const middleAuth = async (
   if (typeof user_details !== "object") {
     return;
   }
-  const user_email = user_details.email;
-  const user = await User.findOne({ user_email });
+  const user_id = user_details.userId;
+  const user = await User.findOne({ _id: user_id });
   if (!user) {
     return res.status(404).json({
       data_error: "User could not be found.Token corrupted or expired",

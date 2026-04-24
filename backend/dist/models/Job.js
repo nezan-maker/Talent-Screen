@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import mongoose, { Schema } from "mongoose";
 import { buildEntityId } from "../utils/ids.js";
 const criterionSchema = new Schema({
@@ -10,6 +11,9 @@ const exampleFormSchema = new Schema({
     EXPERIENCE_LEVEL: { type: String, default: "" },
     CORE_STRENGTHS: { type: [String], default: [] },
 }, { _id: false });
+=======
+import mongoose from "mongoose";
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
 const jobSchema = new mongoose.Schema({
     _id: {
         type: String,
@@ -32,10 +36,22 @@ const jobSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+<<<<<<< HEAD
+=======
+    job_requirements: {
+        type: [String],
+        default: [],
+    },
+    job_skills: {
+        type: [String],
+        default: [],
+    },
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
     company_name: {
         type: String,
         default: "Independent Recruiter",
     },
+<<<<<<< HEAD
     job_experience_required: {
         type: String,
         default: "Not specified",
@@ -51,6 +67,15 @@ const jobSchema = new mongoose.Schema({
     job_qualifications: {
         type: String,
         default: "",
+=======
+    job_experience: {
+        type: Number,
+        required: true,
+    },
+    job_qualifications: {
+        type: [String],
+        required: true,
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
     },
     job_ai_criteria: {
         type: [criterionSchema],
@@ -61,6 +86,7 @@ const jobSchema = new mongoose.Schema({
         enum: [10, 20],
         default: 10,
     },
+<<<<<<< HEAD
     job_state: {
         type: String,
         enum: ["Draft", "Active", "Screening", "Complete"],
@@ -86,6 +112,10 @@ const jobSchema = new mongoose.Schema({
             EXPERIENCE_LEVEL: "",
             CORE_STRENGTHS: [],
         }),
+=======
+    job_notes: {
+        type: [String],
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
     },
 }, { timestamps: true });
 const Job = mongoose.model("Job", jobSchema);

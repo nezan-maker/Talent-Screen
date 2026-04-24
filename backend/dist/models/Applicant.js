@@ -50,6 +50,7 @@ const socialLinksSchema = new Schema({
     portfolio: { type: String, default: "" },
 }, { _id: false });
 const applicantSchema = new mongoose.Schema({
+<<<<<<< HEAD
     _id: {
         type: String,
         default: () => buildEntityId("cand"),
@@ -75,26 +76,50 @@ const applicantSchema = new mongoose.Schema({
         required: true,
         index: true,
         description: "Unique email address for the profile",
-    },
-    applicant_email: {
+=======
+    first_name: {
         type: String,
         required: true,
+        description: "Talent 's first name",
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
+    },
+    last_name: {
+        type: String,
+        required: true,
+<<<<<<< HEAD
         index: true,
         description: "Frontend compatibility alias for the profile email",
     },
     headline: {
         type: String,
         required: true,
+=======
+        description: "Talent 's last name",
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+        description: "Unique email address",
+    },
+    headline: {
+        type: String,
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
         description: "Short professional summary",
     },
     bio: {
         type: String,
+<<<<<<< HEAD
         default: "",
+=======
+        required: true,
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
         description: "Detailed professional biography",
     },
     location: {
         type: String,
         required: true,
+<<<<<<< HEAD
         description: "Current location (City, Country)",
     },
     job_id: {
@@ -102,12 +127,51 @@ const applicantSchema = new mongoose.Schema({
         ref: "Job",
         index: true,
         default: null,
+=======
+        description: "Current location(City,Country)"
+    },
+    skills: {
+        type: [Object],
+        required: true,
+        descrption: "List of skills with proficiency",
+    },
+    language: {
+        type: [Object],
+        description: "Spoken languages",
+    },
+    experience: {
+        type: [Object],
+        required: true,
+        description: "Professional experience history",
+    },
+    education: {
+        type: [Object],
+        requied: true,
+        description: "Academic background",
+    },
+    certifications: {
+        type: [Object],
+        description: "Professional certifications",
+    },
+    projects: {
+        type: [Object],
+        description: "Portfolio projects",
+    },
+    availability: {
+        type: Object,
+        description: "Talent Availability",
+    },
+    social_links: {
+        type: Object,
+        description: "External profiles",
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
     },
     job_title: {
         type: String,
         required: true,
         index: true,
     },
+<<<<<<< HEAD
     skills: {
         type: [skillSchema],
         default: [],
@@ -175,6 +239,11 @@ const applicantSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
         index: true,
+=======
+    applicant_state: {
+        type: String,
+        default: "Queued",
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
     },
 }, { timestamps: true });
 applicantSchema.index({ job_id: 1, applicant_email: 1 }, { unique: false });

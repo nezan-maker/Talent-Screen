@@ -7,7 +7,11 @@ const env = {
     REFRESH_SECRET: process.env.REFRESH_SECRET,
     FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+<<<<<<< HEAD
     GOOGLE_AI_MODEL: process.env.GOOGLE_AI_MODEL || "gemini-2.0-flash",
+=======
+    GOOGLE_AI_MODEL: process.env.GOOGLE_AI_MODEL,
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
     CLOUDINARY_API_NAME: process.env.CLOUDINARY_API_NAME,
     CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
     CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
@@ -15,7 +19,10 @@ const env = {
     USER_PASS: process.env.USER_PASS,
     VERTEX_PROJECT_ID: process.env.VERTEX_PROJECT_ID,
     VERTEX_LOCATION: process.env.VERTEX_LOCATION,
+<<<<<<< HEAD
     AUTO_SEED: process.env.AUTO_SEED ?? "true",
+=======
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
 };
 export default env;
 //# sourceMappingURL=env.js.map

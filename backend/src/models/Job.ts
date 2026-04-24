@@ -144,7 +144,7 @@ const jobSchema = new mongoose.Schema({
     required: true,
   },
   job_notes: {
-    type: String,
+    type: [String],
   },
 });
 >>>>>>> a0dac98 (Refined the screening ai service)

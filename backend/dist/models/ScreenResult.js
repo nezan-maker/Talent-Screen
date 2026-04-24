@@ -1,4 +1,5 @@
 import { Schema, model } from "mongoose";
+<<<<<<< HEAD
 import { buildEntityId } from "../utils/ids.js";
 const scoreWithReasoningSchema = new Schema({
     score: { type: Number, required: true },
@@ -28,10 +29,22 @@ const ScreeningResultSchema = new Schema({
     },
     applicant_id: {
         type: String,
+=======
+const ScreeningResultSchema = new Schema({
+    screening_run_id: {
+        type: Schema.Types.ObjectId,
+        ref: "ScreeningRun",
+        required: true,
+    },
+    job_id: { type: Schema.Types.ObjectId, ref: "Job", required: true },
+    applicant_id: {
+        type: Schema.Types.ObjectId,
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
         ref: "Applicant",
         required: true,
         index: true,
     },
+<<<<<<< HEAD
     job_id: { type: String, ref: "Job", required: true, index: true },
     evaluated_at: { type: Date, required: true },
     overall: {
@@ -108,12 +121,21 @@ const ScreeningResultSchema = new Schema({
     },
     rank: { type: Number, required: true },
     percentile: { type: Number, required: true },
+=======
+    rank: { type: Number, required: true },
+    match_score: { type: Number, required: true },
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
     strengths: { type: [String], default: [] },
     gaps: { type: [String], default: [] },
     recommendation: { type: String, required: true },
 }, { timestamps: true });
+<<<<<<< HEAD
 ScreeningResultSchema.index({ screening_run_id: 1, rank: 1 }, { unique: true });
 ScreeningResultSchema.index({ screening_run_id: 1, candidate_id: 1 }, { unique: true });
 export const ScreeningResultModel = model("ScreeningResult", ScreeningResultSchema);
 export default ScreeningResultModel;
+=======
+ScreeningResultSchema.index({ screeningRunId: 1, rank: 1 }, { unique: true });
+export const ScreeningResultModel = model("ScreeningResult", ScreeningResultSchema);
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
 //# sourceMappingURL=ScreenResult.js.map

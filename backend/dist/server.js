@@ -11,7 +11,10 @@ import { apiReference } from "@scalar/express-api-reference";
 import dashRoutes from "./routes/dashRoutes.js";
 import env from "./config/env.js";
 import aiRoutes from "./services/aiservice.js";
+<<<<<<< HEAD
 import { ensureSeedData } from "./services/seedService.js";
+=======
+>>>>>>> 5ba2726 (Prepared for ultimate debug session)
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

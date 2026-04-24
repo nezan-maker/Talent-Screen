@@ -1160,11 +1160,10 @@ export const forgot = async (req: I_Request, res: Response) => {
                         </div>
                       <![endif]-->
       
-<<<<<<< HEAD
+
+
+
                     <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png" width="46" height="46" />
-=======
-                    <img src="https://res.cloudinary.com/da7sdnt5z/image/upload/v1777007048/icon_cifdka.png"/>
->>>>>>> 4379cdd (Changed color in the emails and fixed invisible icons)
                     </td>
                     <td
                       class="wr-brand-copy-cell"

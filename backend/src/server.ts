@@ -20,18 +20,18 @@ const app = express();
 const PORT = parseInt(process.env.PORT || "10000", 10);
 const serverDebug = debug("app:server");
 
-const originsFromEnv = env.FRONTEND_ORIGIN?.split(",") || [
-  "https://wiserank-lmwy.onrender.com",
-];
+const originsFromEnv =
+  process.env.FRONTEND_ORIGIN || "https://wiserank-lmwy.onrender.com";
 
-const allowedOrigins = new Set([
-  ...originsFromEnv.map((url) => url.trim()).filter(Boolean),
-  "http://127.0.0.1:3000",
-]);
+const allowedOrigins = new Set([originsFromEnv, "http://127.0.0.1:3000"]);
 
 const startServer = async () => {
+  console.log("Before DB");
   await connectDB();
+  console.log("After DB");
+  console.log("Before seed");
   await ensureSeedData();
+  console.log("After seed");
   app.use((req, res, next) => {
     const origin = req.headers.origin;
 
@@ -67,12 +67,18 @@ const startServer = async () => {
   app.use("/auth", authRoutes());
   app.use("/", dashRoutes());
   app.use("/ai", aiRoutes);
+  console.log("Before listening");
   app.listen(PORT, "0.0.0.0", () => {
     serverDebug(`Server connected on port ${PORT}`);
   });
 };
-startServer().catch((error) => {
-  serverDebug("Server failed to start");
-  serverDebug(error);
-  process.exit(1);
-});
+startServer()
+  .then(() => {
+    serverDebug("Server started correctly");
+    console.log("Server started correctly");
+  })
+  .catch((error) => {
+    serverDebug("Server failed to start");
+    serverDebug(error);
+    process.exit(1);
+  });

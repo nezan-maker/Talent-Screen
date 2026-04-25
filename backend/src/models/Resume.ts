@@ -1,18 +1,43 @@
 import mongoose from "mongoose";
-const resumeSchema = new mongoose.Schema({
-  job_title: {
-    type: String,
-    required: true,
+import { buildEntityId } from "../utils/ids.js";
+
+const resumeSchema = new mongoose.Schema(
+  {
+    _id: {
+      type: String,
+      default: () => buildEntityId("resume"),
+    },
+    job_id: {
+      type: String,
+      ref: "Job",
+      default: null,
+      index: true,
+    },
+    job_title: {
+      type: String,
+      required: true,
+    },
+    applicant_id: {
+      type: String,
+      ref: "Applicant",
+      required: true,
+      index: true,
+    },
+    resume_pdf_url: {
+      type: String,
+      required: true,
+    },
+    file_name: {
+      type: String,
+      default: "",
+    },
+    parsed_text: {
+      type: String,
+      default: "",
+    },
   },
-  applicant_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Applicant",
-    required: true,
-  },
-  resume_pdf_url: {
-    type: String,
-    required: true,
-  },
-});
+  { timestamps: true },
+);
+
 const Resume = mongoose.model("Resume", resumeSchema);
 export default Resume;

@@ -1,0 +1,111 @@
+import Job from "../models/Job.js";
+import Applicant from "../models/Applicant.js";
+import { mapApplicantToFrontend, mapJobToFrontend } from "../utils/frontendMappers.js";
+import { parseJobCriteria, trimText } from "../utils/talentProfile.js";
+function buildExampleForm(payload) {
+    const criteria = parseJobCriteria(payload.job_ai_criteria);
+    return {
+        ROLE_TITLE: payload.job_title,
+        EXPERIENCE_LEVEL: payload.job_experience_required,
+        CORE_STRENGTHS: criteria.map((item) => item.criteria_string).filter(Boolean),
+    };
+}
+function extractPayload(body) {
+    if (body &&
+        typeof body === "object" &&
+        "reqBody" in body &&
+        body.reqBody &&
+        typeof body.reqBody === "object") {
+        return body.reqBody;
+    }
+    return (body ?? {});
+}
+export async function getJobs(_req, res) {
+    try {
+        const [jobs, applicants] = await Promise.all([
+            Job.find().sort({ updatedAt: -1, createdAt: -1 }).lean(),
+            Applicant.find().sort({ updatedAt: -1, createdAt: -1 }).lean(),
+        ]);
+        const mappedApplicants = applicants.map(mapApplicantToFrontend);
+        return res.status(200).json({
+            jobs: jobs.map((job) => mapJobToFrontend(job, mappedApplicants)),
+        });
+    }
+    catch (error) {
+        console.error("Error in getJobs:", error);
+        return res.status(500).json({ server_error: "Internal server error" });
+    }
+}
+export async function getJobById(req, res) {
+    try {
+        const id = trimText(req.params.id);
+        const [job, applicants] = await Promise.all([
+            Job.findById(id).lean(),
+            Applicant.find().lean(),
+        ]);
+        if (!job) {
+            return res.status(404).json({ data_error: "Job not found" });
+        }
+        const mappedApplicants = applicants.map(mapApplicantToFrontend);
+        return res.status(200).json({
+            job: mapJobToFrontend(job, mappedApplicants),
+        });
+    }
+    catch (error) {
+        console.error("Error in getJobById:", error);
+        return res.status(500).json({ server_error: "Internal server error" });
+    }
+}
+export async function createJob(req, res) {
+    try {
+        const payload = extractPayload(req.body);
+        const job_title = trimText(payload.job_title);
+        const job_department = trimText(payload.job_department);
+        const job_location = trimText(payload.job_location);
+        const job_employment_type = trimText(payload.job_employment_type);
+        const job_description = trimText(payload.job_description);
+        if (!job_title ||
+            !job_department ||
+            !job_location ||
+            !job_employment_type ||
+            !job_description) {
+            return res.status(400).json({ data_error: "Missing required job fields" });
+        }
+        const oldJob = await Job.findOne({ job_title }).lean();
+        if (oldJob) {
+            return res.status(409).json({ message: "Job already registered" });
+        }
+        const job = await Job.create({
+            job_title,
+            job_department,
+            job_location,
+            job_employment_type,
+            company_name: req.currentUser?.company_name ?? "Independent Recruiter",
+            job_experience_required: trimText(payload.job_experience_required) || "Mid",
+            job_description,
+            job_responsibilities: trimText(payload.job_responsibilities),
+            job_qualifications: trimText(payload.job_qualifications),
+            job_ai_criteria: parseJobCriteria(payload.job_ai_criteria),
+            job_shortlist_size: Number(payload.job_shortlist_size) === 20 ? 20 : 10,
+            job_state: trimText(payload.job_state) || "Active",
+            job_salary_min: typeof payload.job_salary_min === "number" ? payload.job_salary_min : null,
+            job_salary_max: typeof payload.job_salary_max === "number" ? payload.job_salary_max : null,
+            workers_required: typeof payload.workers_required === "number" ? payload.workers_required : 1,
+            job_example_form: buildExampleForm({
+                job_title,
+                job_experience_required: trimText(payload.job_experience_required) || "Mid",
+                job_ai_criteria: payload.job_ai_criteria,
+            }),
+        });
+        const mappedApplicants = (await Applicant.find().lean()).map(mapApplicantToFrontend);
+        return res.status(201).json({
+            success: "Job successfully created",
+            job: mapJobToFrontend(job.toObject(), mappedApplicants),
+        });
+    }
+    catch (error) {
+        console.error("Error in createJob:", error);
+        return res.status(500).json({ server_error: "Internal server error" });
+    }
+}
+//# sourceMappingURL=jobApi.js.map

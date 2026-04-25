@@ -6,7 +6,7 @@ export function useDashboardOverview() {
     queryKey: ["dashboardOverview"],
     queryFn: getDashboardOverview,
     retry: 1,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 1000,
   });
 }
 
@@ -15,6 +15,6 @@ export function useDashboardStats() {
     queryKey: ["dashboardStats"],
     queryFn: getDashboardStats,
     retry: 1,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 1000,
   });
 }

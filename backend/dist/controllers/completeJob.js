@@ -1,13 +1,14 @@
 import Job from "../models/Job.js";
-import askGemini from "../services/aiservice.js";
 import { controlDebug } from "./authControl.js";
 import env from "../config/env.js";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { JobSchema } from "../validations/functionValidations.js";
 const completeJob = async (req, res) => {
     try {
         const { reqString } = req.body;
         const reqBody = JSON.parse(reqString);
+        const z_parse_result = JobSchema.parse(reqBody);
         const access_token = req.cookies.reference_token;
         if (!access_token) {
             throw new Error("Could not find user_details cookie missing or expired");
@@ -30,15 +31,7 @@ const completeJob = async (req, res) => {
             throw new Error("Could not find user details");
         }
         let company_name = user.company_name;
-        const job = new Job(reqBody);
-        let guidelines = "You are to create  an example resume that addresses all the job details that will be presented to the user as a reference to ensure all needed info are given.P.S the values of main properties must be in capital letters and the response you give me back must be a json stringified string I will pass into an object that I will store in the database";
-        let prompt_object = { job, guidelines };
-        let prompt = JSON.stringify(prompt_object);
-        let result = await askGemini(prompt);
-        if (result.startsWith("```json")) {
-            result = result.replace("/```json|```/g", "");
-        }
-        job.job_example_form = result;
+        const job = new Job(z_parse_result);
         job.company_name = company_name;
         await job.save();
         res.status(201).json({ success: "Job successfully created" });

@@ -1,24 +1,6 @@
-const GENERIC_EMAIL_DOMAINS = new Set([
-    "gmail",
-    "hotmail",
-    "icloud",
-    "outlook",
-    "yahoo",
-]);
+import { extractHeadlineFromExperience, getDisplayName, inferExperienceYears, normalizeEducation, normalizeExperience, normalizeSkills, normalizeSocialLinks, parseJobCriteria, splitList, trimText, } from "./talentProfile.js";
 function toId(value) {
-    if (value == null) {
-        return "";
-    }
-    if (typeof value === "string") {
-        return value;
-    }
-    if (typeof value === "object" &&
-        value !== null &&
-        "toString" in value &&
-        typeof value.toString === "function") {
-        return value.toString();
-    }
-    return String(value);
+    return trimText(value);
 }
 function toIso(value) {
     if (!value) {
@@ -28,57 +10,10 @@ function toIso(value) {
         return value.toISOString();
     }
     const parsed = new Date(String(value));
-    if (Number.isNaN(parsed.getTime())) {
-        return undefined;
-    }
-    return parsed.toISOString();
-}
-function splitList(value) {
-    if (!value) {
-        return [];
-    }
-    const raw = typeof value === "string"
-        ? value
-        : Array.isArray(value)
-            ? value.join(",")
-            : String(value);
-    return Array.from(new Set(raw
-        .split(/[\n,;|]/)
-        .map((item) => item.trim())
-        .filter(Boolean)));
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 function inferLocation(value) {
-    const normalized = String(value ?? "").trim();
-    return normalized || "Location not provided";
-}
-function findLinkedIn(values) {
-    return values.find((item) => item.toLowerCase().includes("linkedin"));
-}
-function normalizeCompanyName(value) {
-    const email = String(value ?? "").trim().toLowerCase();
-    const domain = email.split("@")[1];
-    const domainName = domain?.split(".")[0];
-    if (!domainName || GENERIC_EMAIL_DOMAINS.has(domainName)) {
-        return "Independent Recruiter";
-    }
-    return domainName
-        .split(/[-_]+/)
-        .filter(Boolean)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ");
-}
-function normalizeJobStatus(value) {
-    const status = String(value ?? "").trim().toLowerCase();
-    if (status === "complete" || status === "completed") {
-        return "Complete";
-    }
-    if (status === "screening") {
-        return "Screening";
-    }
-    if (status === "active") {
-        return "Active";
-    }
-    return "Draft";
+    return trimText(value) || "Location not provided";
 }
 function neutralTrend(label) {
     return {
@@ -87,102 +22,132 @@ function neutralTrend(label) {
         direction: "neutral",
     };
 }
-function pickCriterionText(criteria, matcher) {
+function normalizeJobStatus(value) {
+    const status = trimText(value).toLowerCase();
+    if (status === "screening") {
+        return "Screening";
+    }
+    if (status === "complete" || status === "completed") {
+        return "Complete";
+    }
+    if (status === "active") {
+        return "Active";
+    }
+    return "Draft";
+}
+function extractCriteriaText(priority, criteria) {
     return criteria
-        .filter(matcher)
-        .map((criterion) => String(criterion.criteria_string ?? "").trim())
+        .filter((criterion) => trimText(criterion.priority).toLowerCase() === priority)
+        .map((criterion) => trimText(criterion.criteria_string || criterion.description))
         .filter(Boolean)
         .join(", ");
 }
 export function inferDefaultCompanyName(userEmail) {
-    return normalizeCompanyName(userEmail);
+    const domain = trimText(userEmail).split("@")[1]?.split(".")[0];
+    if (!domain) {
+        return "Independent Recruiter";
+    }
+    return domain
+        .split(/[-_]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
 }
 export function mapUserToFrontend(user) {
     return {
         id: toId(user?._id),
-        name: String(user?.user_name ?? "").trim(),
-        email: String(user?.user_email ?? "").trim(),
+        name: trimText(user?.user_name),
+        email: trimText(user?.user_email),
         isVerified: Boolean(user?.isVerified),
         createdAtISO: toIso(user?.createdAt),
         updatedAtISO: toIso(user?.updatedAt),
     };
 }
 export function mapApplicantToFrontend(applicant) {
+    const skills = normalizeSkills(applicant?.skills);
+    const education = normalizeEducation(applicant?.education);
+    const experience = normalizeExperience(applicant?.experience);
+    const socialLinks = normalizeSocialLinks(applicant?.social_links);
     const additionalInfo = splitList(applicant?.additional_info);
-    const email = String(applicant?.applicant_email ?? "").trim() ||
-        additionalInfo.find((item) => /\S+@\S+\.\S+/.test(item));
-    const linkedIn = findLinkedIn(additionalInfo);
-    const softSignals = additionalInfo.filter((item) => item !== email && item !== linkedIn);
+    const technicalSkills = skills.map((item) => item.name).filter(Boolean);
+    const softSkills = additionalInfo.filter((item) => !/\S+@\S+\.\S+/.test(item) &&
+        !item.toLowerCase().includes("linkedin") &&
+        !item.toLowerCase().includes("github"));
     return {
         id: toId(applicant?._id),
-        name: String(applicant?.applicant_name ?? "").trim(),
-        currentTitle: String(applicant?.job_title ?? "").trim(),
+        name: getDisplayName(applicant),
+        currentTitle: trimText(applicant?.headline) ||
+            extractHeadlineFromExperience(experience, trimText(applicant?.job_title)),
+        company: trimText(experience[0]?.company) || undefined,
         location: inferLocation(applicant?.location),
-        yearsExperience: Number(applicant?.experience ?? 0),
-        email: email || undefined,
-        linkedIn: linkedIn || undefined,
-        shortlisted: Boolean(applicant?.shortlisted),
-        appliedJobTitle: String(applicant?.job_title ?? "").trim(),
+        yearsExperience: inferExperienceYears(experience),
+        email: trimText(applicant?.applicant_email ?? applicant?.email) || undefined,
+        linkedIn: socialLinks.linkedin || undefined,
+        shortlisted: Boolean(applicant?.shortlisted) ||
+            trimText(applicant?.applicant_state) === "Shortlisted",
+        appliedJobId: trimText(applicant?.job_id) || undefined,
+        appliedJobTitle: trimText(applicant?.job_title),
         createdAtISO: toIso(applicant?.createdAt),
         updatedAtISO: toIso(applicant?.updatedAt),
         skills: {
-            technical: splitList(applicant?.skills),
-            soft: softSignals,
+            technical: technicalSkills,
+            soft: softSkills,
         },
-        education: splitList(applicant?.education),
-        workHistory: [],
+        education: education.map((item) => [item.degree, item.field_of_study, item.institution]
+            .filter(Boolean)
+            .join(" - ")),
+        workHistory: experience.map((item) => {
+            const endISO = trimText(item.end_date);
+            return {
+                role: trimText(item.role),
+                company: trimText(item.company),
+                startISO: trimText(item.start_date) || new Date().toISOString(),
+                ...(endISO ? { endISO } : {}),
+                highlights: trimText(item.description)
+                    ? [trimText(item.description)]
+                    : item.technologies.map((technology) => trimText(technology)).filter(Boolean),
+            };
+        }),
     };
 }
 export function mapJobToFrontend(job, applicants) {
-    const criteriaSource = Array.isArray(job?.job_ai_criteria)
-        ? job.job_ai_criteria
-        : Array.isArray(job?.job_description)
-            ? job.job_description
-            : [];
-    const criteria = criteriaSource.filter((criterion) => Boolean(criterion && typeof criterion === "object"));
-    const title = String(job?.job_title ?? "").trim();
-    const applicantsForJob = applicants.filter((candidate) => candidate.appliedJobTitle.trim().toLowerCase() === title.toLowerCase());
-    const mustHaveSkills = pickCriterionText(criteria, (criterion) => String(criterion.priority ?? "").toLowerCase() === "high") || pickCriterionText(criteria, () => true);
-    const niceToHaveSkills = pickCriterionText(criteria, (criterion) => String(criterion.priority ?? "").toLowerCase() === "medium");
+    const criteria = parseJobCriteria(job?.job_ai_criteria);
+    const title = trimText(job?.job_title);
+    const applicantsForJob = applicants.filter((candidate) => candidate.appliedJobTitle.trim().toLowerCase() === title.toLowerCase() ||
+        toId(job?._id) === trimText(candidate.job_id));
+    const mustHaveSkills = extractCriteriaText("high", criteria) ||
+        criteria.map((item) => trimText(item.criteria_string)).join(", ");
+    const niceToHaveSkills = extractCriteriaText("medium", criteria);
     const screeningQuestions = criteria
-        .filter((criterion) => String(criterion.criteria_string ?? "")
-        .toLowerCase()
-        .includes("question"))
-        .map((criterion) => String(criterion.description ?? "").trim())
+        .filter((item) => `${item.criteria_string} ${item.description}`.toLowerCase().includes("question"))
+        .map((item) => trimText(item.description))
         .filter(Boolean)
         .join("\n");
     const dealBreakers = criteria
-        .filter((criterion) => `${criterion.criteria_string ?? ""} ${criterion.description ?? ""}`
+        .filter((item) => `${item.criteria_string} ${item.description}`
         .toLowerCase()
         .includes("deal breaker"))
-        .map((criterion) => String(criterion.description ?? "").trim())
+        .map((item) => trimText(item.description))
         .filter(Boolean)
         .join(", ");
-    const description = typeof job?.job_description === "string"
-        ? job.job_description
-        : criteria
-            .map((criterion) => String(criterion.description ?? "").trim())
-            .filter(Boolean)
-            .join("\n");
-    const shortlistSize = Number(job?.job_shortlist_size) === 20 ? 20 : 10;
     return {
         id: toId(job?._id),
         title,
-        department: String(job?.job_department ?? "").trim(),
+        department: trimText(job?.job_department),
         location: inferLocation(job?.job_location),
-        employmentType: String(job?.job_employment_type ?? "").trim() || "Full-time",
-        experienceLevel: String(job?.job_experience_required ?? "").trim() || "Not specified",
+        employmentType: trimText(job?.job_employment_type) || "Full-time",
+        experienceLevel: trimText(job?.job_experience_required) || "Not specified",
         salaryMin: typeof job?.job_salary_min === "number" ? job.job_salary_min : undefined,
         salaryMax: typeof job?.job_salary_max === "number" ? job.job_salary_max : undefined,
-        description: String(description ?? "").trim(),
-        responsibilities: String(job?.job_responsibilities ?? "").trim(),
-        qualifications: String(job?.job_qualifications ?? "").trim(),
+        description: trimText(job?.job_description),
+        responsibilities: trimText(job?.job_responsibilities),
+        qualifications: trimText(job?.job_qualifications),
         aiCriteria: {
             mustHaveSkills,
             niceToHaveSkills,
             screeningQuestions,
             dealBreakers,
-            shortlistSize,
+            shortlistSize: Number(job?.job_shortlist_size) === 20 ? 20 : 10,
         },
         status: normalizeJobStatus(job?.job_state),
         applicantsCount: applicantsForJob.length,
@@ -215,7 +180,7 @@ export function buildDashboardStats(jobs, applicants) {
         inScreening: {
             value: screeningJobs,
             trend: neutralTrend("based on current data"),
-            avgTimePerCandidateMins: applicants.length > 0 ? 8 : 0,
+            avgTimePerCandidateMins: applicants.length > 0 ? 6 : 0,
         },
     };
 }

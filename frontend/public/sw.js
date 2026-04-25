@@ -1,39 +1,59 @@
-// Service Worker for caching static assets
-const CACHE_NAME = 'wiserank-v1';
-const urlsToCache = [
-  '/',
-  '/dashboard',
-  '/jobs',
-  '/candidates',
-  // Add other routes
-];
+const CACHE_PREFIX = "wiserank-";
+const STATIC_CACHE_NAME = "wiserank-static-v2";
 
-self.addEventListener('install', (event) => {
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
-    })
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith(CACHE_PREFIX) && cacheName !== STATIC_CACHE_NAME)
+            .map((cacheName) => caches.delete(cacheName)),
+        ),
+      )
+      .then(() => self.clients.claim()),
   );
 });
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+
+  if (request.method !== "GET") {
+    return;
+  }
+
+  const url = new URL(request.url);
+  const isSameOrigin = url.origin === self.location.origin;
+  const isNavigationRequest = request.mode === "navigate" || request.destination === "document";
+  const isStaticAsset =
+    request.destination === "style" ||
+    request.destination === "script" ||
+    request.destination === "image" ||
+    request.destination === "font" ||
+    url.pathname.startsWith("/_next/static/");
+
+  if (!isSameOrigin || isNavigationRequest || !isStaticAsset) {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
-  );
-});
+    caches.open(STATIC_CACHE_NAME).then(async (cache) => {
+      const cachedResponse = await cache.match(request);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+      const response = await fetch(request);
+      if (response.ok) {
+        cache.put(request, response.clone());
+      }
+
+      return response;
+    }),
   );
 });

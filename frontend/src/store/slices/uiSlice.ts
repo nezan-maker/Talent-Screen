@@ -21,4 +21,3 @@ const uiSlice = createSlice({
 
 export const { setSidebarCollapsed, setGlobalLoading } = uiSlice.actions;
 export default uiSlice.reducer;
-

@@ -3,7 +3,7 @@ import connectDB from "../config/db.js";
 import Applicant from "../models/Applicant.js";
 import Job from "../models/Job.js";
 import Resume from "../models/Resume.js";
-import Result from "../models/ScreenResult.js";
+import { ScreeningResultModel as Result } from "../models/ScreenResult.js";
 import User from "../models/User.js";
 const models = [User, Job, Applicant, Resume, Result];
 function isNamespaceExistsError(error) {

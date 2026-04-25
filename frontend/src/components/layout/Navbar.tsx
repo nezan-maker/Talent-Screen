@@ -55,7 +55,7 @@ export function Navbar() {
   return (
     <div className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/90 px-6 backdrop-blur">
       <div className="flex items-center gap-3">
-        <BrandLogo size="sm" subtitle="Recruiter workspace" />
+        <BrandLogo size="sm" subtitle="Talvo workspace" />
       </div>
 
       <div className="flex items-center gap-3">
@@ -66,7 +66,7 @@ export function Navbar() {
         <ThemeToggle />
         <div className="hidden text-right sm:block">
           <div className="text-sm font-semibold text-text-primary">
-            {currentUser?.name || "Recruiter Workspace"}
+            {currentUser?.name || "Talvo Workspace"}
           </div>
           <div className="text-xs text-text-muted">
             {currentUser?.email || "Sign in to sync your profile"}
@@ -86,7 +86,7 @@ export function Navbar() {
             aria-expanded={showDropdown}
             aria-haspopup="menu"
           >
-            {initials(currentUser?.name || "WiseRank")}
+            {initials(currentUser?.name || "Talvo")}
           </button>
           {showDropdown ? (
             <div
@@ -95,7 +95,7 @@ export function Navbar() {
             >
               <div className="border-b border-border px-4 py-3">
                 <div className="text-sm font-semibold text-text-primary">
-                  {currentUser?.name || "Recruiter Workspace"}
+                  {currentUser?.name || "Talvo Workspace"}
                 </div>
                 <div className="text-xs text-text-muted">
                   {currentUser?.email || "Connected account"}

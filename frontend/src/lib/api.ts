@@ -15,11 +15,7 @@ import type {
 } from '@/types';
 import { dashboardStatsSchema } from '@/types';
 
-const baseURL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === 'development'
-    ? 'http://localhost:5000'
-    : 'mock://local');
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 'mock://local';
 
 export const api: AxiosInstance = axios.create({
   baseURL,
@@ -94,6 +90,138 @@ export type RegisterCandidateInput = {
   education_certificates: string[] | string;
   additional_info?: string[] | string;
   experience_in_years: number;
+};
+
+export type ReviewCandidateDecision = {
+  applicant_id?: string;
+  applicant_name?: string;
+  job_title?: string;
+  shortlisted: boolean;
+};
+
+export type ScreeningRunSummary = {
+  _id: string;
+  job_id: string;
+  job_title: string;
+  applicant_ids: string[];
+  topK: number;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  error?: string;
+  model?: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  result_count?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ScreeningResultApiRecord = {
+  _id?: string;
+  screening_id: string;
+  screening_run_id: string;
+  candidate_id: string;
+  applicant_id: string;
+  job_id: string;
+  evaluated_at: string;
+  overall: {
+    score: number;
+    grade: string;
+    verdict: 'Shortlisted' | 'Review' | 'Rejected';
+    summary: string;
+  };
+  dimension_scores: {
+    skills_match: {
+      score: number;
+      matched: string[];
+      missing: string[];
+      reasoning: string;
+    };
+    experience_relevance: {
+      score: number;
+      total_years: number;
+      relevant_years: number;
+      highlights: string[];
+      reasoning: string;
+    };
+    education_fit: {
+      score: number;
+      degree_level: string;
+      field_relevance: string;
+      reasoning: string;
+    };
+    project_quality: {
+      score: number;
+      count: number;
+      highlights: string[];
+      reasoning: string;
+    };
+    certifications_value: {
+      score: number;
+      count: number;
+      relevant: string[];
+      reasoning: string;
+    };
+    language_fit: {
+      score: number;
+      required_met: boolean;
+      languages: Array<{ name: string; proficiency: string }>;
+    };
+    availability_fit: {
+      score: number;
+      status: string;
+      type_match: boolean;
+      earliest_start: string;
+    };
+  };
+  weights_used: {
+    skills_match: number;
+    experience_relevance: number;
+    project_quality: number;
+    education_fit: number;
+    certifications_value: number;
+    language_fit: number;
+    availability_fit: number;
+  };
+  flags: {
+    career_gap: boolean;
+    overqualified: boolean;
+    location_mismatch: boolean;
+    incomplete_profile: boolean;
+  };
+  rank: number;
+  percentile: number;
+  strengths: string[];
+  gaps: string[];
+  recommendation: string;
+};
+
+export type LatestJobResultsResponse = {
+  run: ScreeningRunSummary;
+  results: ScreeningResultApiRecord[];
+};
+
+export type CandidateLatestScreening = {
+  jobId: string;
+  jobTitle: string;
+  generatedAtISO: string;
+  result: ScreeningResultApiRecord;
+};
+
+export type AssistantReply = {
+  answer: string;
+  suggestedNextQuestions: string[];
+  context: {
+    jobId: string | null;
+    applicantCount: number;
+  };
+};
+
+export type WorkspaceNotification = {
+  id: string;
+  title: string;
+  body: string;
+  createdAtISO: string;
+  href?: string;
 };
 
 type LoginResponse = {
@@ -173,7 +301,17 @@ type ScreeningRunResponse = {
   };
 };
 
-const SCREENING_STORAGE_PREFIX = 'wiserank-screening:';
+type ReviewResultResponse = {
+  success: string;
+  updatedCount: number;
+};
+
+type ScreeningRunsResponse = {
+  runs: ScreeningRunSummary[];
+};
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function normalizeCandidateList(value: string[] | string | undefined) {
   if (!value) {
@@ -210,6 +348,9 @@ function buildMockCandidate(
     email,
     linkedIn,
     shortlisted: false,
+    appliedJobId:
+      mockJobs.find((job) => normalizeText(job.title) === normalizeText(input.job_title))
+        ?.id ?? undefined,
     appliedJobTitle: input.job_title,
     createdAtISO,
     updatedAtISO: createdAtISO,
@@ -224,9 +365,6 @@ function buildMockCandidate(
   };
 }
 
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 function clampPercentage(value: unknown) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
@@ -236,8 +374,36 @@ function clampPercentage(value: unknown) {
   return Math.max(0, Math.min(100, Math.round(numericValue)));
 }
 
-function screeningStorageKey(jobId: string) {
-  return `${SCREENING_STORAGE_PREFIX}${jobId}`;
+function normalizeDate(value: string | number | Date | null | undefined) {
+  if (!value) {
+    return new Date().toISOString();
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
+function normalizeText(value: string | null | undefined) {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function normalizeScreeningApplicant(
+  applicant: ScreeningRunApiResult
+): ScreeningCandidateAnalysis {
+  return {
+    candidateId: applicant.applicant_id?.trim() || undefined,
+    candidateName: applicant.applicant_name?.trim() || 'Unnamed candidate',
+    score: clampPercentage(applicant.applicant_marks),
+    skillsMatchPct: clampPercentage(
+      applicant.applicant_specification_relevance?.skills_relevance
+    ),
+    educationPct: clampPercentage(
+      applicant.applicant_specification_relevance?.education_relevance
+    ),
+    reasoning:
+      applicant.applicant_result_description?.trim() ||
+      'Screening summary unavailable.',
+  };
 }
 
 function buildMockScreeningAnalysis(jobId: string): ScreeningAnalysis {
@@ -263,104 +429,132 @@ function buildMockScreeningAnalysis(jobId: string): ScreeningAnalysis {
   };
 }
 
-function normalizeScreeningApplicant(
-  applicant: ScreeningRunApiResult
-): ScreeningCandidateAnalysis {
+function buildMockLatestJobResults(jobId: string): LatestJobResultsResponse | null {
+  const job = mockJobs.find((item) => item.id === jobId);
+  if (!job) {
+    return null;
+  }
+
+  const generatedAtISO = new Date().toISOString();
+  const rankedScores = mockCandidateScores
+    .filter((item) => item.jobId === jobId)
+    .sort((left, right) => right.score - left.score);
+
   return {
-    candidateId: applicant.applicant_id?.trim() || undefined,
-    candidateName: applicant.applicant_name?.trim() || 'Unnamed candidate',
-    score: clampPercentage(applicant.applicant_marks),
-    skillsMatchPct: clampPercentage(
-      applicant.applicant_specification_relevance?.skills_relevance
-    ),
-    educationPct: clampPercentage(
-      applicant.applicant_specification_relevance?.education_relevance
-    ),
-    reasoning:
-      applicant.applicant_result_description?.trim() ||
-      'Screening summary unavailable.',
+    run: {
+      _id: `mock-run-${jobId}`,
+      job_id: jobId,
+      job_title: job.title,
+      applicant_ids: rankedScores.map((item) => item.candidateId),
+      topK: job.aiCriteria.shortlistSize,
+      status: 'completed',
+      started_at: generatedAtISO,
+      completed_at: generatedAtISO,
+      result_count: rankedScores.length,
+      createdAt: generatedAtISO,
+      updatedAt: generatedAtISO,
+    },
+    results: rankedScores.map((score, index) => ({
+      _id: `mock-result-${jobId}-${score.candidateId}`,
+      screening_id: `mock-screening-${jobId}-${score.candidateId}`,
+      screening_run_id: `mock-run-${jobId}`,
+      candidate_id: score.candidateId,
+      applicant_id: score.candidateId,
+      job_id: jobId,
+      evaluated_at: generatedAtISO,
+      overall: {
+        score: score.score,
+        grade:
+          score.score >= 85
+            ? 'A'
+            : score.score >= 70
+              ? 'B'
+              : score.score >= 55
+                ? 'C'
+                : 'D',
+        verdict:
+          score.score >= 80
+            ? 'Shortlisted'
+            : score.score >= 60
+              ? 'Review'
+              : 'Rejected',
+        summary: score.reasoning,
+      },
+      dimension_scores: {
+        skills_match: {
+          score: score.skillsMatchPct,
+          matched: score.strengths,
+          missing: score.gaps,
+          reasoning: score.reasoning,
+        },
+        experience_relevance: {
+          score: score.experiencePct,
+          total_years:
+            mockCandidates.find((candidate) => candidate.id === score.candidateId)
+              ?.yearsExperience ?? 0,
+          relevant_years:
+            mockCandidates.find((candidate) => candidate.id === score.candidateId)
+              ?.yearsExperience ?? 0,
+          highlights: [],
+          reasoning: score.reasoning,
+        },
+        education_fit: {
+          score: score.educationPct,
+          degree_level: 'Not specified',
+          field_relevance: 'Medium',
+          reasoning: score.reasoning,
+        },
+        project_quality: {
+          score: score.overallRelevancePct,
+          count: 0,
+          highlights: [],
+          reasoning: score.reasoning,
+        },
+        certifications_value: {
+          score: score.overallRelevancePct,
+          count: 0,
+          relevant: [],
+          reasoning: score.reasoning,
+        },
+        language_fit: {
+          score: 95,
+          required_met: true,
+          languages: [{ name: 'English', proficiency: 'Fluent' }],
+        },
+        availability_fit: {
+          score: 100,
+          status: 'Available',
+          type_match: true,
+          earliest_start: generatedAtISO,
+        },
+      },
+      weights_used: {
+        skills_match: 0.3,
+        experience_relevance: 0.25,
+        project_quality: 0.15,
+        education_fit: 0.1,
+        certifications_value: 0.1,
+        language_fit: 0.05,
+        availability_fit: 0.05,
+      },
+      flags: {
+        career_gap: false,
+        overqualified: false,
+        location_mismatch: false,
+        incomplete_profile: false,
+      },
+      rank: index + 1,
+      percentile: Math.max(1, Math.round(((rankedScores.length - index) / rankedScores.length) * 100)),
+      strengths: score.strengths,
+      gaps: score.gaps,
+      recommendation:
+        score.score >= 80
+          ? 'Strong shortlist candidate'
+          : score.score >= 60
+            ? 'Worth recruiter review'
+            : 'Not recommended for the first shortlist',
+    })),
   };
-}
-
-export function storeScreeningAnalysis(analysis: ScreeningAnalysis) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(
-    screeningStorageKey(analysis.jobId),
-    JSON.stringify(analysis)
-  );
-}
-
-export function getStoredScreeningAnalysis(
-  jobId: string
-): ScreeningAnalysis | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const rawValue = window.localStorage.getItem(screeningStorageKey(jobId));
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue) as ScreeningAnalysis;
-    if (!parsed || !Array.isArray(parsed.applicants)) {
-      return null;
-    }
-
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-export function getStoredScreeningAnalyses(): ScreeningAnalysis[] {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  return Object.keys(window.localStorage)
-    .filter((key) => key.startsWith(SCREENING_STORAGE_PREFIX))
-    .map((key) => {
-      try {
-        return JSON.parse(
-          window.localStorage.getItem(key) ?? 'null'
-        ) as ScreeningAnalysis | null;
-      } catch {
-        return null;
-      }
-    })
-    .filter((analysis): analysis is ScreeningAnalysis =>
-      Boolean(analysis && Array.isArray(analysis.applicants))
-    )
-    .sort((left, right) => {
-      return (
-        new Date(right.generatedAtISO).getTime() -
-        new Date(left.generatedAtISO).getTime()
-      );
-    });
-}
-
-export function findStoredCandidateScreening(candidate: Candidate) {
-  const candidateName = candidate.name.trim().toLowerCase();
-
-  for (const analysis of getStoredScreeningAnalyses()) {
-    const match = analysis.applicants.find((applicant) => {
-      const idsMatch = applicant.candidateId?.trim() === candidate.id;
-      const namesMatch =
-        applicant.candidateName.trim().toLowerCase() === candidateName;
-      return idsMatch || namesMatch;
-    });
-
-    if (match) {
-      return { analysis, result: match };
-    }
-  }
-
-  return null;
 }
 
 async function mockGet<T>(path: string): Promise<MockResponse<T>> {
@@ -383,7 +577,10 @@ async function mockGet<T>(path: string): Promise<MockResponse<T>> {
   if (path.startsWith('/jobs/')) {
     const id = path.split('/')[2] ?? '';
     const job = mockJobs.find((item) => item.id === id);
-    if (!job) throw new Error('Job not found');
+    if (!job) {
+      throw new Error('Job not found');
+    }
+
     return { data: { job } as unknown as T };
   }
 
@@ -394,7 +591,10 @@ async function mockGet<T>(path: string): Promise<MockResponse<T>> {
   if (path.startsWith('/candidates/')) {
     const id = path.split('/')[2] ?? '';
     const candidate = mockCandidates.find((item) => item.id === id);
-    if (!candidate) throw new Error('Candidate not found');
+    if (!candidate) {
+      throw new Error('Candidate not found');
+    }
+
     return { data: { candidate } as unknown as T };
   }
 
@@ -404,7 +604,7 @@ async function mockGet<T>(path: string): Promise<MockResponse<T>> {
         user: {
           id: 'demo-user',
           name: 'A. Recruiter',
-          email: 'recruiter@rankwise.dev',
+          email: 'recruiter@talvo.ai',
           isVerified: true,
         },
       } as unknown as T,
@@ -438,6 +638,10 @@ export function getApiErrorMessage(
         'data_error',
         'server_error',
         'error',
+        'user_error',
+        'expired_error',
+        'expiration_error',
+        'ai_error',
       ] as const;
 
       for (const key of knownKeys) {
@@ -523,37 +727,91 @@ export async function getCandidate(id: string): Promise<Candidate> {
   return response.data.candidate;
 }
 
+export async function getLatestJobResults(
+  jobId: string
+): Promise<LatestJobResultsResponse | null> {
+  if (isMockMode()) {
+    return buildMockLatestJobResults(jobId);
+  }
+
+  try {
+    const response = await api.get<LatestJobResultsResponse>(`/ai/jobs/${jobId}/results`);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function getScreeningRuns(
+  jobId?: string
+): Promise<ScreeningRunSummary[]> {
+  if (isMockMode()) {
+    const results = jobId ? buildMockLatestJobResults(jobId) : null;
+    return results ? [results.run] : [];
+  }
+
+  const response = await api.get<ScreeningRunsResponse>('/ai/runs', {
+    params: jobId ? { jobId } : undefined,
+  });
+  return response.data.runs;
+}
+
+export async function getWorkspaceScreeningIndex(jobIds: string[]) {
+  const uniqueJobIds = Array.from(new Set(jobIds.filter(Boolean)));
+  const latestByCandidate: Record<string, ScreeningResultApiRecord> = {};
+
+  const jobResults = await Promise.all(
+    uniqueJobIds.map(async (jobId) => {
+      try {
+        return await getLatestJobResults(jobId);
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  for (const item of jobResults) {
+    if (!item) {
+      continue;
+    }
+
+    for (const result of item.results) {
+      latestByCandidate[result.candidate_id] = result;
+      latestByCandidate[result.applicant_id] = result;
+    }
+  }
+
+  return latestByCandidate;
+}
+
 export async function getScreeningResults(
   jobId: string
 ): Promise<CandidateScore[]> {
   if (isMockMode()) {
-    const _jobId = jobId;
-    return mockCandidateScores.filter((item) => item.jobId === _jobId);
+    return mockCandidateScores.filter((item) => item.jobId === jobId);
   }
 
-  const analysis = getStoredScreeningAnalysis(jobId);
-  if (!analysis) {
+  const latestResults = await getLatestJobResults(jobId);
+  if (!latestResults) {
     return [];
   }
 
-  return analysis.applicants.map((applicant) => ({
-    candidateId: applicant.candidateId || applicant.candidateName,
+  return latestResults.results.map((result) => ({
+    candidateId: result.candidate_id,
     jobId,
-    score: applicant.score,
-    skillsMatchPct: applicant.skillsMatchPct,
-    experiencePct: applicant.score,
-    educationPct: applicant.educationPct,
-    overallRelevancePct: applicant.score,
-    reasoning: applicant.reasoning,
-    strengths:
-      applicant.skillsMatchPct > 0
-        ? [`Skills relevance ${applicant.skillsMatchPct}%`]
-        : [],
-    gaps:
-      applicant.educationPct < 60
-        ? ['Education relevance needs follow-up']
-        : [],
-    screenedAtISO: analysis.generatedAtISO,
+    score: result.overall.score,
+    skillsMatchPct: result.dimension_scores.skills_match.score,
+    experiencePct: result.dimension_scores.experience_relevance.score,
+    educationPct: result.dimension_scores.education_fit.score,
+    overallRelevancePct: result.overall.score,
+    reasoning: result.overall.summary,
+    strengths: result.strengths,
+    gaps: result.gaps,
+    screenedAtISO: normalizeDate(result.evaluated_at),
   }));
 }
 
@@ -729,14 +987,29 @@ export async function registerCandidates(
   return response.data;
 }
 
+export async function reviewCandidateDecisions(
+  verdicts: ReviewCandidateDecision[]
+): Promise<ReviewResultResponse> {
+  if (isMockMode()) {
+    await sleep(250);
+    return {
+      success: 'Review decisions saved successfully',
+      updatedCount: verdicts.length,
+    };
+  }
+
+  const response = await api.post<ReviewResultResponse>('/review-result', {
+    verdict_string: verdicts,
+  });
+  return response.data;
+}
+
 export async function runScreening(
   jobId: string,
   jobTitle: string
 ): Promise<ScreeningAnalysis> {
   if (isMockMode()) {
-    const analysis = buildMockScreeningAnalysis(jobId);
-    storeScreeningAnalysis(analysis);
-    return analysis;
+    return buildMockScreeningAnalysis(jobId);
   }
 
   const response = await api.post<ScreeningRunResponse>('/ask', {
@@ -744,7 +1017,8 @@ export async function runScreening(
     jobTitle,
   });
   const result = response.data.success;
-  const analysis: ScreeningAnalysis = {
+
+  return {
     jobId,
     jobTitle: result.job_title?.trim() || jobTitle,
     verdict:
@@ -754,7 +1028,189 @@ export async function runScreening(
       normalizeScreeningApplicant
     ),
   };
+}
 
-  storeScreeningAnalysis(analysis);
-  return analysis;
+export async function askAssistantQuestion(input: {
+  question: string;
+  jobId?: string;
+  applicantIds?: string[];
+  maxApplicants?: number;
+}): Promise<AssistantReply> {
+  if (isMockMode()) {
+    await sleep(350);
+    const job = input.jobId
+      ? mockJobs.find((item) => item.id === input.jobId)
+      : undefined;
+
+    return {
+      answer: job
+        ? `Using the mock workspace, ${job.title} currently has ${job.applicantsCount} applicants and a shortlist target of ${job.aiCriteria.shortlistSize}.`
+        : `Using the mock workspace, you currently have ${mockJobs.length} jobs and ${mockCandidates.length} candidates loaded.`,
+      suggestedNextQuestions: [
+        'Who are the strongest candidates right now?',
+        'What gaps should I look at before shortlisting?',
+      ],
+      context: {
+        jobId: input.jobId ?? null,
+        applicantCount: mockCandidates.length,
+      },
+    };
+  }
+
+  const response = await api.post<AssistantReply>('/ai/ask', {
+    question: input.question,
+    ...(input.jobId ? { job_id: input.jobId, jobId: input.jobId } : {}),
+    ...(input.applicantIds?.length ? { applicantIds: input.applicantIds } : {}),
+    ...(typeof input.maxApplicants === 'number'
+      ? { maxApplicants: input.maxApplicants }
+      : {}),
+  });
+
+  return response.data;
+}
+
+export async function getCandidateLatestScreening(
+  candidate: Candidate
+): Promise<CandidateLatestScreening | null> {
+  let jobId = candidate.appliedJobId;
+  let jobTitle = candidate.appliedJobTitle || candidate.currentTitle || 'Role';
+
+  if (!jobId && candidate.appliedJobTitle) {
+    const jobs = await getJobs();
+    const matchedJob = jobs.find(
+      (job) => normalizeText(job.title) === normalizeText(candidate.appliedJobTitle)
+    );
+    jobId = matchedJob?.id;
+    jobTitle = matchedJob?.title ?? jobTitle;
+  }
+
+  if (!jobId) {
+    return null;
+  }
+
+  const latestResults = await getLatestJobResults(jobId);
+  if (!latestResults) {
+    return null;
+  }
+
+  const result =
+    latestResults.results.find(
+      (item) =>
+        item.candidate_id === candidate.id || item.applicant_id === candidate.id
+    ) ?? null;
+
+  if (!result) {
+    return null;
+  }
+
+  return {
+    jobId,
+    jobTitle: latestResults.run.job_title || jobTitle,
+    generatedAtISO: normalizeDate(
+      latestResults.run.completed_at ||
+        latestResults.run.updatedAt ||
+        latestResults.run.createdAt
+    ),
+    result,
+  };
+}
+
+export async function getWorkspaceNotifications(): Promise<WorkspaceNotification[]> {
+  if (isMockMode()) {
+    const latestMockJob = mockJobs[0];
+    return [
+      {
+        id: 'mock-screening-ready',
+        title: 'Screening ready for review',
+        body: `Mock screening results are available for ${latestMockJob?.title ?? 'your role'}.`,
+        createdAtISO: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+        href: latestMockJob
+          ? `/dashboard/screening/${latestMockJob.id}/results`
+          : '/dashboard',
+      },
+      {
+        id: 'mock-candidate-pool',
+        title: 'Candidate pool updated',
+        body: `${mockCandidates.length} mock candidates are currently loaded in the workspace.`,
+        createdAtISO: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+        href: '/dashboard/candidates',
+      },
+    ];
+  }
+
+  const [overview, runs] = await Promise.all([
+    getDashboardOverview(),
+    getScreeningRuns().catch(() => []),
+  ]);
+
+  const notifications: WorkspaceNotification[] = [];
+  const latestRun = runs[0];
+
+  if (latestRun) {
+    const href =
+      latestRun.status === 'completed'
+        ? `/dashboard/screening/${latestRun.job_id}/results`
+        : `/dashboard/screening/${latestRun.job_id}/progress`;
+
+    notifications.push({
+      id: `screening-${latestRun._id}`,
+      title:
+        latestRun.status === 'completed'
+          ? 'Screening ready for review'
+          : latestRun.status === 'failed'
+            ? 'Screening run needs attention'
+            : 'Screening is in progress',
+      body:
+        latestRun.status === 'completed'
+          ? `${latestRun.job_title} has fresh screening results ready for recruiter review.`
+          : latestRun.status === 'failed'
+            ? `${latestRun.job_title} hit an issue during screening${latestRun.error ? `: ${latestRun.error}` : '.'}`
+            : `${latestRun.job_title} is currently being analyzed by Talvo AI.`,
+      createdAtISO: normalizeDate(
+        latestRun.completed_at ||
+          latestRun.updatedAt ||
+          latestRun.started_at ||
+          latestRun.createdAt
+      ),
+      href,
+    });
+  }
+
+  if (overview.applicants.length > 0) {
+    const latestApplicant = [...overview.applicants].sort((left, right) => {
+      return (
+        new Date(right.updatedAtISO || right.createdAtISO || 0).getTime() -
+        new Date(left.updatedAtISO || left.createdAtISO || 0).getTime()
+      );
+    })[0];
+
+    if (latestApplicant) {
+      notifications.push({
+        id: `candidate-${latestApplicant.id}`,
+        title: 'Candidate pool updated',
+        body: `${overview.applicants.length} candidates are currently in the workspace. ${latestApplicant.name} is one of the most recent records.`,
+        createdAtISO: normalizeDate(
+          latestApplicant.updatedAtISO || latestApplicant.createdAtISO
+        ),
+        href: '/dashboard/candidates',
+      });
+    }
+  }
+
+  const draftJob = overview.jobs.find((job) => job.status === 'Draft');
+  if (draftJob) {
+    notifications.push({
+      id: `draft-${draftJob.id}`,
+      title: 'Draft role needs review',
+      body: `${draftJob.title} is still in draft. Finish the brief when you are ready to screen candidates.`,
+      createdAtISO: normalizeDate(draftJob.updatedAtISO),
+      href: `/dashboard/jobs/${draftJob.id}`,
+    });
+  }
+
+  return notifications.sort(
+    (left, right) =>
+      new Date(right.createdAtISO).getTime() -
+      new Date(left.createdAtISO).getTime()
+  );
 }

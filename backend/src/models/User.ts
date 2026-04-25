@@ -1,17 +1,12 @@
-import mongoose, { model, Model } from "mongoose";
-interface User_ {
-  user_name: string;
-  user_pass: string;
-  company_name: string;
-  user_email: string;
-  isVerified: boolean;
-  pass_token: string | null;
-  sign_otp_token: string | null;
-  refresh_token: string | null;
-  confirmation_link_id: string;
-}
+import mongoose from "mongoose";
+import { buildEntityId } from "../utils/ids.js";
+
 const userSchema = new mongoose.Schema(
   {
+    _id: {
+      type: String,
+      default: () => buildEntityId("user"),
+    },
     user_name: {
       type: String,
       required: true,
@@ -28,6 +23,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
+      index: true,
     },
     pass_token: {
       type: String,
@@ -38,7 +34,8 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
     refresh_token: {
-      type: "String",
+      type: String,
+      default: null,
     },
     isVerified: {
       type: Boolean,
@@ -46,10 +43,12 @@ const userSchema = new mongoose.Schema(
     },
     confirmation_link_id: {
       type: String,
+      default: "",
     },
   },
   { timestamps: true },
 );
+
 const User = mongoose.model("User", userSchema);
 
 export default User;

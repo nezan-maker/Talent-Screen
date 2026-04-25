@@ -40,5 +40,18 @@
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true
-  }
+  },
+  "exclude": [
+    "src/controllers/applicantControl.ts",
+    "src/controllers/askGeminiControl.ts",
+    "src/controllers/authControl.ts",
+    "src/controllers/clientApiControl.ts",
+    "src/controllers/completeJob.ts",
+    "src/controllers/dashboardControl.ts",
+    "src/controllers/shortList.ts",
+    "src/controllers/shortListEmails.ts",
+    "src/controllers/verdictControl.ts",
+    "src/validations/authValidations.ts",
+    "src/validations/functionValidations.ts"
+  ]
 }

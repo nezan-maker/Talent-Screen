@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare, Send, X, Sparkles } from "lucide-react";
+import { MessageSquare, Send, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { BrandMark } from "@/components/brand/BrandLogo";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { askAssistantQuestion, getApiErrorMessage } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type ChatRole = "user" | "assistant";
 
@@ -22,58 +23,59 @@ function uid() {
   return Math.random().toString(16).slice(2);
 }
 
-function cannedAnswer(input: string) {
-  const q = input.toLowerCase();
-  if (q.includes("shortlist") || q.includes("results")) {
-    return "You can filter by score bucket (Qualified/Maybe) and export/email the shortlist from the results screen. Want me to highlight the top 10 by AI Score and skills match?";
-  }
-  if (q.includes("job") && (q.includes("create") || q.includes("new"))) {
-    return "To create a job, go to Jobs → Create New Job. The form is 4 steps (Basic Info → Description → AI Criteria → Review & Launch). Tell me the role + must-have skills and I’ll draft the criteria text.";
-  }
-  if (q.includes("screening") || q.includes("analyzing")) {
-    return "Screening runs in 4 phases: Parsing Profiles → Scoring Candidates → Ranking Results → Generating Explanations. The progress screen auto-redirects to results after a short simulated run.";
-  }
-  if (q.includes("candidate") || q.includes("profile")) {
-    return "Open any candidate to see AI score breakdown, strengths, and gaps. You can Shortlist, Reject, or Save for later from the header actions.";
-  }
-  return "I can help draft job criteria, explain AI scores, and suggest next actions. Ask me something like: “Why is Aline a top candidate?” or “Draft screening questions for a Senior Full Stack Engineer.”";
-}
-
 export function ChatBotWidget() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: uid(),
       role: "assistant",
-      text: "Hi! I'm WiseRank Assistant. I can help you create jobs, tune AI criteria, and interpret shortlist results.",
+      text: "Hi! I'm Talvo AI. Ask about jobs, candidates, screening results, or pipeline health and I'll use the current backend workspace as context.",
       ts: Date.now(),
     },
   ]);
 
-  const canSend = input.trim().length > 0;
+  const canSend = input.trim().length > 0 && !isThinking;
   const hideWidget =
     pathname?.startsWith("/dashboard/screening") ||
     pathname?.startsWith("/screening/") ||
     pathname === "/dashboard/jobs/new" ||
     pathname === "/jobs/new";
   const floatingOffset = pathname?.startsWith("/dashboard") ? "bottom-20 md:bottom-5" : "bottom-5";
-
   const sorted = useMemo(() => [...messages].sort((a, b) => a.ts - b.ts), [messages]);
 
-  function send() {
+  async function send() {
     const text = input.trim();
-    if (!text) return;
+    if (!text || isThinking) {
+      return;
+    }
+
     setInput("");
+    setIsThinking(true);
 
     const userMsg: ChatMessage = { id: uid(), role: "user", text, ts: Date.now() };
-    setMessages((m) => [...m, userMsg]);
+    setMessages((current) => [...current, userMsg]);
 
-    window.setTimeout(() => {
-      const reply: ChatMessage = { id: uid(), role: "assistant", text: cannedAnswer(text), ts: Date.now() };
-      setMessages((m) => [...m, reply]);
-    }, 450);
+    try {
+      const reply = await askAssistantQuestion({ question: text });
+      setMessages((current) => [
+        ...current,
+        {
+          id: uid(),
+          role: "assistant",
+          text: reply.answer,
+          ts: Date.now(),
+        },
+      ]);
+    } catch (error) {
+      toast.error(
+        getApiErrorMessage(error, "Talvo AI could not answer right now.")
+      );
+    } finally {
+      setIsThinking(false);
+    }
   }
 
   if (hideWidget) {
@@ -118,8 +120,8 @@ export function ChatBotWidget() {
                 <div className="flex items-center gap-2">
                   <BrandMark className="h-9 w-9" />
                   <div>
-                    <div className="text-sm font-semibold">WiseRank Assistant</div>
-                    <div className="text-xs text-text-muted">Assistant for recruiter workflows</div>
+                    <div className="text-sm font-semibold">Talvo AI</div>
+                    <div className="text-xs text-text-muted">Recruiter copilot powered by your backend workspace</div>
                   </div>
                 </div>
                 <button
@@ -132,37 +134,47 @@ export function ChatBotWidget() {
               </div>
 
               <div className="max-h-[55vh] space-y-3 overflow-auto p-4">
-                {sorted.map((m) => (
+                {sorted.map((message) => (
                   <div
-                    key={m.id}
+                    key={message.id}
                     className={cn(
                       "flex",
-                      m.role === "user" ? "justify-end" : "justify-start",
+                      message.role === "user" ? "justify-end" : "justify-start",
                     )}
                   >
                     <div
                       className={cn(
                         "max-w-[85%] rounded-card border px-3 py-2 text-sm leading-relaxed",
-                        m.role === "user"
+                        message.role === "user"
                           ? "border-accent/20 bg-accent text-white"
                           : "border-border bg-bg text-text-primary",
                       )}
                     >
-                      {m.text}
+                      {message.text}
                     </div>
                   </div>
                 ))}
+
+                {isThinking ? (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded-card border border-border bg-bg px-3 py-2 text-sm text-text-muted">
+                      Talvo AI is thinking...
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-2 border-t border-border p-3">
                 <input
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") send();
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      void send();
+                    }
                   }}
-                  className="h-10 flex-1 rounded-input border border-border bg-card px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:ring-2 focus:ring-accent/30"
-                  placeholder="Ask about jobs, screening, scores…"
+                  className="h-10 flex-1 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none transition-colors placeholder:text-text-muted focus:ring-2 focus:ring-accent/30"
+                  placeholder="Ask about jobs, screening, scores..."
                 />
                 <Button
                   type="button"
@@ -171,9 +183,11 @@ export function ChatBotWidget() {
                       toast.error("Type a message first.");
                       return;
                     }
-                    send();
+
+                    void send();
                   }}
                   className="h-10 px-3"
+                  disabled={isThinking}
                 >
                   <Send className="h-4 w-4" />
                 </Button>

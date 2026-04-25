@@ -4,6 +4,13 @@ const now = new Date();
 const hoursAgo = (h: number) => new Date(now.getTime() - h * 60 * 60 * 1000).toISOString();
 const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString();
 
+export const mockChatHistory = [
+  { id: "chat_001", title: "Show top-performing job roles" },
+  { id: "chat_002", title: "What's slowing down Engineerin..." },
+  { id: "chat_003", title: "Suggest 3 matches for Data An..." },
+  { id: "chat_004", title: "What's the average time to hire?" },
+];
+
 export const mockJobs: Job[] = [
   {
     id: "job_001",
@@ -152,6 +159,72 @@ export const mockCandidates: Candidate[] = [
       },
     ],
   },
+  {
+    id: "cand_004",
+    name: "Aline Uwase",
+    currentTitle: "Product Designer",
+    company: "Studio Flow",
+    location: "Kigali",
+    yearsExperience: 5,
+    email: "aline@example.com",
+    linkedIn: "linkedin.com/in/alineuwase",
+    appliedJobTitle: "Product Designer",
+    createdAtISO: daysAgo(3),
+    updatedAtISO: hoursAgo(10),
+    skills: {
+      technical: ["Figma", "Design Systems", "UX Research", "Prototyping", "Accessibility"],
+      soft: ["Facilitation", "Stakeholder Communication", "User Empathy"],
+    },
+    education: ["BA Interaction Design - University of Rwanda"],
+    workHistory: [
+      {
+        role: "Product Designer",
+        company: "Studio Flow",
+        startISO: "2021-06-01T00:00:00.000Z",
+        highlights: ["Redesigned recruiter dashboard", "Built hiring workflow component library"],
+      },
+      {
+        role: "UX Designer",
+        company: "MarketLabs",
+        startISO: "2018-01-01T00:00:00.000Z",
+        endISO: "2021-05-31T00:00:00.000Z",
+        highlights: ["Ran usability studies", "Improved conversion across onboarding flows"],
+      },
+    ],
+  },
+  {
+    id: "cand_005",
+    name: "Diane Mukamana",
+    currentTitle: "HR Operations Coordinator",
+    company: "TalentDesk",
+    location: "Kigali",
+    yearsExperience: 4,
+    email: "diane@example.com",
+    linkedIn: "linkedin.com/in/dianemukamana",
+    appliedJobTitle: "HR Operations Specialist",
+    createdAtISO: daysAgo(6),
+    updatedAtISO: daysAgo(1),
+    skills: {
+      technical: ["ATS", "Interview Coordination", "Scheduling", "Process Documentation", "Recruiting Ops"],
+      soft: ["Communication", "Organization", "Candidate Experience"],
+    },
+    education: ["BBA Human Resource Management - AUCA"],
+    workHistory: [
+      {
+        role: "HR Operations Coordinator",
+        company: "TalentDesk",
+        startISO: "2022-02-01T00:00:00.000Z",
+        highlights: ["Reduced interview scheduling lag by 30%", "Standardized candidate communication templates"],
+      },
+      {
+        role: "Recruiting Assistant",
+        company: "People First",
+        startISO: "2020-01-01T00:00:00.000Z",
+        endISO: "2022-01-31T00:00:00.000Z",
+        highlights: ["Supported recruiting pipeline hygiene", "Maintained interview coordination across 5 teams"],
+      },
+    ],
+  },
 ];
 
 export const mockCandidateScores: CandidateScore[] = [
@@ -196,6 +269,34 @@ export const mockCandidateScores: CandidateScore[] = [
     strengths: ["Next.js + Tailwind", "Quality mindset (testing, a11y)", "Clear product collaboration"],
     gaps: ["Backend depth not explicit", "System design experience limited"],
     screenedAtISO: hoursAgo(5),
+  },
+  {
+    candidateId: "cand_004",
+    jobId: "job_002",
+    score: 91,
+    skillsMatchPct: 94,
+    experiencePct: 88,
+    educationPct: 84,
+    overallRelevancePct: 91,
+    reasoning:
+      "Excellent match for the Product Designer brief with clear evidence in design systems, recruiter-facing UX work, and accessibility-minded iteration.",
+    strengths: ["Strong design systems foundation", "UX research and prototyping", "Clear recruiter workflow experience"],
+    gaps: ["Limited explicit analytics instrumentation in portfolio summary"],
+    screenedAtISO: hoursAgo(4),
+  },
+  {
+    candidateId: "cand_005",
+    jobId: "job_003",
+    score: 89,
+    skillsMatchPct: 90,
+    experiencePct: 87,
+    educationPct: 83,
+    overallRelevancePct: 89,
+    reasoning:
+      "Strong HR operations alignment with clear ATS, scheduling, and candidate experience ownership that fits the specialist role well.",
+    strengths: ["Interview coordination depth", "Strong process documentation", "Candidate communication focus"],
+    gaps: ["Less evidence of advanced analytics/reporting automation"],
+    screenedAtISO: hoursAgo(9),
   },
 ];
 

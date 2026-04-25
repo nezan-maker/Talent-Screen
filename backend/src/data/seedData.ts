@@ -1,0 +1,518 @@
+import type { JobCriterion, NormalizedTalentProfile } from "../types/talentProfile.js";
+
+export const seedUser = {
+  _id: "user_demo",
+  user_name: "A. Recruiter",
+  user_email: "recruiter@talvo.ai",
+  company_name: "Talvo",
+  isVerified: true,
+};
+
+function criteria(
+  criteria_string: string,
+  description: string,
+  priority: string,
+): JobCriterion {
+  return { criteria_string, description, priority };
+}
+
+export const seedJobs = [
+  {
+    _id: "job_001",
+    job_title: "Senior Full Stack Engineer",
+    job_department: "Engineering",
+    job_location: "Kigali (Hybrid)",
+    job_employment_type: "Full-time",
+    company_name: "Talvo",
+    job_experience_required: "Senior",
+    job_description:
+      "Build modern web experiences and scalable services for the recruitment platform.",
+    job_responsibilities:
+      "Own features end-to-end, collaborate with product and design, and ship reliable systems.",
+    job_qualifications:
+      "5+ years, strong TypeScript/React, solid backend fundamentals, and pragmatic testing.",
+    job_ai_criteria: [
+      criteria(
+        "TypeScript, React, Node.js, SQL, System Design",
+        "Must-have technical depth for the shortlist.",
+        "high",
+      ),
+      criteria(
+        "Next.js, AWS, Docker, CI/CD",
+        "Nice-to-have platform and delivery signals.",
+        "medium",
+      ),
+      criteria(
+        "Screening questions",
+        "Describe a complex feature you shipped and how you protected quality and performance.",
+        "medium",
+      ),
+      criteria(
+        "Deal breakers",
+        "No production web experience or inability to explain technical trade-offs.",
+        "high",
+      ),
+    ],
+    job_shortlist_size: 10,
+    job_state: "Screening",
+    job_salary_min: 45000,
+    job_salary_max: 70000,
+    workers_required: 1,
+    job_example_form: {
+      ROLE_TITLE: "Senior Full Stack Engineer",
+      EXPERIENCE_LEVEL: "Senior",
+      CORE_STRENGTHS: ["TypeScript", "React", "Node.js", "SQL", "System Design"],
+    },
+  },
+  {
+    _id: "job_002",
+    job_title: "Product Designer",
+    job_department: "Design",
+    job_location: "Remote",
+    job_employment_type: "Contract",
+    company_name: "Talvo",
+    job_experience_required: "Mid",
+    job_description:
+      "Design high-converting recruiter and candidate journeys across the hiring workspace.",
+    job_responsibilities:
+      "Create flows, wireframes, UI specs, and partner closely with engineering.",
+    job_qualifications:
+      "Strong portfolio, UX instincts, and familiarity with design systems.",
+    job_ai_criteria: [
+      criteria("UX, UI, Figma", "Core designer signals.", "high"),
+      criteria("Research, Accessibility", "Nice-to-have evidence.", "medium"),
+      criteria(
+        "Screening questions",
+        "Walk through a design you iterated based on feedback or data.",
+        "medium",
+      ),
+      criteria("Deal breakers", "No portfolio or no rationale for decisions.", "high"),
+    ],
+    job_shortlist_size: 20,
+    job_state: "Active",
+    workers_required: 1,
+    job_example_form: {
+      ROLE_TITLE: "Product Designer",
+      EXPERIENCE_LEVEL: "Mid",
+      CORE_STRENGTHS: ["Figma", "UX", "UI", "Accessibility"],
+    },
+  },
+  {
+    _id: "job_003",
+    job_title: "HR Operations Specialist",
+    job_department: "People",
+    job_location: "Kigali",
+    job_employment_type: "Full-time",
+    company_name: "Talvo",
+    job_experience_required: "Junior",
+    job_description:
+      "Support recruiting operations and candidate communications with high attention to detail.",
+    job_responsibilities:
+      "Coordinate interviews, manage pipelines, and keep hiring stakeholders aligned.",
+    job_qualifications:
+      "Detail-oriented, strong communication, and comfort with recruiting tools.",
+    job_ai_criteria: [
+      criteria("Communication, Organization", "Core coordination signals.", "high"),
+      criteria("ATS experience", "Useful operational experience.", "medium"),
+      criteria(
+        "Screening questions",
+        "How do you prioritize when multiple stakeholders are waiting?",
+        "medium",
+      ),
+      criteria("Deal breakers", "Poor communication.", "high"),
+    ],
+    job_shortlist_size: 10,
+    job_state: "Draft",
+    workers_required: 1,
+    job_example_form: {
+      ROLE_TITLE: "HR Operations Specialist",
+      EXPERIENCE_LEVEL: "Junior",
+      CORE_STRENGTHS: ["Communication", "Organization", "ATS"],
+    },
+  },
+];
+
+export const seedApplicants: NormalizedTalentProfile[] = [
+  {
+    id: "cand_001",
+    first_name: "Niyogushimwa",
+    last_name: "Honore",
+    applicant_name: "Niyogushimwa Honore",
+    email: "honore@example.com",
+    headline: "Full Stack Engineer",
+    bio: "Full stack engineer with strong delivery ownership across modern web products and internal platforms.",
+    location: "Kigali",
+    job_id: "job_001",
+    job_title: "Senior Full Stack Engineer",
+    skills: [
+      { name: "TypeScript", level: "Expert", yearsOfExperience: 5 },
+      { name: "React", level: "Expert", yearsOfExperience: 5 },
+      { name: "Node.js", level: "Advanced", yearsOfExperience: 4 },
+      { name: "PostgreSQL", level: "Advanced", yearsOfExperience: 4 },
+      { name: "Docker", level: "Intermediate", yearsOfExperience: 3 },
+      { name: "AWS", level: "Intermediate", yearsOfExperience: 3 },
+    ],
+    languages: [{ name: "English", proficiency: "Fluent" }],
+    experience: [
+      {
+        company: "FinTechCo",
+        role: "Full Stack Engineer",
+        start_date: "2022-01",
+        end_date: "Present",
+        description:
+          "Led onboarding revamp, built internal design system, and shipped recruiter-facing workflow improvements.",
+        technologies: ["TypeScript", "React", "Node.js", "PostgreSQL"],
+        is_current: true,
+      },
+      {
+        company: "StartupX",
+        role: "Frontend Engineer",
+        start_date: "2019-01",
+        end_date: "2021-12",
+        description:
+          "Shipped analytics dashboard and reduced bundle size through performance work.",
+        technologies: ["React", "JavaScript", "Webpack"],
+        is_current: false,
+      },
+    ],
+    education: [
+      {
+        institution: "University of Rwanda",
+        degree: "BSc",
+        field_of_study: "Computer Science",
+        start_year: 2015,
+        end_year: 2019,
+      },
+    ],
+    certifications: [
+      {
+        name: "AWS Certified Developer",
+        issuer: "Amazon",
+        issue_date: "2024-02",
+      },
+    ],
+    projects: [
+      {
+        name: "AI Recruitment System",
+        description:
+          "Built a candidate screening platform with explainable recruiter-facing views.",
+        technologies: ["Next.js", "Node.js", "Gemini API"],
+        role: "Full Stack Engineer",
+        link: "https://example.com/ai-recruitment",
+        start_date: "2024-05",
+        end_date: "2025-01",
+      },
+    ],
+    availability: {
+      status: "Available",
+      type: "Full-time",
+      start_date: "2026-05-01",
+    },
+    social_links: {
+      linkedin: "https://linkedin.com/in/honore",
+      github: "https://github.com/honore",
+      portfolio: "https://honore.dev",
+    },
+    additional_info: ["Ownership", "Communication", "Mentoring"],
+    source: "seed",
+    applicant_state: "Shortlisted",
+    shortlisted: true,
+  },
+  {
+    id: "cand_002",
+    first_name: "Neza",
+    last_name: "Niel",
+    applicant_name: "Neza Niel",
+    email: "neza@example.com",
+    headline: "Backend Engineer",
+    bio: "Backend engineer focused on systems performance, services architecture, and reliable APIs.",
+    location: "Remote",
+    job_id: "job_001",
+    job_title: "Senior Full Stack Engineer",
+    skills: [
+      { name: "Node.js", level: "Expert", yearsOfExperience: 6 },
+      { name: "SQL", level: "Advanced", yearsOfExperience: 6 },
+      { name: "Kafka", level: "Advanced", yearsOfExperience: 4 },
+      { name: "Redis", level: "Advanced", yearsOfExperience: 4 },
+      { name: "REST", level: "Expert", yearsOfExperience: 6 },
+      { name: "System Design", level: "Advanced", yearsOfExperience: 4 },
+    ],
+    languages: [{ name: "English", proficiency: "Fluent" }],
+    experience: [
+      {
+        company: "Logistics Labs",
+        role: "Backend Engineer",
+        start_date: "2021-03",
+        end_date: "Present",
+        description:
+          "Reduced API latency and led a migration from a monolith to services.",
+        technologies: ["Node.js", "Redis", "Kafka", "PostgreSQL"],
+        is_current: true,
+      },
+    ],
+    education: [
+      {
+        institution: "AUCA",
+        degree: "BEng",
+        field_of_study: "Software Engineering",
+        start_year: 2015,
+        end_year: 2019,
+      },
+    ],
+    certifications: [],
+    projects: [
+      {
+        name: "Routing Optimization Platform",
+        description: "Backend platform for logistics optimization and tracking.",
+        technologies: ["Node.js", "Kafka", "Redis"],
+        role: "Backend Engineer",
+        link: "",
+        start_date: "2023-01",
+        end_date: "2024-12",
+      },
+    ],
+    availability: {
+      status: "Open to Opportunities",
+      type: "Full-time",
+      start_date: "2026-05-10",
+    },
+    social_links: {
+      linkedin: "https://linkedin.com/in/nezaniel",
+      github: "",
+      portfolio: "",
+    },
+    additional_info: ["Problem Solving", "Stakeholder Management"],
+    source: "seed",
+    applicant_state: "In Review",
+    shortlisted: false,
+  },
+  {
+    id: "cand_003",
+    first_name: "Niyompuhwe",
+    last_name: "Robert",
+    applicant_name: "Niyompuhwe Robert",
+    email: "robert@example.com",
+    headline: "Frontend Engineer",
+    bio: "Frontend engineer focused on quality, accessibility, and polished product experiences.",
+    location: "Kigali",
+    job_id: "job_001",
+    job_title: "Senior Full Stack Engineer",
+    skills: [
+      { name: "React", level: "Expert", yearsOfExperience: 4 },
+      { name: "Next.js", level: "Advanced", yearsOfExperience: 3 },
+      { name: "Tailwind", level: "Advanced", yearsOfExperience: 3 },
+      { name: "TypeScript", level: "Advanced", yearsOfExperience: 4 },
+      { name: "Testing Library", level: "Intermediate", yearsOfExperience: 2 },
+    ],
+    languages: [{ name: "English", proficiency: "Fluent" }],
+    experience: [
+      {
+        company: "HealthTech",
+        role: "Frontend Engineer",
+        start_date: "2022-05",
+        end_date: "Present",
+        description:
+          "Built patient portal experiences and introduced accessibility checks.",
+        technologies: ["React", "Next.js", "TypeScript", "Tailwind"],
+        is_current: true,
+      },
+    ],
+    education: [
+      {
+        institution: "University of Rwanda",
+        degree: "BSc",
+        field_of_study: "Information Systems",
+        start_year: 2016,
+        end_year: 2020,
+      },
+    ],
+    certifications: [],
+    projects: [
+      {
+        name: "Patient Portal",
+        description: "Accessible self-service health portal with strong UX quality practices.",
+        technologies: ["Next.js", "TypeScript", "Testing Library"],
+        role: "Frontend Engineer",
+        link: "",
+        start_date: "2023-03",
+        end_date: "2024-08",
+      },
+    ],
+    availability: {
+      status: "Open to Opportunities",
+      type: "Full-time",
+      start_date: "2026-05-15",
+    },
+    social_links: {
+      linkedin: "https://linkedin.com/in/niyompuhwerobert",
+      github: "",
+      portfolio: "",
+    },
+    additional_info: ["Collaboration", "User empathy"],
+    source: "seed",
+    applicant_state: "In Review",
+    shortlisted: false,
+  },
+  {
+    id: "cand_004",
+    first_name: "Aline",
+    last_name: "Uwase",
+    applicant_name: "Aline Uwase",
+    email: "aline@example.com",
+    headline: "Product Designer",
+    bio: "Product designer with strong recruiter workflow experience and design systems depth.",
+    location: "Kigali",
+    job_id: "job_002",
+    job_title: "Product Designer",
+    skills: [
+      { name: "Figma", level: "Expert", yearsOfExperience: 5 },
+      { name: "Design Systems", level: "Advanced", yearsOfExperience: 4 },
+      { name: "UX Research", level: "Advanced", yearsOfExperience: 4 },
+      { name: "Prototyping", level: "Advanced", yearsOfExperience: 5 },
+      { name: "Accessibility", level: "Intermediate", yearsOfExperience: 3 },
+    ],
+    languages: [{ name: "English", proficiency: "Fluent" }],
+    experience: [
+      {
+        company: "Studio Flow",
+        role: "Product Designer",
+        start_date: "2021-06",
+        end_date: "Present",
+        description:
+          "Redesigned recruiter dashboard and built hiring workflow component library.",
+        technologies: ["Figma", "Design Systems", "Accessibility"],
+        is_current: true,
+      },
+      {
+        company: "MarketLabs",
+        role: "UX Designer",
+        start_date: "2018-01",
+        end_date: "2021-05",
+        description:
+          "Ran usability studies and improved conversion through iterative design.",
+        technologies: ["Figma", "UX Research"],
+        is_current: false,
+      },
+    ],
+    education: [
+      {
+        institution: "University of Rwanda",
+        degree: "BA",
+        field_of_study: "Interaction Design",
+        start_year: 2014,
+        end_year: 2018,
+      },
+    ],
+    certifications: [],
+    projects: [
+      {
+        name: "Recruiter Dashboard Refresh",
+        description: "End-to-end redesign of recruiter-facing flows and detail views.",
+        technologies: ["Figma", "Design Systems"],
+        role: "Lead Designer",
+        link: "",
+        start_date: "2024-01",
+        end_date: "2024-11",
+      },
+    ],
+    availability: {
+      status: "Available",
+      type: "Contract",
+      start_date: "2026-05-03",
+    },
+    social_links: {
+      linkedin: "https://linkedin.com/in/alineuwase",
+      github: "",
+      portfolio: "https://aline.design",
+    },
+    additional_info: ["Facilitation", "Stakeholder Communication", "User Empathy"],
+    source: "seed",
+    applicant_state: "Shortlisted",
+    shortlisted: true,
+  },
+  {
+    id: "cand_005",
+    first_name: "Diane",
+    last_name: "Mukamana",
+    applicant_name: "Diane Mukamana",
+    email: "diane@example.com",
+    headline: "HR Operations Coordinator",
+    bio: "Recruiting operations specialist with strong interview coordination and candidate experience habits.",
+    location: "Kigali",
+    job_id: "job_003",
+    job_title: "HR Operations Specialist",
+    skills: [
+      { name: "ATS", level: "Advanced", yearsOfExperience: 4 },
+      {
+        name: "Interview Coordination",
+        level: "Expert",
+        yearsOfExperience: 4,
+      },
+      { name: "Scheduling", level: "Expert", yearsOfExperience: 4 },
+      {
+        name: "Process Documentation",
+        level: "Advanced",
+        yearsOfExperience: 3,
+      },
+      { name: "Recruiting Ops", level: "Advanced", yearsOfExperience: 4 },
+    ],
+    languages: [{ name: "English", proficiency: "Fluent" }],
+    experience: [
+      {
+        company: "TalentDesk",
+        role: "HR Operations Coordinator",
+        start_date: "2022-02",
+        end_date: "Present",
+        description:
+          "Reduced interview scheduling lag and standardized candidate communications.",
+        technologies: ["ATS", "Scheduling", "Recruiting Ops"],
+        is_current: true,
+      },
+      {
+        company: "People First",
+        role: "Recruiting Assistant",
+        start_date: "2020-01",
+        end_date: "2022-01",
+        description:
+          "Maintained recruiting pipeline hygiene across multiple hiring teams.",
+        technologies: ["ATS", "Interview Coordination"],
+        is_current: false,
+      },
+    ],
+    education: [
+      {
+        institution: "AUCA",
+        degree: "BBA",
+        field_of_study: "Human Resource Management",
+        start_year: 2015,
+        end_year: 2019,
+      },
+    ],
+    certifications: [],
+    projects: [
+      {
+        name: "Candidate Experience Playbook",
+        description: "Standardized candidate communication and scheduling workflows.",
+        technologies: ["ATS", "Process Documentation"],
+        role: "Coordinator",
+        link: "",
+        start_date: "2023-01",
+        end_date: "2023-10",
+      },
+    ],
+    availability: {
+      status: "Available",
+      type: "Full-time",
+      start_date: "2026-05-02",
+    },
+    social_links: {
+      linkedin: "https://linkedin.com/in/dianemukamana",
+      github: "",
+      portfolio: "",
+    },
+    additional_info: ["Communication", "Organization", "Candidate Experience"],
+    source: "seed",
+    applicant_state: "In Review",
+    shortlisted: false,
+  },
+];

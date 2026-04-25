@@ -1,22 +1,24 @@
-import mongoose from "mongoose";
-const ai_criteria = new mongoose.Schema({
-    criteria_string: {
-        type: String,
-        required: true,
-    },
-    description: {
-        type: String,
-        required: true,
-    },
-    priority: {
-        type: String,
-        required: true,
-    },
-});
+import mongoose, { Schema } from "mongoose";
+import { buildEntityId } from "../utils/ids.js";
+const criterionSchema = new Schema({
+    criteria_string: { type: String, required: true },
+    description: { type: String, default: "" },
+    priority: { type: String, default: "medium" },
+}, { _id: false });
+const exampleFormSchema = new Schema({
+    ROLE_TITLE: { type: String, default: "" },
+    EXPERIENCE_LEVEL: { type: String, default: "" },
+    CORE_STRENGTHS: { type: [String], default: [] },
+}, { _id: false });
 const jobSchema = new mongoose.Schema({
+    _id: {
+        type: String,
+        default: () => buildEntityId("job"),
+    },
     job_title: {
         type: String,
         required: true,
+        index: true,
     },
     job_department: {
         type: String,
@@ -30,46 +32,60 @@ const jobSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    job_salary_min: {
-        type: Number,
-    },
-    job_salary_max: {
-        type: Number,
-    },
     company_name: {
         type: String,
+        default: "Independent Recruiter",
     },
     job_experience_required: {
         type: String,
-        required: true,
+        default: "Not specified",
     },
     job_description: {
-        type: mongoose.Schema.Types.Mixed,
-        required: true,
-    },
-    job_ai_criteria: [ai_criteria],
-    job_shortlist_size: {
-        type: Number,
-        default: 10,
+        type: String,
+        default: "",
     },
     job_responsibilities: {
         type: String,
-        required: true,
+        default: "",
     },
     job_qualifications: {
         type: String,
-        required: true,
+        default: "",
     },
-    workers_required: {
+    job_ai_criteria: {
+        type: [criterionSchema],
+        default: [],
+    },
+    job_shortlist_size: {
         type: Number,
-        required: true,
+        enum: [10, 20],
+        default: 10,
     },
     job_state: {
         type: String,
-        default: "Uninitialised",
+        enum: ["Draft", "Active", "Screening", "Complete"],
+        default: "Draft",
+        index: true,
+    },
+    job_salary_min: {
+        type: Number,
+        default: null,
+    },
+    job_salary_max: {
+        type: Number,
+        default: null,
+    },
+    workers_required: {
+        type: Number,
+        default: 1,
     },
     job_example_form: {
-        type: Object,
+        type: exampleFormSchema,
+        default: () => ({
+            ROLE_TITLE: "",
+            EXPERIENCE_LEVEL: "",
+            CORE_STRENGTHS: [],
+        }),
     },
 }, { timestamps: true });
 const Job = mongoose.model("Job", jobSchema);

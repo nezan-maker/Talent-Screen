@@ -43,6 +43,7 @@ export interface Candidate {
   email?: string;
   linkedIn?: string;
   shortlisted?: boolean;
+  appliedJobId?: string;
   appliedJobTitle?: string;
   createdAtISO?: string;
   updatedAtISO?: string;

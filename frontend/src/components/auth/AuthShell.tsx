@@ -31,7 +31,7 @@ export function AuthShell({
           </Link>
 
           <div className="inline-flex w-fit rounded-full border border-border bg-card/80 px-4 py-2 shadow-card">
-            <BrandLogo size="sm" subtitle="Recruiter Workspace" />
+            <BrandLogo size="sm" subtitle="Talvo workspace" />
           </div>
 
           <h1 className="mt-8 max-w-xl text-5xl font-extrabold tracking-tight text-text-primary">

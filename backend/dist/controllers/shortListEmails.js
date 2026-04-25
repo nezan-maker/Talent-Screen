@@ -23,16 +23,15 @@ const emailingController = async (req, res) => {
             if (!current_json) {
                 throw new Error("Could not get applicant email ");
             }
-            let applicant_first_name = current_json.applicant_name.split(" ")[0];
+            let applicant_first_name = current_json.first_name;
             let job_title = current_json.job_title;
-            let sendEmail = current_json.applicant_email;
-            let job = await Job.findOne({ job_title });
+            let sendEmail = current_json.email;
+            let job = await Job.findOne({ job_title: job_title });
             if (!job) {
                 throw new Error("Could not get the job details from the database");
             }
             let job_location = job.job_location;
             let company_name = job.company_name;
-            let current_stage = job.job_state;
             const transporter = nodemailer.createTransport({
                 host: "smtp.gmail.com",
                 port: 587,
@@ -180,7 +179,7 @@ const emailingController = async (req, res) => {
                     <tr>
                       <td style="padding: 10px 0; font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;" valign="top">Stage</td>
                       <td style="padding: 10px 0;" valign="top">
-                        <span style="display: inline-block; padding: 5px 12px; border-radius: 999px; background: rgba(16, 185, 129, 0.1); color: #059669; font-size: 13px; font-weight: 800;">${current_stage}</span>
+                        <span style="display: inline-block; padding: 5px 12px; border-radius: 999px; background: rgba(16, 185, 129, 0.1); color: #059669; font-size: 13px; font-weight: 800;">"Shortlisted"</span>
                       </td>
                     </tr>
                   </table>

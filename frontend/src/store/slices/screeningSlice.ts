@@ -1,6 +1,5 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { getScreeningResults } from "@/lib/api";
-import { mockCandidateScores } from "@/lib/mockData";
 import type { CandidateScore } from "@/types";
 
 export interface ScreeningState {
@@ -12,7 +11,7 @@ export interface ScreeningState {
 
 const initialState: ScreeningState = {
   selectedCandidateIds: [],
-  results: mockCandidateScores,
+  results: [],
   status: "idle",
 };
 

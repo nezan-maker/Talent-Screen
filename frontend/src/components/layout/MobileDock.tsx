@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LayoutDashboard, PlusSquare, Settings } from "lucide-react";
+import { Home, Users, MessageSquare, Briefcase } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { href: ROUTES.home, label: "Home", icon: Home },
-  { href: ROUTES.dashboard, label: "Dashboard", icon: LayoutDashboard },
-  { href: ROUTES.newJob, label: "New Job", icon: PlusSquare },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: ROUTES.dashboard, label: "Home", icon: Home },
+  { href: ROUTES.candidates, label: "Candidates", icon: Users },
+  { href: ROUTES.jobs, label: "Jobs", icon: Briefcase },
+  { href: ROUTES.messages, label: "Messages", icon: MessageSquare },
 ] as const;
 
 export function MobileDock() {

@@ -1,5 +1,10 @@
-import mongoose, { model, Model } from "mongoose";
+import mongoose from "mongoose";
+import { buildEntityId } from "../utils/ids.js";
 const userSchema = new mongoose.Schema({
+    _id: {
+        type: String,
+        default: () => buildEntityId("user"),
+    },
     user_name: {
         type: String,
         required: true,
@@ -16,6 +21,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         unique: true,
         required: true,
+        index: true,
     },
     pass_token: {
         type: String,
@@ -26,7 +32,8 @@ const userSchema = new mongoose.Schema({
         default: null,
     },
     refresh_token: {
-        type: "String",
+        type: String,
+        default: null,
     },
     isVerified: {
         type: Boolean,
@@ -34,6 +41,7 @@ const userSchema = new mongoose.Schema({
     },
     confirmation_link_id: {
         type: String,
+        default: "",
     },
 }, { timestamps: true });
 const User = mongoose.model("User", userSchema);

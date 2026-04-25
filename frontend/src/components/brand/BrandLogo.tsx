@@ -9,18 +9,18 @@ const sizeClasses: Record<
   { mark: string; title: string; subtitle: string }
 > = {
   sm: {
-    mark: "h-9 w-9 rounded-[14px]",
-    title: "text-sm",
+    mark: "h-9 w-9 rounded-xl",
+    title: "text-lg",
     subtitle: "text-[11px]",
   },
   md: {
-    mark: "h-10 w-10 rounded-[15px]",
-    title: "text-base",
+    mark: "h-10 w-10 rounded-xl",
+    title: "text-xl",
     subtitle: "text-xs",
   },
   lg: {
-    mark: "h-12 w-12 rounded-[18px]",
-    title: "text-lg",
+    mark: "h-12 w-12 rounded-2xl",
+    title: "text-2xl",
     subtitle: "text-sm",
   },
 };
@@ -39,102 +39,56 @@ const toneClasses: Record<
   },
 };
 
-export function BrandMarkSvg({
-  className,
-}: {
-  className?: string;
-}) {
+function TalvoGlyph({ className }: { className?: string }) {
   const id = useId().replace(/:/g, "");
-  const tileId = `${id}-tile`;
-  const glowId = `${id}-glow`;
-  const ringId = `${id}-ring`;
-  const sweepId = `${id}-sweep`;
-  const edgeId = `${id}-edge`;
+  const eyeGradientId = `talvo-eye-${id}`;
+  const petalColor = "#FF6A00";
 
   return (
-    <svg
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 72 72" className={cn("h-full w-full", className)} aria-hidden="true">
       <defs>
-        <linearGradient id={tileId} x1="8" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#13253B" />
-          <stop offset="0.55" stopColor="#0F172A" />
-          <stop offset="1" stopColor="#08111C" />
-        </linearGradient>
-        <radialGradient id={glowId} cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(46 14) rotate(139) scale(31 28)">
-          <stop stopColor="#6EE7B7" stopOpacity="0.95" />
-          <stop offset="1" stopColor="#6EE7B7" stopOpacity="0" />
+        <radialGradient id={eyeGradientId} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#FF7A17" />
+          <stop offset="100%" stopColor={petalColor} />
         </radialGradient>
-        <linearGradient id={ringId} x1="12" y1="16" x2="50" y2="48" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#A7F3D0" stopOpacity="0.25" />
-          <stop offset="0.55" stopColor="#34D399" stopOpacity="0.85" />
-          <stop offset="1" stopColor="#ECFDF5" stopOpacity="0.28" />
-        </linearGradient>
-        <linearGradient id={sweepId} x1="14" y1="24" x2="51" y2="35" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#34D399" stopOpacity="0.18" />
-          <stop offset="0.55" stopColor="#A7F3D0" stopOpacity="0.95" />
-          <stop offset="1" stopColor="#F8FAFC" stopOpacity="0.22" />
-        </linearGradient>
-        <linearGradient id={edgeId} x1="10" y1="8" x2="58" y2="58" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#86EFAC" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#F8FAFC" stopOpacity="0.1" />
-        </linearGradient>
       </defs>
 
-      <rect x="4" y="4" width="56" height="56" rx="18" fill={`url(#${tileId})`} />
-      <rect x="4" y="4" width="56" height="56" rx="18" fill={`url(#${glowId})`} />
-      <rect x="4.5" y="4.5" width="55" height="55" rx="17.5" stroke={`url(#${edgeId})`} />
+      <g fill={petalColor}>
+        <circle cx="36" cy="14" r="12.75" />
+        <circle cx="36" cy="58" r="12.75" />
+        <circle cx="20" cy="24.25" r="12.75" />
+        <circle cx="52" cy="24.25" r="12.75" />
+        <circle cx="20" cy="47.75" r="12.75" />
+        <circle cx="52" cy="47.75" r="12.75" />
+      </g>
 
-      <circle cx="32" cy="33" r="18.5" stroke={`url(#${ringId})`} strokeWidth="2.5" />
       <path
-        d="M14 35.5C18.2 27.1667 24.2 23 32 23C39.8 23 45.8 27.1667 50 35.5"
-        stroke={`url(#${sweepId})`}
-        strokeWidth="3.2"
-        strokeLinecap="round"
+        fill="#FFFFFF"
+        d="M12 36c7.5-7.25 15.5-10.88 24-10.88S52.5 28.75 60 36c-7.5 7.25-15.5 10.88-24 10.88S19.5 43.25 12 36Z"
       />
-      <path
-        d="M16.5 20.5L24 42L32 28.5L40 42L47.5 20.5"
-        stroke="#F8FAFC"
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="32" cy="15.5" r="5.5" fill="#34D399" />
-      <path
-        d="M29.5 15.7L31.2 17.5L34.7 13.6"
-        stroke="#052E26"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M19 47H45"
-        stroke="#DCFCE7"
-        strokeOpacity="0.28"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <circle cx="36" cy="36" r="8.2" fill={`url(#${eyeGradientId})`} />
     </svg>
   );
 }
 
 export function BrandMark({
   className,
+  size = "md",
 }: {
   className?: string;
+  size?: BrandSize;
 }) {
+  const styles = sizeClasses[size];
+  
   return (
     <div
       className={cn(
-        "relative overflow-hidden shadow-[0_12px_28px_rgba(15,23,42,0.26)] ring-1 ring-white/10",
+        "relative overflow-hidden shadow-sm flex items-center justify-center",
+        styles.mark,
         className,
       )}
     >
-      <BrandMarkSvg className="h-full w-full" />
+      <TalvoGlyph />
     </div>
   );
 }
@@ -156,11 +110,13 @@ export function BrandLogo({
   const toneStyle = toneClasses[tone];
 
   return (
-    <div className={cn("inline-flex items-center gap-3", className)}>
-      <BrandMark className={styles.mark} />
+    <div className={cn("inline-flex items-center gap-2.5", className)}>
+      <BrandMark size={size} />
       {showWordmark ? (
         <div className="min-w-0 leading-none">
-          <div className={cn("font-extrabold tracking-tight", styles.title, toneStyle.title)}>WiseRank</div>
+          <div className={cn("font-bold tracking-[-0.04em]", styles.title, toneStyle.title)}>
+            Talvo
+          </div>
           {subtitle ? (
             <div className={cn("mt-1 font-medium", styles.subtitle, toneStyle.subtitle)}>{subtitle}</div>
           ) : null}

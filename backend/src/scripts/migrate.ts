@@ -5,8 +5,15 @@ import Job from "../models/Job.js";
 import Resume from "../models/Resume.js";
 import { ScreeningResultModel as Result } from "../models/ScreenResult.js";
 import User from "../models/User.js";
+type MinimalModel = {
+  createCollection: () => Promise<any>;
+  createIndexes: () => Promise<any>;
+  collection: {
+    collectionName: string;
+  };
+};
 
-const models: Array<Model<unknown>> = [User, Job, Applicant, Resume, Result];
+const models: MinimalModel = [User, Job, Applicant, Resume, Result];
 
 function isNamespaceExistsError(error: unknown) {
   if (!error || typeof error !== "object") {

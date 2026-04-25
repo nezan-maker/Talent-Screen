@@ -22,44 +22,32 @@ const VARIANT_STYLES: Record<
   {
     accent: string;
     iconBg: string;
-    surface: string;
-    closeText: string;
     title: string;
   }
 > = {
   success: {
     accent: '#F97316',
     iconBg: 'rgba(249, 115, 22, 0.18)',
-    surface: '#F8FAFC',
-    closeText: '#64748B',
     title: 'Success',
   },
   error: {
     accent: '#EF4444',
     iconBg: 'rgba(239, 68, 68, 0.2)',
-    surface: '#F8FAFC',
-    closeText: '#64748B',
     title: 'Something Went Wrong',
   },
   info: {
-    accent: '#1F2937',
-    iconBg: 'rgba(31, 41, 55, 0.2)',
-    surface: '#F8FAFC',
-    closeText: '#64748B',
+    accent: '#94A3B8',
+    iconBg: 'rgba(148, 163, 184, 0.25)',
     title: 'Notice',
   },
   warning: {
     accent: '#F59E0B',
     iconBg: 'rgba(245, 158, 11, 0.2)',
-    surface: '#F8FAFC',
-    closeText: '#64748B',
     title: 'Attention',
   },
   loading: {
     accent: '#FB7A2A',
     iconBg: 'rgba(251, 122, 42, 0.2)',
-    surface: '#F8FAFC',
-    closeText: '#64748B',
     title: 'Working On It',
   },
 };
@@ -106,9 +94,9 @@ export function AppToast({
         toast.visible ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
       ].join(' ')}
       style={{
-        borderColor: '#D6DEE8',
-        background: palette.surface,
-        boxShadow: `0 0 0 1px ${palette.accent}2E, 0 10px 22px rgba(15, 23, 42, 0.12)`,
+        borderColor: 'var(--border)',
+        background: 'var(--surface)',
+        boxShadow: `0 0 0 1px ${palette.accent}2E, var(--elevation-soft)`,
       }}
     >
       <div className="flex min-w-0 items-start gap-3 px-4 py-3.5">
@@ -123,10 +111,10 @@ export function AppToast({
             <ToastIcon variant={variant} />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-base font-bold leading-5 tracking-[-0.01em] text-[#1F2937]">
+            <p className="truncate text-base font-bold leading-5 tracking-[-0.01em] text-text-primary">
               {resolvedTitle}
             </p>
-            <p className="mt-0.5 text-sm leading-5 text-[#475569]">{description}</p>
+            <p className="mt-0.5 text-sm leading-5 text-text-muted">{description}</p>
           </div>
         </div>
 
@@ -134,8 +122,8 @@ export function AppToast({
           type="button"
           aria-label="Dismiss notification"
           onClick={() => hotToast.dismiss(toast.id)}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-all hover:bg-slate-200/70"
-          style={{ color: palette.closeText }}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-bg"
+          style={{ color: 'var(--text-muted)' }}
         >
           <X className="h-4 w-4" />
         </button>

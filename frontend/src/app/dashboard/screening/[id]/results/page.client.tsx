@@ -6,7 +6,8 @@ import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   Briefcase,
-  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   Clock3,
   Download,
@@ -38,6 +39,7 @@ import type { Candidate, CandidateScore, Job, ScreeningCandidateAnalysis } from 
 
 type ScreeningVerdict = 'Shortlisted' | 'Review' | 'Rejected';
 type VerdictFilter = 'all' | ScreeningVerdict;
+const RANKING_PAGE_SIZE = 6;
 
 const WEIGHTS_USED = {
   skills_match: 0.3,
@@ -603,19 +605,23 @@ function DimensionRow({
   weight: number;
 }) {
   return (
-    <div className="rounded-[18px] border border-border/60 bg-bg/30 p-4">
+    <div className="rounded-[22px] border border-white/10 bg-[#111F3A]/80 p-5">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold text-text-primary">{label}</div>
+        <div className="text-xl font-semibold tracking-[-0.02em] text-white">
+          {label}
+        </div>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-300">
             {weight}% weight
           </span>
-          <span className="text-sm font-semibold text-text-primary">{score}</span>
+          <span className="text-3xl font-semibold tracking-[-0.03em] text-white">
+            {score}
+          </span>
         </div>
       </div>
-      <div className="mt-3 h-2 rounded-full bg-border/70">
+      <div className="mt-4 h-2.5 rounded-full bg-slate-500/35">
         <div
-          className="h-2 rounded-full bg-gradient-to-r from-accent to-[#FB7A2A]"
+          className="h-2.5 rounded-full bg-[#FF7A1A]"
           style={{ width: `${score}%` }}
         />
       </div>
@@ -669,6 +675,7 @@ export default function DashboardScreeningResultsPage() {
   const mockMode = isMockMode();
   const [searchQuery, setSearchQuery] = useState('');
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>('all');
+  const [rankingPage, setRankingPage] = useState(1);
   const [selectedScreeningId, setSelectedScreeningId] = useState<string>();
 
   const { data: job, isLoading: isJobLoading } = useQuery({
@@ -764,8 +771,57 @@ export default function DashboardScreeningResultsPage() {
     });
   }, [records, searchQuery, verdictFilter]);
 
+  const totalRankingPages = Math.max(
+    1,
+    Math.ceil(filteredRecords.length / RANKING_PAGE_SIZE)
+  );
+  const rankingPageStart = (rankingPage - 1) * RANKING_PAGE_SIZE;
+  const pagedRecords = filteredRecords.slice(
+    rankingPageStart,
+    rankingPageStart + RANKING_PAGE_SIZE
+  );
+  const rankingPageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    const end = Math.min(
+      totalRankingPages,
+      Math.max(maxButtons, rankingPage + Math.floor(maxButtons / 2))
+    );
+    const start = Math.max(1, end - (maxButtons - 1));
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  }, [rankingPage, totalRankingPages]);
+  const visibleStart =
+    filteredRecords.length === 0 ? 0 : rankingPageStart + 1;
+  const visibleEnd = Math.min(
+    rankingPageStart + RANKING_PAGE_SIZE,
+    filteredRecords.length
+  );
+
+  useEffect(() => {
+    setRankingPage(1);
+  }, [searchQuery, verdictFilter]);
+
+  useEffect(() => {
+    if (rankingPage > totalRankingPages) {
+      setRankingPage(totalRankingPages);
+    }
+  }, [rankingPage, totalRankingPages]);
+
+  useEffect(() => {
+    if (!pagedRecords.length) {
+      return;
+    }
+
+    if (
+      !selectedScreeningId ||
+      !pagedRecords.some((record) => record.screening_id === selectedScreeningId)
+    ) {
+      setSelectedScreeningId(pagedRecords[0].screening_id);
+    }
+  }, [pagedRecords, selectedScreeningId]);
+
   const selectedRecord =
-    filteredRecords.find((record) => record.screening_id === selectedScreeningId) ??
+    pagedRecords.find((record) => record.screening_id === selectedScreeningId) ??
+    pagedRecords[0] ??
     filteredRecords[0] ??
     records[0] ??
     null;
@@ -943,7 +999,7 @@ export default function DashboardScreeningResultsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRecords.map((record) => {
+                {pagedRecords.map((record) => {
                   const active = record.screening_id === selectedRecord?.screening_id;
 
                   return (
@@ -997,7 +1053,61 @@ export default function DashboardScreeningResultsPage() {
               <div className="px-4 py-10 text-sm text-text-muted">
                 No candidates match the current search and filter settings.
               </div>
-            ) : null}
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3 px-4 pb-2">
+                <div className="text-sm text-text-muted">
+                  Showing{' '}
+                  <span className="font-semibold text-text-primary">
+                    {visibleStart}-{visibleEnd}
+                  </span>{' '}
+                  of{' '}
+                  <span className="font-semibold text-text-primary">
+                    {filteredRecords.length}
+                  </span>{' '}
+                  candidates
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setRankingPage((current) => Math.max(1, current - 1))}
+                    disabled={rankingPage === 1}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-bg/20 text-text-muted transition-colors hover:bg-bg/40 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Previous ranking page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  {rankingPageNumbers.map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      onClick={() => setRankingPage(pageNumber)}
+                      className={cn(
+                        'inline-flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-sm font-semibold transition-colors',
+                        rankingPage === pageNumber
+                          ? 'border-accent bg-accent text-white'
+                          : 'border-border/70 bg-bg/20 text-text-muted hover:bg-bg/40 hover:text-text-primary'
+                      )}
+                      aria-label={`Go to ranking page ${pageNumber}`}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRankingPage((current) =>
+                        Math.min(totalRankingPages, current + 1)
+                      )
+                    }
+                    disabled={rankingPage === totalRankingPages}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-bg/20 text-text-muted transition-colors hover:bg-bg/40 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Next ranking page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -1102,14 +1212,18 @@ export default function DashboardScreeningResultsPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="rounded-[24px] border-border/60 bg-surface p-6 shadow-soft">
+        <Card className="rounded-[24px] border-slate-700/70 bg-gradient-to-br from-[#0D1A34] via-[#111F3C] to-[#0B1730] p-6 shadow-soft">
           {selectedRecord ? (
             <>
-              <SectionTitle
-                title="Weighted dimensions"
-                subtitle="How the final score is distributed across the screening rubric."
-              />
-              <div className="mt-6 space-y-3">
+              <div>
+                <div className="text-[2rem] font-semibold tracking-[-0.04em] text-white">
+                  Weighted dimensions
+                </div>
+                <p className="mt-1 text-sm text-slate-300">
+                  How the final score is distributed across the screening rubric.
+                </p>
+              </div>
+              <div className="mt-6 space-y-4">
                 {DIMENSIONS.map((dimension) => (
                   <DimensionRow
                     key={dimension.key}

@@ -1,23 +1,88 @@
 'use client';
 
+import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import toast from '@/lib/toast';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/Button';
 import { getApiErrorMessage, loginUser } from '@/lib/api';
 import { ROUTES } from '@/lib/constants';
+import { recordLastLoginAt } from '@/lib/settings';
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
+function getLoginErrorContent(error: unknown) {
+  const message = getApiErrorMessage(error, 'Unable to sign in right now.');
+  const normalized = message.toLowerCase();
+
+  const isUnverifiedAccount =
+    normalized.includes('not verified') ||
+    (normalized.includes('confirm') && normalized.includes('email'));
+
+  if (isUnverifiedAccount) {
+    return {
+      title: 'Verify Your Email Before Signing In',
+      description:
+        'Your account is almost ready. Please confirm your email from your inbox, then try signing in again.',
+    };
+  }
+
+  return {
+    title: 'Sign-In Failed',
+    description: message,
+  };
+}
+
+function getVerificationRedirectPayload(error: unknown) {
+  if (!axios.isAxiosError(error)) {
+    return null;
+  }
+
+  const responseData = error.response?.data;
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+
+  const data = responseData as Record<string, unknown>;
+  const authError =
+    typeof data.auth_error === 'string'
+      ? data.auth_error.toLowerCase()
+      : '';
+  const isUnverifiedAccount =
+    data.verificationRequired === true ||
+    authError.includes('not verified') ||
+    (authError.includes('confirm') && authError.includes('email'));
+
+  if (!isUnverifiedAccount) {
+    return null;
+  }
+
+  const signupToken =
+    typeof data.signupToken === 'string' && data.signupToken.trim()
+      ? data.signupToken.trim()
+      : undefined;
+  const devOtpToken =
+    typeof data.devOtpToken === 'string' && data.devOtpToken.trim()
+      ? data.devOtpToken.trim()
+      : undefined;
+
+  return {
+    signupToken,
+    devOtpToken,
+  };
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>(
     {}
   );
@@ -89,10 +154,35 @@ export default function LoginPage() {
         user_email: email.trim(),
         user_pass: password,
       });
+      recordLastLoginAt();
       toast.success('Signed in successfully.');
       router.push(ROUTES.dashboard);
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Unable to sign in right now.'));
+      const verificationPayload = getVerificationRedirectPayload(error);
+      if (verificationPayload) {
+        const verificationParams = new URLSearchParams({
+          verify: '1',
+          email: email.trim(),
+        });
+
+        if (verificationPayload.signupToken) {
+          verificationParams.set('signup_token', verificationPayload.signupToken);
+        }
+
+        if (verificationPayload.devOtpToken) {
+          verificationParams.set('confirm_otp', verificationPayload.devOtpToken);
+        }
+
+        toast.error({
+          title: 'Verify Your Email Before Signing In',
+          description:
+            'Your account is not verified yet. A fresh confirmation code has been prepared. Complete verification to continue.',
+        });
+        router.push(`${ROUTES.register}?${verificationParams.toString()}`);
+        return;
+      }
+
+      toast.error(getLoginErrorContent(error));
     } finally {
       setBusy(false);
     }
@@ -102,6 +192,7 @@ export default function LoginPage() {
     <AuthShell
       title="Welcome back"
       subtitle="Sign in to manage jobs, screening, and shortlists."
+      showTopBrand={false}
       footer={
         <>
           Don&apos;t have an account?{' '}
@@ -159,21 +250,36 @@ export default function LoginPage() {
               Forgot password?
             </Link>
           </div>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => handlePasswordChange(e.target.value)}
-            onBlur={() => handleBlur('password')}
-            className={`mt-2 h-11 w-full rounded-input border bg-surface px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
-              errors.password && touched.password
-                ? 'border-danger focus:border-danger focus:ring-danger/20'
-                : 'border-border focus:border-accent/40 focus:ring-accent/20'
-            }`}
-            placeholder="Enter your password"
-          />
+          <div className="relative mt-2">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => handlePasswordChange(e.target.value)}
+              onBlur={() => handleBlur('password')}
+              className={`h-11 w-full rounded-input border bg-surface px-3 pr-10 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+                errors.password && touched.password
+                  ? 'border-danger focus:border-danger focus:ring-danger/20'
+                  : 'border-border focus:border-accent/40 focus:ring-accent/20'
+              }`}
+              placeholder="Enter your password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg hover:text-text-primary"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
           {errors.password && touched.password ? (
             <p className="mt-1.5 text-xs font-medium text-danger">
               {errors.password}

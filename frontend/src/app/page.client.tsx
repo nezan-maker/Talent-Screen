@@ -142,21 +142,7 @@ export default function LandingPage() {
               ))}
             </div>
 
-            <div className="mx-auto mt-16 grid max-w-4xl gap-4 sm:grid-cols-3">
-              {[
-                { n: "12+", label: "Active jobs (demo)" },
-                { n: "240+", label: "Applicants screened" },
-                { n: "15%", label: "Avg. shortlist conversion" },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className="rounded-card border border-border bg-card px-5 py-4 text-center shadow-card"
-                >
-                  <div className="text-2xl font-bold text-text-primary">{s.n}</div>
-                  <div className="mt-1 text-sm text-text-muted">{s.label}</div>
-                </div>
-              ))}
-            </div>
+           
           </div>
         </section>
 
@@ -179,7 +165,7 @@ export default function LandingPage() {
                 {
                   icon: Users,
                   title: "Unified ingestion",
-                  body: "Umurava profiles or external uploads - one pipeline for screening.",
+                  body: "Candidate profiles or external uploads - one pipeline for screening.",
                 },
                 {
                   icon: BarChart3,
@@ -220,7 +206,7 @@ export default function LandingPage() {
                 <div>
                   <h2 className="text-2xl font-bold sm:text-3xl">Ready to see it in action?</h2>
                   <p className="mt-3 text-white/80">
-                    Create an account (demo), then open the dashboard, launch a job, and walk through
+                    Create an account, then open the dashboard, launch a job, and walk through
                     screening end-to-end with real-time analytics.
                   </p>
                   <ul className="mt-6 space-y-2 text-sm text-white/90">

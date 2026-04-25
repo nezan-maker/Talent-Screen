@@ -7,7 +7,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import toast from "@/lib/toast";
 import { BrandMark } from "@/components/brand/BrandLogo";
 import { Button } from "@/components/ui/Button";
-import { askAssistantQuestion, getApiErrorMessage } from "@/lib/api";
+import {
+  askAssistantQuestion,
+  getAiLimitResetDetails,
+  getApiErrorMessage,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type ChatRole = "user" | "assistant";
@@ -70,9 +74,17 @@ export function ChatBotWidget() {
         },
       ]);
     } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, "Talvo AI could not answer right now.")
-      );
+      const aiLimitReset = getAiLimitResetDetails(error);
+      if (aiLimitReset) {
+        toast.error({
+          title: "AI Limit Reached",
+          description: `The AI limit resets at ${aiLimitReset.resetAtLabel} (${aiLimitReset.remainingLabel} remaining).`,
+        });
+      } else {
+        toast.error(
+          getApiErrorMessage(error, "Talvo AI could not answer right now.")
+        );
+      }
     } finally {
       setIsThinking(false);
     }

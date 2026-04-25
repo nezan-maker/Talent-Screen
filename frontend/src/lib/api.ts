@@ -30,6 +30,13 @@ export const api: AxiosInstance = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status ?? 0;
+      if (status === 401 || status === 403) {
+        return Promise.reject(error);
+      }
+    }
+
     console.error('API Error:', error);
     return Promise.reject(error);
   }
@@ -240,12 +247,16 @@ export type WorkspaceNotification = {
 type LoginResponse = {
   success: string;
   user?: AuthUser;
+  verificationRequired?: boolean;
+  signupToken?: string;
+  devOtpToken?: string;
 };
 
 type SignupResponse = {
   success: string;
   verificationRequired?: boolean;
   user?: AuthUser;
+  signupToken?: string;
   devOtpToken?: string;
 };
 
@@ -717,6 +728,117 @@ export function getApiErrorMessage(
   return fallback;
 }
 
+export type AiLimitResetDetails = {
+  retryAfterSeconds: number;
+  resetAtISO: string;
+  resetAtLabel: string;
+  remainingLabel: string;
+};
+
+function parseRetryAfterHeader(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.ceil(value);
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const asSeconds = Number(trimmed);
+  if (Number.isFinite(asSeconds) && asSeconds > 0) {
+    return Math.ceil(asSeconds);
+  }
+
+  const asDateMs = Date.parse(trimmed);
+  if (!Number.isFinite(asDateMs)) {
+    return null;
+  }
+
+  const secondsUntilDate = Math.ceil((asDateMs - Date.now()) / 1000);
+  return secondsUntilDate > 0 ? secondsUntilDate : null;
+}
+
+function formatDurationLabel(totalSeconds: number) {
+  const clamped = Math.max(1, Math.ceil(totalSeconds));
+  const days = Math.floor(clamped / 86_400);
+  const hours = Math.floor((clamped % 86_400) / 3_600);
+  const minutes = Math.floor((clamped % 3_600) / 60);
+  const seconds = clamped % 60;
+
+  const segments: string[] = [];
+  if (days > 0) {
+    segments.push(`${days} day${days === 1 ? '' : 's'}`);
+  }
+  if (hours > 0) {
+    segments.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+  }
+  if (minutes > 0) {
+    segments.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+  }
+  if (seconds > 0 || segments.length === 0) {
+    segments.push(`${seconds} second${seconds === 1 ? '' : 's'}`);
+  }
+
+  return segments.join(', ');
+}
+
+function formatResetAtLabel(date: Date) {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  }).format(date);
+}
+
+export function getAiLimitResetDetails(
+  error: unknown
+): AiLimitResetDetails | null {
+  if (!axios.isAxiosError(error) || error.response?.status !== 429) {
+    return null;
+  }
+
+  const data = error.response?.data;
+  let retryAfterSeconds: number | null = null;
+
+  if (data && typeof data === 'object') {
+    const fromData = Number((data as Record<string, unknown>).retryAfterSeconds);
+    if (Number.isFinite(fromData) && fromData > 0) {
+      retryAfterSeconds = Math.ceil(fromData);
+    }
+  }
+
+  if (retryAfterSeconds == null) {
+    const retryAfterHeader = error.response?.headers?.['retry-after'];
+    if (Array.isArray(retryAfterHeader)) {
+      retryAfterSeconds = parseRetryAfterHeader(retryAfterHeader[0]);
+    } else {
+      retryAfterSeconds = parseRetryAfterHeader(retryAfterHeader);
+    }
+  }
+
+  if (retryAfterSeconds == null || retryAfterSeconds <= 0) {
+    return null;
+  }
+
+  const resetAt = new Date(Date.now() + retryAfterSeconds * 1_000);
+  return {
+    retryAfterSeconds,
+    resetAtISO: resetAt.toISOString(),
+    resetAtLabel: formatResetAtLabel(resetAt),
+    remainingLabel: formatDurationLabel(retryAfterSeconds),
+  };
+}
+
 export async function getDashboardOverview(): Promise<DashboardOverview> {
   if (isMockMode()) {
     const response = await mockGet<DashboardResponse>('/dashboard');
@@ -850,23 +972,22 @@ export async function getLatestJobResults(
     requestCount < MAX_PAGINATION_REQUESTS;
     requestCount += 1
   ) {
-    let response;
-    try {
-      response = await api.get<LatestJobResultsApiResponse>(
-        `/ai/jobs/${jobId}/results`,
-        {
-          params: {
-            page,
-            pageSize: BULK_FETCH_PAGE_SIZE,
-          },
-        }
-      );
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        return null;
+    const response = await api.get<LatestJobResultsApiResponse>(
+      `/ai/jobs/${jobId}/results`,
+      {
+        params: {
+          page,
+          pageSize: BULK_FETCH_PAGE_SIZE,
+        },
+        // 404 means there is no completed screening run yet for this job.
+        // Treat it as an expected empty state instead of an exception.
+        validateStatus: (status) =>
+          status === 404 || (status >= 200 && status < 300),
       }
+    );
 
-      throw error;
+    if (response.status === 404) {
+      return null;
     }
 
     if (!runSummary) {

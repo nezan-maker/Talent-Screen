@@ -8,11 +8,13 @@ export function AuthShell({
   subtitle,
   children,
   footer,
+  showTopBrand = true,
 }: {
   title: string;
   subtitle: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  showTopBrand?: boolean;
 }) {
   return (
     <div className="relative min-h-screen overflow-hidden bg-bg">
@@ -65,13 +67,15 @@ export function AuthShell({
           </Link>
 
           <div className="mb-8 text-center">
-            <Link
-              href={ROUTES.home}
-              className="inline-flex items-center justify-center gap-2 rounded-input border border-border bg-card px-3 py-2 text-sm font-semibold text-text-primary shadow-card transition-colors hover:border-accent/30 hover:bg-bg"
-            >
-              <BrandLogo size="sm" />
-            </Link>
-            <h1 className="mt-6 text-3xl font-bold tracking-tight text-text-primary">{title}</h1>
+            {showTopBrand ? (
+              <Link
+                href={ROUTES.home}
+                className="inline-flex items-center justify-center gap-2 rounded-input border border-border bg-card px-3 py-2 text-sm font-semibold text-text-primary shadow-card transition-colors hover:border-accent/30 hover:bg-bg"
+              >
+                <BrandLogo size="sm" />
+              </Link>
+            ) : null}
+            <h1 className={`${showTopBrand ? "mt-6" : "mt-0"} text-3xl font-bold tracking-tight text-text-primary`}>{title}</h1>
             <p className="mt-2 text-sm text-text-muted">{subtitle}</p>
           </div>
 

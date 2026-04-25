@@ -17,7 +17,11 @@ import {
   Sparkles,
 } from "lucide-react";
 import toast from "@/lib/toast";
-import { askAssistantQuestion, getApiErrorMessage } from "@/lib/api";
+import {
+  askAssistantQuestion,
+  getAiLimitResetDetails,
+  getApiErrorMessage,
+} from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -173,9 +177,17 @@ export default function AskRuvoPage() {
         }),
       );
     } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, "Talvo AI could not answer right now.")
-      );
+      const aiLimitReset = getAiLimitResetDetails(error);
+      if (aiLimitReset) {
+        toast.error({
+          title: "AI Limit Reached",
+          description: `The AI limit resets at ${aiLimitReset.resetAtLabel} (${aiLimitReset.remainingLabel} remaining).`,
+        });
+      } else {
+        toast.error(
+          getApiErrorMessage(error, "Talvo AI could not answer right now.")
+        );
+      }
     } finally {
       setIsThinking(false);
     }

@@ -64,6 +64,10 @@ export default function RegisterPage() {
     () => searchParams.get("confirm_otp")?.trim() ?? "",
     [searchParams]
   );
+  const forceVerifyMode = useMemo(
+    () => searchParams.get("verify")?.trim() === "1",
+    [searchParams]
+  );
 
   const validateForm = () => {
     const newErrors: typeof errors = {};
@@ -230,7 +234,7 @@ export default function RegisterPage() {
   ]);
 
   useEffect(() => {
-    if (confirmationLinkId || !signupTokenFromLink) {
+    if (confirmationLinkId || (!signupTokenFromLink && !forceVerifyMode)) {
       return;
     }
 
@@ -244,6 +248,7 @@ export default function RegisterPage() {
   }, [
     confirmationLinkId,
     emailFromLink,
+    forceVerifyMode,
     otpFromLink,
     signupTokenFromLink,
   ]);
@@ -294,6 +299,7 @@ export default function RegisterPage() {
       <AuthShell
         title="Confirm your account"
         subtitle={`Enter the verification code sent to ${pendingEmail || "your email address"}.`}
+        showTopBrand={false}
         footer={
           <button
             type="button"
@@ -345,6 +351,7 @@ export default function RegisterPage() {
     <AuthShell
       title="Create your workspace"
       subtitle="Start posting roles and running recruiter-friendly workflows in minutes."
+      showTopBrand={false}
       footer={
         <>
           Already have an account?{" "}

@@ -157,7 +157,7 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
   );
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const displayName = currentUser?.name || "A. Recruiter";
-  const roleLabel = "Recruiter";
+  const emailLabel = currentUser?.email || "No email available";
 
   const handleLogout = async () => {
     try {
@@ -172,15 +172,15 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
   return (
     <header className="sticky top-0 z-40 px-4 pt-4 sm:px-8 sm:pt-6 lg:px-10">
       <div className="rounded-[28px] border border-border/80 bg-card/95 px-4 py-3 shadow-soft backdrop-blur sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+        <div className="flex items-center justify-between gap-3 lg:gap-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             {showLogo ? (
               <Link href={ROUTES.home} className="shrink-0 transition-opacity hover:opacity-90">
                 <BrandLogo size="sm" tone={theme === "dark" ? "dark" : "light"} />
               </Link>
             ) : null}
 
-            <nav className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-bg/80 p-1 shadow-sm">
+            <nav className="inline-flex min-w-0 items-center gap-0.5 rounded-full border border-border/80 bg-bg/80 p-0.5 shadow-sm">
               {navItems.map((item) => {
                 const active = item.match(pathname);
 
@@ -188,28 +188,29 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-label={item.label}
                     className={cn(
-                      "inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors",
+                      "inline-flex items-center gap-1.5 rounded-full px-2 py-2.5 text-sm font-semibold transition-colors sm:px-2.5 lg:px-3",
                       active
                         ? "bg-text-primary text-bg shadow-sm"
                         : "text-text-muted hover:bg-card hover:text-text-primary",
                     )}
                   >
                     <item.Icon className="h-4 w-4" />
-                    {item.label}
+                    <span className="hidden xl:inline">{item.label}</span>
                   </Link>
                 );
               })}
             </nav>
 
-            <div className="relative" ref={notificationsRef}>
+            <div className="relative hidden shrink-0 lg:block" ref={notificationsRef}>
               <button
                 type="button"
                 onClick={() => {
                   setShowNotifications((current) => !current);
                   setShowAccountMenu(false);
                 }}
-                className="inline-flex items-center gap-3 rounded-full border border-border/80 bg-bg/80 px-3 py-2.5 shadow-sm transition-colors hover:bg-card"
+                className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-bg/80 px-2.5 py-2.5 shadow-sm transition-colors hover:bg-card xl:gap-3 xl:px-3"
                 aria-label="Open notifications"
                 aria-expanded={showNotifications}
                 aria-haspopup="menu"
@@ -217,7 +218,9 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
                 <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-text-primary">
                   <Bell className="h-4 w-4" />
                 </span>
-                <span className="text-sm font-semibold text-text-primary">{todayLabel}</span>
+                <span className="hidden text-sm font-semibold text-text-primary lg:inline">
+                  {todayLabel}
+                </span>
                 {unreadCount > 0 ? (
                   <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-text-primary px-2 py-1 text-sm font-semibold leading-none text-bg">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -322,7 +325,7 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3 pr-1">
             <button
               type="button"
               onClick={toggleTheme}
@@ -337,7 +340,7 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
               )}
             </button>
 
-            <div className="relative" ref={accountMenuRef}>
+            <div className="relative hidden lg:block" ref={accountMenuRef}>
               {isUserLoading ? (
                 <DashboardHeaderAccountSkeleton />
               ) : (
@@ -355,11 +358,11 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/12 text-sm font-bold text-accent">
                     {initials(displayName)}
                   </div>
-                  <div className="hidden min-w-0 text-left sm:block">
+                  <div className="hidden min-w-0 text-left 2xl:block">
                     <div className="truncate text-sm font-semibold text-text-primary">
                       {displayName}
                     </div>
-                    <div className="text-sm text-text-muted">{roleLabel}</div>
+                    <div className="truncate text-sm text-text-muted">{emailLabel}</div>
                   </div>
                   <ChevronDown
                     className={cn(
@@ -375,6 +378,12 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
                   className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-[22px] border border-border bg-card shadow-modal"
                   role="menu"
                 >
+                  <div className="border-b border-border px-4 py-3">
+                    <div className="truncate text-sm font-semibold text-text-primary">
+                      {displayName}
+                    </div>
+                    <div className="truncate text-sm text-text-muted">{emailLabel}</div>
+                  </div>
                   <button
                     type="button"
                     className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-text-primary transition-colors hover:bg-bg"
@@ -404,7 +413,7 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
             <button
               type="button"
               onClick={() => router.push(ROUTES.dashboardSettings)}
-              className="flex h-12 w-12 items-center justify-center rounded-full border border-border/80 bg-bg/80 text-text-primary shadow-sm transition-colors hover:bg-card"
+              className="hidden h-12 w-12 items-center justify-center rounded-full border border-border/80 bg-bg/80 text-text-primary shadow-sm transition-colors hover:bg-card xl:flex"
               aria-label="Open dashboard settings"
             >
               <SlidersHorizontal className="h-5 w-5" />

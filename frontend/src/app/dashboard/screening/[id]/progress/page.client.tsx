@@ -10,6 +10,7 @@ import { ScreeningProgressSkeleton } from '@/components/dashboard/DashboardSkele
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import {
+  getAiLimitResetDetails,
   getApiErrorMessage,
   getJob,
   getScreeningRuns,
@@ -188,6 +189,14 @@ export default function ScreeningProgressPage() {
         ]);
       } catch (error) {
         if (!isActive) {
+          return;
+        }
+
+        const aiLimitReset = getAiLimitResetDetails(error);
+        if (aiLimitReset) {
+          setScreeningError(
+            `Gemini usage is temporarily limited. The limit resets at ${aiLimitReset.resetAtLabel} (${aiLimitReset.remainingLabel} remaining).`
+          );
           return;
         }
 

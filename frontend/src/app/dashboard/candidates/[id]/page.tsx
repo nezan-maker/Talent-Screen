@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import CandidateDetailPageClient from "./page.client";
 import { buildMetadata, findCandidateById } from "@/lib/metadata";
 
-export function generateMetadata({ params }: { params: { id: string } }): Metadata {
-  const candidate = findCandidateById(params.id);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+
+  const candidate = findCandidateById(id);
   const appliedRole =
     candidate?.appliedJobTitle ?? candidate?.currentTitle ?? "Candidate profile";
 
@@ -12,7 +14,7 @@ export function generateMetadata({ params }: { params: { id: string } }): Metada
     description: candidate
       ? `Review ${candidate.name}'s profile, ${appliedRole} fit, screening status, and hiring context in Talvo.`
       : "Review candidate skills, screening status, and hiring context in Talvo.",
-    path: `/dashboard/candidates/${params.id}`,
+    path: `/dashboard/candidates/${id}`,
     noIndex: true,
     keywords: ["candidate profile", "screening status", "hiring context"],
   });

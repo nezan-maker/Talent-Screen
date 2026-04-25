@@ -68,6 +68,7 @@ const connectDB = async () => {
         `Error connecting to database (attempt ${attempt}/${maxAttempts})`,
       );
       dbDebug(error);
+      console.log(error);
       if (attempt < maxAttempts) {
         await delay(2000 * attempt);
       }

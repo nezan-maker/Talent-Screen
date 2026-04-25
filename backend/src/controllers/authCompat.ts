@@ -80,7 +80,7 @@ function getCookieOptions(maxAge: number) {
   return {
     httpOnly: true,
     maxAge,
-    sameSite: "lax" as const,
+    sameSite: true,
   };
 }
 
@@ -99,7 +99,7 @@ function clearSessionCookies(res: Response) {
     "recovery_reference_token",
     "reset_reference_token",
   ]) {
-    res.clearCookie(name, { sameSite: "lax", httpOnly: true });
+    res.clearCookie(name, { sameSite: true, httpOnly: true });
   }
 }
 
@@ -183,7 +183,7 @@ async function finalizeConfirmation(res: Response, user: any) {
   user.sign_otp_token = null;
   await establishSession(res, user);
   res.clearCookie("signup_reference_token", {
-    sameSite: "lax",
+    sameSite: true,
     httpOnly: true,
   });
   await user.save();
@@ -505,11 +505,11 @@ export const reset = async (req: Request, res: Response) => {
     await user.save();
 
     res.clearCookie("recovery_reference_token", {
-      sameSite: "lax",
+      sameSite: true,
       httpOnly: true,
     });
     res.clearCookie("reset_reference_token", {
-      sameSite: "lax",
+      sameSite: true,
       httpOnly: true,
     });
 

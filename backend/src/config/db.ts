@@ -38,7 +38,11 @@ function delay(ms: number) {
 }
 
 const connectDB = async () => {
-  const { MONGO_URI } = process.env;
+  console.log("Before connecting DB");
+  if (!process.env.MONGO_URI) {
+    throw new Error("Coulf not load database environment");
+  }
+  const MONGO_URI = process.env.MONGO_URI;
 
   if (!MONGO_URI) {
     throw new Error("MONGO_URI is not set");
@@ -48,7 +52,7 @@ const connectDB = async () => {
 
   const maxAttempts = 5;
   let lastError: unknown = null;
-
+  console.log("Before connect loop");
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       await mongoose.connect(MONGO_URI, {
@@ -60,7 +64,9 @@ const connectDB = async () => {
       return;
     } catch (error) {
       lastError = error;
-      dbDebug(`Error connecting to database (attempt ${attempt}/${maxAttempts})`);
+      dbDebug(
+        `Error connecting to database (attempt ${attempt}/${maxAttempts})`,
+      );
       dbDebug(error);
       if (attempt < maxAttempts) {
         await delay(2000 * attempt);

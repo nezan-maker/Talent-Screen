@@ -26,10 +26,7 @@ const originsFromEnv =
 const allowedOrigins = new Set([originsFromEnv, "http://127.0.0.1:3000"]);
 
 const startServer = async () => {
-  console.log("Before DB");
   await connectDB();
-  console.log("After DB");
-  console.log("Before seed");
   await ensureSeedData();
   console.log("After seed");
   app.use((req, res, next) => {
@@ -67,7 +64,6 @@ const startServer = async () => {
   app.use("/auth", authRoutes());
   app.use("/", dashRoutes());
   app.use("/ai", aiRoutes);
-  console.log("Before listening");
   app.listen(PORT, "0.0.0.0", () => {
     serverDebug(`Server connected on port ${PORT}`);
   });
@@ -75,7 +71,6 @@ const startServer = async () => {
 startServer()
   .then(() => {
     serverDebug("Server started correctly");
-    console.log("Server started correctly");
   })
   .catch((error) => {
     serverDebug("Server failed to start");

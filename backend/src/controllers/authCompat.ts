@@ -38,13 +38,17 @@ const forgotPayloadSchema = z.object({
 });
 
 const confirmPayloadSchema = z.object({
-  token: z.string().trim().regex(/^\d{6}$/),
-  signup_token: z.string().trim().min(1).optional(),
+  token: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/),
 });
 
 const verifyCodePayloadSchema = z.object({
-  token: z.string().trim().regex(/^\d{6}$/),
-  recovery_token: z.string().trim().min(1).optional(),
+  token: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/),
 });
 
 const resetPayloadSchema = z.object({
@@ -259,13 +263,10 @@ export const confirm = async (req: Request, res: Response) => {
   try {
     const payload = confirmPayloadSchema.parse({
       token: extractVerifyToken(req.body),
-      signup_token:
-        toStringValue(req.body?.signup_token) ||
-        toStringValue(req.body?.signupToken),
     });
-    const signupReferenceToken =
-      payload.signup_token ||
-      toStringValue(req.cookies?.signup_reference_token);
+    const signupReferenceToken = toStringValue(
+      req.cookies?.signup_reference_token,
+    );
 
     if (!signupReferenceToken) {
       return res
@@ -274,7 +275,9 @@ export const confirm = async (req: Request, res: Response) => {
     }
 
     const verifiedPayload = verifyToken<SessionPayload>(signupReferenceToken);
-    const user = await User.findById(verifiedPayload.userId ?? verifiedPayload.user_id);
+    const user = await User.findById(
+      verifiedPayload.userId ?? verifiedPayload.user_id,
+    );
 
     if (!user) {
       return res.status(404).json({ data_error: "User could not be found" });
@@ -314,7 +317,9 @@ export const confirm_get = async (req: Request, res: Response) => {
     }
 
     const verifiedPayload = verifyToken<SessionPayload>(signupReferenceToken);
-    const user = await User.findById(verifiedPayload.userId ?? verifiedPayload.user_id);
+    const user = await User.findById(
+      verifiedPayload.userId ?? verifiedPayload.user_id,
+    );
 
     if (!user || user.confirmation_link_id !== confirmationId) {
       return res.status(401).json({
@@ -427,13 +432,10 @@ export const verifyCode = async (req: Request, res: Response) => {
   try {
     const payload = verifyCodePayloadSchema.parse({
       token: extractVerifyToken(req.body),
-      recovery_token:
-        toStringValue(req.body?.recovery_token) ||
-        toStringValue(req.body?.recoveryToken),
     });
-    const recoveryReferenceToken =
-      payload.recovery_token ||
-      toStringValue(req.cookies?.recovery_reference_token);
+    const recoveryReferenceToken = toStringValue(
+      req.cookies?.recovery_reference_token,
+    );
 
     if (!recoveryReferenceToken) {
       return res
@@ -442,7 +444,9 @@ export const verifyCode = async (req: Request, res: Response) => {
     }
 
     const verifiedPayload = verifyToken<SessionPayload>(recoveryReferenceToken);
-    const user = await User.findById(verifiedPayload.userId ?? verifiedPayload.user_id);
+    const user = await User.findById(
+      verifiedPayload.userId ?? verifiedPayload.user_id,
+    );
 
     if (!user || !user.pass_token) {
       return res.status(404).json({ data_error: "User could not be found" });
@@ -488,7 +492,9 @@ export const reset = async (req: Request, res: Response) => {
     }
 
     const verifiedPayload = verifyToken<SessionPayload>(resetReferenceToken);
-    const user = await User.findById(verifiedPayload.userId ?? verifiedPayload.user_id);
+    const user = await User.findById(
+      verifiedPayload.userId ?? verifiedPayload.user_id,
+    );
 
     if (!user) {
       return res.status(404).json({ data_error: "User could not be found" });

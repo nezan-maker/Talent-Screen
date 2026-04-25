@@ -5,15 +5,8 @@ import Job from "../models/Job.js";
 import Resume from "../models/Resume.js";
 import { ScreeningResultModel as Result } from "../models/ScreenResult.js";
 import User from "../models/User.js";
-type MinimalModel = {
-  createCollection: () => Promise<any>;
-  createIndexes: () => Promise<any>;
-  collection: {
-    collectionName: string;
-  };
-};
 
-const models: MinimalModel[] = [User, Job, Applicant, Resume, Result as unknown as MinimalModel];
+const models = [User, Job, Applicant, Resume, Result];
 
 function isNamespaceExistsError(error: unknown) {
   if (!error || typeof error !== "object") {
@@ -23,7 +16,7 @@ function isNamespaceExistsError(error: unknown) {
   return "code" in error && error.code === 48;
 }
 
-async function ensureCollection(model: MinimalModel) {
+async function ensureCollection(model: Model<any>) {
   try {
     await model.createCollection();
   } catch (error) {

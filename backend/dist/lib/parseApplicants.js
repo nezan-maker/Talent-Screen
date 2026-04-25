@@ -1,8 +1,6 @@
 import { parse as parseCsv } from "csv-parse/sync";
 import ExcelJS from "exceljs";
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const pdf = require("pdf-parse");
+import { PDFParse } from "pdf-parse";
 import { z } from "zod";
 const normalizeHeader = (s) => s
     .trim()
@@ -66,8 +64,19 @@ function mapRow(row) {
     return out;
 }
 export async function parsePdfResume(buffer) {
-    const data = await pdf(buffer);
-    return (data.text ?? "").replace(/\s+\n/g, "\n").trim();
+    const parser = new PDFParse({ data: buffer });
+    try {
+        const data = await parser.getText();
+        return (data.text ?? "").replace(/\s+\n/g, "\n").trim();
+    }
+    finally {
+        try {
+            await parser.destroy();
+        }
+        catch {
+            // ignore parser cleanup failures
+        }
+    }
 }
 export function parseCsvApplicants(buffer) {
     const text = buffer.toString("utf8");

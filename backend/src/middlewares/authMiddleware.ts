@@ -2,6 +2,10 @@ import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import User from "../models/User.js";
+import {
+  isMongoTransientError,
+  withMongoTransientRetry,
+} from "../utils/mongoErrors.js";
 
 type SessionPayload = {
   email?: string;
@@ -46,7 +50,7 @@ async function resolveUserFromRequest(req: Request) {
     return null;
   }
 
-  const user = await User.findById(userId).lean();
+  const user = await withMongoTransientRetry(() => User.findById(userId).lean());
   if (!user) {
     return null;
   }
@@ -80,6 +84,13 @@ export const middleAuth = async (
     return next();
   } catch (error) {
     console.error("Authentication failed:", error);
+    if (isMongoTransientError(error)) {
+      return res.status(503).json({
+        server_error:
+          "Database connection is temporarily unavailable. Please retry in a moment.",
+      });
+    }
+
     return res
       .status(401)
       .json({ auth_error: "Session expired or invalid. Please sign in again." });

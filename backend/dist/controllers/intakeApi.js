@@ -2,9 +2,7 @@ import exceljs from "exceljs";
 const { Workbook } = exceljs;
 import { Readable } from "node:stream";
 import path from "node:path";
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+import { PDFParse } from "pdf-parse";
 import unzipper from "unzipper";
 import Applicant from "../models/Applicant.js";
 import Job from "../models/Job.js";
@@ -184,6 +182,21 @@ export async function registerCandidates(req, res) {
 function normalizeResumeMatchKey(value) {
     return normalizeLookupKey(path.parse(value).name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "));
 }
+async function extractPdfText(buffer) {
+    const parser = new PDFParse({ data: buffer });
+    try {
+        const parsed = await parser.getText();
+        return trimText(parsed.text);
+    }
+    finally {
+        try {
+            await parser.destroy();
+        }
+        catch {
+            // ignore parser cleanup failures
+        }
+    }
+}
 export async function uploadResumeZip(req, res) {
     try {
         if (!req.file) {
@@ -197,8 +210,7 @@ export async function uploadResumeZip(req, res) {
                 continue;
             }
             const entryBuffer = await entry.buffer();
-            const data = await pdfParse(entryBuffer);
-            const parsed_text = trimText(data.text);
+            const parsed_text = await extractPdfText(entryBuffer);
             const lookupKey = normalizeResumeMatchKey(entry.path);
             const applicant = applicants.find((item) => {
                 const fullNameKey = normalizeLookupKey(trimText(item.applicant_name));

@@ -7,6 +7,7 @@ import env from "../config/env.js";
 import { askRecruiterAssistant } from "../lib/gemini.js";
 import { evaluateApplicantsForJob } from "../services/screeningService.js";
 import { trimText } from "../utils/talentProfile.js";
+import { isMongoTransientError, withMongoTransientRetry, } from "../utils/mongoErrors.js";
 function latestRunSummary(jobTitle, shortlist) {
     const topNames = shortlist.map((item) => item.candidate_id).join(", ");
     return `Screened ${shortlist.length} top candidates for ${jobTitle}. Shortlist ready for recruiter review: ${topNames || "none"}.`;
@@ -128,15 +129,15 @@ export async function getScreeningRunById(req, res) {
 export async function getLatestJobResults(req, res) {
     try {
         const jobId = trimText(req.params.jobId);
-        const job = await Job.findById(jobId)
+        const job = await withMongoTransientRetry(() => Job.findById(jobId)
             .select({ _id: 1, job_title: 1, job_state: 1 })
-            .lean();
+            .lean());
         if (!job) {
             return res.status(404).json({ data_error: "Job not found" });
         }
-        const latestRun = await ScreeningRunModel.findOne({ job_id: jobId })
+        const latestRun = await withMongoTransientRetry(() => ScreeningRunModel.findOne({ job_id: jobId })
             .sort({ createdAt: -1 })
-            .lean();
+            .lean());
         if (!latestRun) {
             return res.status(404).json({
                 data_error: "No screening run found for this job yet",
@@ -148,11 +149,11 @@ export async function getLatestJobResults(req, res) {
                 },
             });
         }
-        const results = await ScreeningResultModel.find({
+        const results = await withMongoTransientRetry(() => ScreeningResultModel.find({
             screening_run_id: latestRun._id,
         })
             .sort({ rank: 1 })
-            .lean();
+            .lean());
         return res.status(200).json({
             run: latestRun,
             results,
@@ -160,6 +161,11 @@ export async function getLatestJobResults(req, res) {
     }
     catch (error) {
         console.error("Error in getLatestJobResults:", error);
+        if (isMongoTransientError(error)) {
+            return res.status(503).json({
+                server_error: "Database connection is temporarily unavailable. Please retry shortly.",
+            });
+        }
         return res.status(500).json({ server_error: "Internal server error" });
     }
 }

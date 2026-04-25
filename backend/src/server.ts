@@ -20,13 +20,14 @@ const app = express();
 const PORT = env?.PORT || 5000;
 const serverDebug = debug("app:server");
 
-const allowedOrigins = new Set(
-  (env.FRONTEND_ORIGIN || "http://localhost:3000")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .concat(["http://127.0.0.1:3000"]),
-);
+const originsFromEnv = env.FRONTEND_ORIGIN?.split(",") || [
+  "https://wiserank-lmwy.onrender.com",
+];
+
+const allowedOrigins = new Set([
+  ...originsFromEnv.map((url) => url.trim()).filter(Boolean),
+  "http://127.0.0.1:3000",
+]);
 
 const startServer = async () => {
   await connectDB();

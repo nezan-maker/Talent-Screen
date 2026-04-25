@@ -1,6 +1,8 @@
 import { parse as parseCsv } from "csv-parse/sync";
 import ExcelJS from "exceljs";
-import pdf from "pdf-parse";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const pdf = require("pdf-parse");
 import { z } from "zod";
 
 export type ParsedApplicant = {
@@ -69,7 +71,8 @@ function mapRow(row: Record<string, unknown>): ParsedApplicant {
   out.skills = splitList(skills);
   out.education = splitList(education);
   out.links = splitList(links);
-  out.yearsExperience = toNumber(yearsExp);
+  const parsedExp = toNumber(yearsExp);
+  if (parsedExp !== undefined) out.yearsExperience = parsedExp;
   if (typeof resumeText === "string" && resumeText.trim()) out.resumeText = resumeText.trim();
 
   return out;
@@ -83,7 +86,7 @@ export async function parsePdfResume(buffer: Buffer): Promise<string> {
 export function parseCsvApplicants(buffer: Buffer): ParsedApplicant[] {
   const text = buffer.toString("utf8");
   const rows = parseCsv(text, { columns: true, skip_empty_lines: true, trim: true });
-  const arrSchema = z.array(z.record(z.unknown()));
+  const arrSchema = z.array(z.record(z.string(), z.unknown()));
   const parsedRows = arrSchema.parse(rows);
   return parsedRows.map(mapRow).filter((a) => a.fullName || a.email || a.resumeText);
 }

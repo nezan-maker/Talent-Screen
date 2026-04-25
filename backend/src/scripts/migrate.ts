@@ -13,7 +13,7 @@ type MinimalModel = {
   };
 };
 
-const models: MinimalModel = [User, Job, Applicant, Resume, Result];
+const models: MinimalModel[] = [User, Job, Applicant, Resume, Result as unknown as MinimalModel];
 
 function isNamespaceExistsError(error: unknown) {
   if (!error || typeof error !== "object") {
@@ -23,7 +23,7 @@ function isNamespaceExistsError(error: unknown) {
   return "code" in error && error.code === 48;
 }
 
-async function ensureCollection(model: Model<unknown>) {
+async function ensureCollection(model: MinimalModel) {
   try {
     await model.createCollection();
   } catch (error) {

@@ -1,4 +1,4 @@
-# RankWise API Documentation
+# Talvo API Documentation
 
 This document outlines the available REST API endpoints for the RankWise backend.
 

@@ -19,18 +19,24 @@ function getAccessSecret() {
 
 async function resolveUserFromRequest(req: Request) {
   const devAuth = req.headers["x-dev-auth"];
-  const token = req.cookies?.access_token || (typeof devAuth === "string" ? devAuth : null);
+  const devAuthEnabled =
+    (typeof devAuth === "string" && devAuth.toLowerCase() === "true") ||
+    (Array.isArray(devAuth) &&
+      devAuth.some((value) => value.toLowerCase() === "true"));
+
+  // Explicit dev-auth bypass for local testing with tools like Thunder Client.
+  if (devAuthEnabled) {
+    return {
+      _id: "mock_user_id",
+      user_name: "Dev User",
+      user_email: "dev@example.com",
+      company_name: "Dev Company",
+      isVerified: true,
+    };
+  }
+
+  const token = req.cookies?.access_token;
   if (!token) {
-    // If we're strictly testing in dev without token, mock a user
-    if (devAuth === "true") {
-      return {
-        _id: "mock_user_id",
-        user_name: "Dev User",
-        user_email: "dev@example.com",
-        company_name: "Dev Company",
-        isVerified: true,
-      };
-    }
     return null;
   }
 

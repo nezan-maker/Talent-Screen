@@ -144,12 +144,28 @@ export async function getScreeningRunById(req: Request, res: Response) {
 export async function getLatestJobResults(req: Request, res: Response) {
   try {
     const jobId = trimText(req.params.jobId);
+    const job = await Job.findById(jobId)
+      .select({ _id: 1, job_title: 1, job_state: 1 })
+      .lean();
+
+    if (!job) {
+      return res.status(404).json({ data_error: "Job not found" });
+    }
+
     const latestRun = await ScreeningRunModel.findOne({ job_id: jobId })
       .sort({ createdAt: -1 })
       .lean();
 
     if (!latestRun) {
-      return res.status(404).json({ data_error: "No screening run found" });
+      return res.status(404).json({
+        data_error: "No screening run found for this job yet",
+        hint: "Run POST /ai/run with this job_id first",
+        job: {
+          id: job._id,
+          title: job.job_title,
+          state: job.job_state,
+        },
+      });
     }
 
     const results = await ScreeningResultModel.find({

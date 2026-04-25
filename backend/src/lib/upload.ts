@@ -1,7 +1,12 @@
 import multer from "multer";
 import type { Request } from "express";
-import { HttpError } from "../middleware/errorHandler.js";
-
+class HttpError extends Error {
+  status: number;
+  constructor(status: number, msg: string) {
+    super(msg);
+    this.status = status;
+  }
+}
 export function makeUploadMiddleware(opts: { maxUploadMb: number }) {
   const storage = multer.memoryStorage();
   const maxBytes = Math.max(1, opts.maxUploadMb) * 1024 * 1024;

@@ -116,9 +116,7 @@ export default function LandingPage() {
                   Sign in
                 </Link>
               </div>
-              <p className="mt-6 text-sm text-text-muted">
-                No backend required for the demo - explore the full UI after sign-in.
-              </p>
+              
             </div>
 
             {/* Visual showcase with SVG images */}
@@ -242,9 +240,7 @@ export default function LandingPage() {
                       Create account
                     </Button>
                   </Link>
-                  <Link href={ROUTES.dashboard} className="w-full text-center text-sm font-semibold text-white/90 underline-offset-4 hover:underline sm:w-auto">
-                    Skip to app demo {"->"}
-                  </Link>
+                  
                 </div>
               </div>
             </div>

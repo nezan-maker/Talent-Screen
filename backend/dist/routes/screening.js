@@ -1,119 +1,244 @@
 import { Router } from "express";
 import { z } from "zod";
-import { JobModel } from "../storage/models/Job.js";
-import { ApplicantModel } from "../storage/models/Applicant.js";
-import { ScreeningRunModel } from "../storage/models/ScreeningRun.js";
-import { ScreeningResultModel } from "../storage/models/ScreeningResult.js";
-import { HttpError } from "../middleware/errorHandler.js";
-import { screenWithGemini } from "../lib/gemini.js";
-import { asyncHandler } from "../middleware/asyncHandler.js";
-export function screeningRouter(opts) {
+import Job from "../models/Job.js";
+import Applicant from "../models/Applicant.js";
+import ScreeningRunModel from "../models/ScreeningRun.js";
+import { ScreeningResultModel } from "../models/ScreenResult.js";
+import { resolveGeminiAuth, screenWithGemini, toLegacyScreeningResult, } from "../lib/gemini.js";
+import { inferExperienceYears, normalizeEducation, normalizeExperience, normalizeSkills, parseJobCriteria, splitList, trimText, } from "../utils/talentProfile.js";
+import env from "../config/env.js";
+const runSchema = z.object({
+    jobId: z.string().min(1),
+    applicantIds: z.array(z.string().min(1)).optional(),
+    topK: z.number().int().min(1).max(50).default(10),
+});
+const listRunsSchema = z.object({
+    jobId: z.string().min(1).optional(),
+});
+function mapJob(job) {
+    const criteria = parseJobCriteria(job?.job_ai_criteria);
+    const skills = criteria.map((item) => trimText(item.criteria_string)).filter(Boolean);
+    const requirements = splitList([job?.job_qualifications, job?.job_responsibilities, job?.job_description]
+        .map((item) => trimText(item))
+        .filter(Boolean)
+        .join("\n"));
+    const education = splitList(job?.job_qualifications);
+    const notes = trimText(job?.job_description);
+    const yearsMatch = trimText(job?.job_experience_required).match(/(\d+)\+?\s*years?/i);
+    const years = yearsMatch ? Number(yearsMatch[1]) : undefined;
+    return {
+        jobId: trimText(job?._id),
+        title: trimText(job?.job_title) || "Role",
+        requirements,
+        skills,
+        ...(typeof years === "number" && Number.isFinite(years) ? { experienceYearsMin: years } : {}),
+        education,
+        ...(notes ? { notes } : {}),
+    };
+}
+function mapCandidate(applicant, index) {
+    const skills = normalizeSkills(applicant?.skills)
+        .map((item) => trimText(item.name))
+        .filter(Boolean);
+    const experience = normalizeExperience(applicant?.experience);
+    const yearsExperience = inferExperienceYears(experience);
+    const education = normalizeEducation(applicant?.education).map((item) => [trimText(item.degree), trimText(item.field_of_study), trimText(item.institution)]
+        .filter(Boolean)
+        .join(" - "));
+    const fullName = trimText(applicant?.applicant_name);
+    const email = trimText(applicant?.applicant_email ?? applicant?.email);
+    const location = trimText(applicant?.location);
+    const resumeText = trimText(applicant?.resume_text);
+    return {
+        applicantId: trimText(applicant?._id) || `candidate_${index + 1}`,
+        ...(fullName ? { fullName } : {}),
+        ...(email ? { email } : {}),
+        ...(location ? { location } : {}),
+        ...(skills.length > 0 ? { skills } : {}),
+        ...(yearsExperience > 0 ? { yearsExperience } : {}),
+        ...(education.length > 0 ? { education } : {}),
+        ...(resumeText ? { resumeText } : {}),
+    };
+}
+export default function screeningRouter(options = {}) {
     const router = Router();
-    // List available Gemini API models (AI Studio key only)
-    router.get("/models", asyncHandler(async (_req, res) => {
-        if (!opts.aiStudioApiKey) {
-            throw new HttpError(400, "GEMINI_API_KEY is required to list models (AI Studio provider).");
+    router.get("/models", async (_req, res) => {
+        const apiKey = trimText(options.aiStudioApiKey ?? env.GOOGLE_API_KEY);
+        if (!apiKey) {
+            return res.status(400).json({
+                data_error: "GOOGLE_API_KEY is required to list models",
+            });
         }
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${opts.aiStudioApiKey}`);
-        const text = await r.text();
-        if (!r.ok)
-            throw new HttpError(r.status, "Failed to list models", text);
-        res.type("json").send(text);
-    }));
-    const triggerSchema = z.object({
-        jobId: z.string().min(1),
-        applicantIds: z.array(z.string().min(1)).optional(),
-        topK: z.number().int().min(1).max(50).default(10)
-    });
-    // Trigger screening: computes and persists results
-    router.post("/run", asyncHandler(async (req, res) => {
-        const input = triggerSchema.parse(req.body);
-        const job = await JobModel.findById(input.jobId).lean();
-        if (!job)
-            throw new HttpError(404, "Job not found");
-        const applicants = await ApplicantModel.find(input.applicantIds?.length ? { _id: { $in: input.applicantIds } } : { jobId: input.jobId })
-            .limit(500)
-            .lean();
-        if (!applicants.length)
-            throw new HttpError(400, "No applicants found for this job");
-        const topK = Math.min(input.topK, applicants.length);
-        const run = await ScreeningRunModel.create({
-            jobId: input.jobId,
-            applicantIds: applicants.map((a) => a._id),
-            topK,
-            status: "queued",
-            model: opts.geminiModel
-        });
         try {
-            const ai = await screenWithGemini({
-                model: opts.geminiModel,
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+            const text = await response.text();
+            if (!response.ok) {
+                return res.status(response.status).json({ ai_error: text });
+            }
+            return res.status(200).json(JSON.parse(text));
+        }
+        catch (error) {
+            console.error("Error in screening/models route:", error);
+            return res.status(500).json({ server_error: "Internal server error" });
+        }
+    });
+    router.post("/run", async (req, res) => {
+        let runId = "";
+        try {
+            const input = runSchema.parse(req.body);
+            const auth = resolveGeminiAuth({
+                ...(options.aiStudioApiKey ? { aiStudioApiKey: options.aiStudioApiKey } : {}),
+                ...(options.vertexProjectId ? { vertexProjectId: options.vertexProjectId } : {}),
+                ...(options.vertexLocation ? { vertexLocation: options.vertexLocation } : {}),
+            });
+            if (!auth) {
+                return res.status(400).json({
+                    data_error: "Gemini is not configured. Set GOOGLE_API_KEY or Vertex project/location values.",
+                });
+            }
+            const job = await Job.findById(input.jobId).lean();
+            if (!job) {
+                return res.status(404).json({ data_error: "Job not found" });
+            }
+            const applicantQuery = input.applicantIds?.length
+                ? { _id: { $in: input.applicantIds } }
+                : { $or: [{ job_id: input.jobId }, { job_title: trimText(job.job_title) }] };
+            const applicants = await Applicant.find(applicantQuery)
+                .limit(500)
+                .lean();
+            if (applicants.length === 0) {
+                return res.status(400).json({ data_error: "No applicants found for this job" });
+            }
+            const topK = Math.min(input.topK, applicants.length);
+            const run = await ScreeningRunModel.create({
+                job_id: input.jobId,
+                job_title: trimText(job.job_title),
+                applicant_ids: applicants.map((item) => trimText(item._id)),
                 topK,
-                ...(opts.aiStudioApiKey
-                    ? { provider: "ai-studio", apiKey: opts.aiStudioApiKey }
-                    : {
-                        provider: "vertex",
-                        projectId: opts.vertexProjectId,
-                        location: opts.vertexLocation
-                    }),
-                job: {
-                    jobId: String(job._id),
-                    title: job.title,
-                    requirements: job.requirements ?? [],
-                    skills: job.skills ?? [],
-                    experienceYearsMin: job.experienceYearsMin ?? undefined,
-                    education: job.education ?? [],
-                    notes: job.notes ?? undefined
-                },
-                candidates: applicants.map((a) => ({
-                    applicantId: String(a._id),
-                    fullName: a.fullName ?? undefined,
-                    email: a.email ?? undefined,
-                    location: a.location ?? undefined,
-                    skills: a.skills ?? [],
-                    yearsExperience: a.yearsExperience ?? undefined,
-                    education: a.education ?? [],
-                    resumeText: a.resumeText ?? undefined
-                }))
+                status: "running",
+                model: trimText(options.geminiModel ?? env.GOOGLE_AI_MODEL) || "gemini-1.5-flash",
+                started_at: new Date(),
             });
-            // replace existing results for this run (should be none)
-            await ScreeningResultModel.insertMany(ai.shortlist.map((s) => ({
-                screeningRunId: run._id,
+            runId = trimText(run._id);
+            const ai = await screenWithGemini({
+                ...auth,
+                model: trimText(options.geminiModel ?? env.GOOGLE_AI_MODEL) || "gemini-1.5-flash",
+                topK,
+                job: mapJob(job),
+                candidates: applicants.map((applicant, index) => mapCandidate(applicant, index)),
+            });
+            await ScreeningResultModel.deleteMany({ screening_run_id: run._id });
+            const legacyResults = ai.shortlist.map((item) => toLegacyScreeningResult({
+                screeningRunId: trimText(run._id),
                 jobId: input.jobId,
-                applicantId: s.applicantId,
-                rank: s.rank,
-                matchScore: s.matchScore,
-                strengths: s.strengths,
-                gaps: s.gaps,
-                recommendation: s.recommendation
-            })));
-            await ScreeningRunModel.findByIdAndUpdate(run._id, { status: "completed" });
-            const results = await ScreeningResultModel.find({ screeningRunId: run._id }).sort({ rank: 1 }).lean();
-            res.status(201).json({ runId: run._id, results });
-        }
-        catch (e) {
+                shortlistItem: item,
+                total: ai.shortlist.length,
+            }));
+            await ScreeningResultModel.insertMany(legacyResults);
             await ScreeningRunModel.findByIdAndUpdate(run._id, {
-                status: "failed",
-                error: e instanceof Error ? e.message : "Unknown error"
+                status: "completed",
+                completed_at: new Date(),
+                result_count: legacyResults.length,
             });
-            throw e;
+            const storedResults = await ScreeningResultModel.find({
+                screening_run_id: run._id,
+            })
+                .sort({ rank: 1 })
+                .lean();
+            return res.status(201).json({
+                runId: run._id,
+                results: storedResults,
+            });
         }
-    }));
-    // List runs for a job
-    router.get("/runs", asyncHandler(async (req, res) => {
-        const jobId = z.string().optional().parse(req.query.jobId);
-        const q = jobId ? { jobId } : {};
-        const docs = await ScreeningRunModel.find(q).sort({ createdAt: -1 }).limit(200).lean();
-        res.json(docs);
-    }));
-    // Get results for a run (ranked shortlist + reasoning)
-    router.get("/runs/:runId/results", asyncHandler(async (req, res) => {
-        const runId = z.string().min(1).parse(req.params.runId);
-        const run = await ScreeningRunModel.findById(runId).lean();
-        if (!run)
-            throw new HttpError(404, "Run not found");
-        const results = await ScreeningResultModel.find({ screeningRunId: runId }).sort({ rank: 1 }).lean();
-        res.json({ run, results });
-    }));
+        catch (error) {
+            if (runId) {
+                await ScreeningRunModel.findByIdAndUpdate(runId, {
+                    status: "failed",
+                    error: error instanceof Error ? error.message : "Unknown error",
+                });
+            }
+            if (error instanceof z.ZodError) {
+                return res
+                    .status(400)
+                    .json({ input_error: "Input requirements not fulfilled" });
+            }
+            console.error("Error in screening/run route:", error);
+            return res.status(500).json({ server_error: "Internal server error" });
+        }
+    });
+    router.get("/runs", async (req, res) => {
+        try {
+            const parsedQuery = listRunsSchema.parse(req.query);
+            const query = parsedQuery.jobId ? { job_id: parsedQuery.jobId } : {};
+            const runs = await ScreeningRunModel.find(query)
+                .sort({ createdAt: -1 })
+                .limit(200)
+                .lean();
+            return res.status(200).json({ runs });
+        }
+        catch (error) {
+            if (error instanceof z.ZodError) {
+                return res
+                    .status(400)
+                    .json({ input_error: "Input requirements not fulfilled" });
+            }
+            console.error("Error in screening/runs route:", error);
+            return res.status(500).json({ server_error: "Internal server error" });
+        }
+    });
+    router.get("/runs/:runId/results", async (req, res) => {
+        try {
+            const runId = z.string().min(1).parse(req.params.runId);
+            const run = await ScreeningRunModel.findById(runId).lean();
+            if (!run) {
+                return res.status(404).json({ data_error: "Run not found" });
+            }
+            const results = await ScreeningResultModel.find({
+                screening_run_id: runId,
+            })
+                .sort({ rank: 1 })
+                .lean();
+            return res.status(200).json({ run, results });
+        }
+        catch (error) {
+            if (error instanceof z.ZodError) {
+                return res
+                    .status(400)
+                    .json({ input_error: "Input requirements not fulfilled" });
+            }
+            console.error("Error in screening/runs/:runId/results route:", error);
+            return res.status(500).json({ server_error: "Internal server error" });
+        }
+    });
+    router.get("/jobs/:jobId/results", async (req, res) => {
+        try {
+            const jobId = z.string().min(1).parse(req.params.jobId);
+            const latestRun = await ScreeningRunModel.findOne({ job_id: jobId })
+                .sort({ createdAt: -1 })
+                .lean();
+            if (!latestRun) {
+                return res.status(404).json({ data_error: "No screening run found" });
+            }
+            const results = await ScreeningResultModel.find({
+                screening_run_id: latestRun._id,
+            })
+                .sort({ rank: 1 })
+                .lean();
+            return res.status(200).json({
+                run: latestRun,
+                results,
+            });
+        }
+        catch (error) {
+            if (error instanceof z.ZodError) {
+                return res
+                    .status(400)
+                    .json({ input_error: "Input requirements not fulfilled" });
+            }
+            console.error("Error in screening/jobs/:jobId/results route:", error);
+            return res.status(500).json({ server_error: "Internal server error" });
+        }
+    });
     return router;
 }
 //# sourceMappingURL=screening.js.map

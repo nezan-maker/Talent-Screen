@@ -16,13 +16,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
-let PORT;
-if (env.PORT) {
-    PORT = parseInt(env.PORT || "10000", 10);
-}
-else {
-    throw new Error("Could not load environment variables");
-}
+const PORT = parseInt(process.env.PORT || "10000", 10);
 const serverDebug = debug("app:server");
 const originsFromEnv = env.FRONTEND_ORIGIN?.split(",") || [
     "https://wiserank-lmwy.onrender.com",

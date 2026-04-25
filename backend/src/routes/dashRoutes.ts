@@ -8,6 +8,7 @@ import { middleAuth } from "../middlewares/authMiddleware.js";
 import type { Request, Response } from "express";
 import verdictControl from "../controllers/verdictControl.js";
 import emailingController from "../controllers/shortListEmails.js";
+import shortList from "../controllers/shortList.js";
 
 const storage = multer.memoryStorage();
 export let fieldnames = ["applicants_spreadsheet", "resume_pdf_zip"];
@@ -43,6 +44,7 @@ const dashRoutes = () => {
   router.post("/ask", middleAuth, askGeminiCont);
   router.post("/complete-job", middleAuth, completeJob);
   router.post("/review-result", middleAuth, verdictControl);
+  router.post("/shortlist", middleAuth, shortList, emailingController);
   router.post("/sendEmails", middleAuth, emailingController);
   return router;
 };

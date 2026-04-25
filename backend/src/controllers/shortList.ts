@@ -4,8 +4,11 @@ import Applicant from "../models/Applicant.js";
 import z from "zod";
 import { nextTick } from "node:process";
 export interface Short_AppL {
-  applicant_name: string;
+  first_name: string;
+  last_name: string;
   shortlisted: boolean;
+  job_title: string;
+  email: string;
 }
 const shortList = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -15,7 +18,9 @@ const shortList = async (req: Request, res: Response, next: NextFunction) => {
     const rejected_arr: Short_AppL[] = [];
     for (const json of reqBody) {
       const applicant = await Applicant.findOne({
-        applicant_name: json.applicant_name,
+        first_name: json.first_name,
+        last_name: json.last_name,
+        email: json.email,
       });
       if (!applicant) {
         return res.status(404).json({ data_error: "Applicant not found" });

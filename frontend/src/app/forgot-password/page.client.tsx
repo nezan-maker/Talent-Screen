@@ -249,10 +249,6 @@ export default function ForgotPasswordPage() {
                 {errors.email}
               </p>
             ) : null}
-            <p className="mt-1.5 text-xs text-text-muted">
-              This step calls `POST /auth/forgot` and starts the cookie-based
-              reset session.
-            </p>
           </div>
 
           <Button type="submit" className="h-11 w-full" disabled={busy}>
@@ -291,10 +287,6 @@ export default function ForgotPasswordPage() {
                 {errors.code}
               </p>
             ) : null}
-            <p className="mt-1.5 text-xs text-text-muted">
-              This step calls `POST /auth/verify` and unlocks the password reset
-              session.
-            </p>
           </div>
 
           <div className="flex flex-col gap-3">
@@ -365,10 +357,6 @@ export default function ForgotPasswordPage() {
                 {errors.confirm}
               </p>
             ) : null}
-            <p className="mt-1.5 text-xs text-text-muted">
-              This final step calls `POST /auth/reset` with the reset-session
-              cookie from the verify step.
-            </p>
           </div>
 
           <Button type="submit" className="h-11 w-full" disabled={busy}>

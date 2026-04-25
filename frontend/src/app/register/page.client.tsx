@@ -334,9 +334,6 @@ export default function RegisterPage() {
               className="mt-2 h-11 w-full rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:border-accent/40 focus:ring-2 focus:ring-accent/20"
               placeholder="Enter the 6-digit code"
             />
-            <p className="mt-1.5 text-xs text-text-muted">
-              This step uses your backend `POST /auth/confirm` route and the verification cookie set at signup.
-            </p>
           </div>
 
           <Button type="submit" className="h-11 w-full" disabled={busy}>

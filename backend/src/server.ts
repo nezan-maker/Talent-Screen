@@ -13,10 +13,12 @@ import dashRoutes from "./routes/dashRoutes.js";
 import env from "./config/env.js";
 import aiRoutes from "./services/aiservice.js";
 import { ensureSeedData } from "./services/seedService.js";
+import cors from "cors"
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
+app.set("trust proxy", 1);
 const PORT = parseInt(process.env.PORT || "10000", 10);
 const serverDebug = debug("app:server");
 
@@ -28,34 +30,15 @@ const allowedOrigins = new Set([originsFromEnv, "http://127.0.0.1:3000"]);
 const startServer = async () => {
   await connectDB();
   await ensureSeedData();
-  console.log("After seed");
-  app.use((req, res, next) => {
-    const origin = req.headers.origin;
-
-    if (origin && allowedOrigins.has(origin)) {
-      res.header("Access-Control-Allow-Origin", origin);
-      res.header("Access-Control-Allow-Credentials", "true");
-    }
-
-    res.header("Vary", "Origin");
-    res.header(
-      "Access-Control-Allow-Methods",
-      "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-    );
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Requested-With",
-    );
-
-    if (req.method === "OPTIONS") {
-      return res.sendStatus(204);
-    }
-
-    return next();
-  });
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookie());
+  app.use(
+    cors({
+      origin: ["https://wiserank-lmwy.onrender.com", "http://127.0.0.1:3000"],
+      credentials: true,
+    }),
+  );
   app.use(morgan("dev"));
   app.get("/openapi.json", (req: Request, res: Response) => {
     res.sendFile(path.join(__dirname, "openapi.json"));

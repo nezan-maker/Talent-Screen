@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Nunito, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local"
 import "./globals.css";
 import { AppProviders } from "@/app/providers";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -21,7 +22,10 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
 });
-
+const gresa = localFont({
+    src: "../fonts/Gresa Regular.ttf",
+    variable: "--font-gresa",
+});
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
   ...buildMetadata({
@@ -58,7 +62,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${nunito.variable} ${jetbrainsMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${nunito.variable} ${jetbrainsMono.variable} ${gresa.variable} h-full antialiased`}>
       <body className="min-h-full bg-bg text-text-primary font-sans">
         <ErrorBoundary>
           <AppProviders>{children}</AppProviders>

@@ -9,7 +9,6 @@ import mongoose from "mongoose";
 import axios from "axios";
 import * as pdfLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import Resume from "../models/Resume.js";
-import { fieldnames } from "../routes/dashRoutes.js";
 import { controlDebug } from "./authControl.js";
 import { string } from "zod";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
@@ -154,7 +153,7 @@ const applicantControl = async (req: Request, res: Response) => {
       ];
       if (!applicants_spreadsheet || !pdf_resume_zip) {
         throw new Error("Could not parse uploaded files");
-      }+
+      },
       const isAllowedType: boolean = allowedMimes.includes(
         applicants_spreadsheet.mimetype,
       );
@@ -310,7 +309,8 @@ const applicantControl = async (req: Request, res: Response) => {
             resume_pdf_url: file_url,
           });
           await resume.save();
-          resume_array.push(resume._id);
+          const id = resume._id;
+          resume_array.push(id);
           controlDebug("Pdf successfully uploaded");
         }
 

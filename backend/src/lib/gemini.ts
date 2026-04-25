@@ -362,7 +362,7 @@ export async function screenWithGemini(
     "- strengths and gaps must be concise bullet-like strings.",
     "- recommendation must be recruiter-friendly and action-oriented.",
     "- Be transparent: note missing information as gaps/risks.",
-    "",
+    "- Make sure that all applicants are screened and the results are returned not just the shortlisted",
     "Scoring guidance (suggested weights): skills 40%, experience 30%, education 10%, overall relevance 20%.",
     "",
     "JOB:",

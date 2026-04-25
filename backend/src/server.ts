@@ -17,13 +17,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
-let PORT: number;
-if (env.PORT) {
-  PORT = parseInt(env.PORT || "10000", 10);
-} else {
-  throw new Error("Could not load environment variables");
-}
-
+const PORT = parseInt(process.env.PORT || "10000", 10);
 const serverDebug = debug("app:server");
 
 const originsFromEnv = env.FRONTEND_ORIGIN?.split(",") || [
@@ -73,7 +67,7 @@ const startServer = async () => {
   app.use("/auth", authRoutes());
   app.use("/", dashRoutes());
   app.use("/ai", aiRoutes);
-  app.listen(10000, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     serverDebug(`Server connected on port ${PORT}`);
   });
 };

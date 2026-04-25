@@ -42,6 +42,7 @@ export interface Candidate {
   yearsExperience: number;
   email?: string;
   linkedIn?: string;
+  resumeParsed?: boolean;
   shortlisted?: boolean;
   appliedJobId?: string;
   appliedJobTitle?: string;

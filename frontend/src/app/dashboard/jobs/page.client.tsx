@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Briefcase, ChevronRight, Plus, Search } from "lucide-react";
+import { Briefcase, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { JobsListSkeleton } from "@/components/dashboard/DashboardSkeletons";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -13,6 +13,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { getJobs } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatShortDate } from "@/lib/utils";
+
+const PAGE_SIZE = 5;
 
 function statusBadgeVariant(status: string) {
   if (status === "Screening") return "warning";
@@ -31,6 +33,7 @@ export default function JobsListPage() {
 
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"All" | "Active" | "Screening" | "Draft" | "Complete">("All");
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     const list = jobs ?? [];
@@ -43,6 +46,20 @@ export default function JobsListPage() {
       return matchesStatus && matchesQuery;
     });
   }, [jobs, query, status]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pagedJobs = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, status]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   if (isLoading) {
     return <JobsListSkeleton />;
@@ -113,7 +130,7 @@ export default function JobsListPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((job) => (
+              {pagedJobs.map((job) => (
                 <Link
                   key={job.id}
                   href={`/dashboard/jobs/${job.id}`}
@@ -147,6 +164,37 @@ export default function JobsListPage() {
               ))}
             </div>
           )}
+
+          {!error && filtered.length > 0 ? (
+            <div className="flex flex-col gap-3 border-t border-border pt-4 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-text-muted">
+                Showing {pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filtered.length)} of {filtered.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <div className="min-w-[110px] text-center text-sm font-semibold text-text-primary">
+                  Page {page} of {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardBody>
       </Card>
     </motion.div>

@@ -16,7 +16,7 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react";
-import toast from "react-hot-toast";
+import toast from "@/lib/toast";
 import { askAssistantQuestion, getApiErrorMessage } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -463,3 +463,4 @@ export default function AskRuvoPage() {
     </div>
   );
 }
+

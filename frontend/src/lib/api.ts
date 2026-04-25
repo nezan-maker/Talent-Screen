@@ -16,10 +16,14 @@ import type {
 import { dashboardStatsSchema } from '@/types';
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL || 'mock://local';
+const DEFAULT_API_TIMEOUT_MS = 15_000;
+const AI_REQUEST_TIMEOUT_MS = 60_000;
+const RESUME_UPLOAD_TIMEOUT_MS = 10 * 60_000;
+const SCREENING_RUN_TIMEOUT_MS = 10 * 60_000;
 
 export const api: AxiosInstance = axios.create({
   baseURL,
-  timeout: 15000,
+  timeout: DEFAULT_API_TIMEOUT_MS,
   withCredentials: true,
 });
 
@@ -46,6 +50,15 @@ export type DashboardOverview = {
   applicants: Candidate[];
   jobs: Job[];
   stats: DashboardStats;
+};
+
+export type PaginationMeta = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 };
 
 export type LoginPayload = {
@@ -264,9 +277,9 @@ type CompleteJobResponse = {
 };
 
 type DashboardResponse = DashboardOverview;
-type JobsResponse = { jobs: Job[] };
+type JobsResponse = { jobs: Job[]; pagination?: PaginationMeta };
 type JobResponse = { job: Job };
-type CandidatesResponse = { candidates: Candidate[] };
+type CandidatesResponse = { candidates: Candidate[]; pagination?: PaginationMeta };
 type CandidateResponse = { candidate: Candidate };
 type CurrentUserResponse = { user: AuthUser };
 type RegisterCandidatesResponse = {
@@ -280,6 +293,10 @@ type ResumeUploadResponse = {
   success: string;
   uploadedCount: number;
   applicants: string[];
+  unmatchedCount?: number;
+  unmatchedFiles?: string[];
+  failedCount?: number;
+  failedFiles?: string[];
 };
 
 type ScreeningRunApiResult = {
@@ -308,10 +325,46 @@ type ReviewResultResponse = {
 
 type ScreeningRunsResponse = {
   runs: ScreeningRunSummary[];
+  pagination?: PaginationMeta;
+};
+
+type LatestJobResultsApiResponse = LatestJobResultsResponse & {
+  pagination?: PaginationMeta;
 };
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const BULK_FETCH_PAGE_SIZE = 100;
+const MAX_PAGINATION_REQUESTS = 100;
+
+function normalizePositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  const truncated = Math.trunc(parsed);
+  return truncated > 0 ? truncated : fallback;
+}
+
+function buildFallbackPagination(
+  itemCount: number,
+  page: number,
+  pageSize: number
+): PaginationMeta {
+  const totalItems = Math.max(itemCount, 0);
+  const totalPages = totalItems === 0 ? 1 : Math.ceil(totalItems / pageSize);
+
+  return {
+    page,
+    pageSize,
+    totalItems,
+    totalPages,
+    hasNextPage: totalItems > 0 && page < totalPages,
+    hasPreviousPage: page > 1,
+  };
+}
 
 function normalizeCandidateList(value: string[] | string | undefined) {
   if (!value) {
@@ -689,12 +742,37 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 export async function getJobs(): Promise<Job[]> {
   if (isMockMode()) {
-    const response = await mockGet<JobsResponse>('/jobs');
-    return response.data.jobs;
+    return mockJobs;
   }
 
-  const response = await api.get<JobsResponse>('/jobs');
-  return response.data.jobs;
+  const jobs: Job[] = [];
+  let page = 1;
+
+  for (
+    let requestCount = 0;
+    requestCount < MAX_PAGINATION_REQUESTS;
+    requestCount += 1
+  ) {
+    const response = await api.get<JobsResponse>('/jobs', {
+      params: {
+        page,
+        pageSize: BULK_FETCH_PAGE_SIZE,
+      },
+    });
+    jobs.push(...response.data.jobs);
+
+    const pagination =
+      response.data.pagination ??
+      buildFallbackPagination(response.data.jobs.length, page, BULK_FETCH_PAGE_SIZE);
+
+    if (!pagination.hasNextPage || page >= pagination.totalPages) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return jobs;
 }
 
 export async function getJob(id: string): Promise<Job> {
@@ -709,12 +787,41 @@ export async function getJob(id: string): Promise<Job> {
 
 export async function getCandidates(): Promise<Candidate[]> {
   if (isMockMode()) {
-    const response = await mockGet<CandidatesResponse>('/candidates');
-    return response.data.candidates;
+    return mockCandidates;
   }
 
-  const response = await api.get<CandidatesResponse>('/candidates');
-  return response.data.candidates;
+  const candidates: Candidate[] = [];
+  let page = 1;
+
+  for (
+    let requestCount = 0;
+    requestCount < MAX_PAGINATION_REQUESTS;
+    requestCount += 1
+  ) {
+    const response = await api.get<CandidatesResponse>('/candidates', {
+      params: {
+        page,
+        pageSize: BULK_FETCH_PAGE_SIZE,
+      },
+    });
+    candidates.push(...response.data.candidates);
+
+    const pagination =
+      response.data.pagination ??
+      buildFallbackPagination(
+        response.data.candidates.length,
+        page,
+        BULK_FETCH_PAGE_SIZE
+      );
+
+    if (!pagination.hasNextPage || page >= pagination.totalPages) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return candidates;
 }
 
 export async function getCandidate(id: string): Promise<Candidate> {
@@ -734,16 +841,62 @@ export async function getLatestJobResults(
     return buildMockLatestJobResults(jobId);
   }
 
-  try {
-    const response = await api.get<LatestJobResultsResponse>(`/ai/jobs/${jobId}/results`);
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return null;
+  const aggregatedResults: ScreeningResultApiRecord[] = [];
+  let runSummary: ScreeningRunSummary | null = null;
+  let page = 1;
+
+  for (
+    let requestCount = 0;
+    requestCount < MAX_PAGINATION_REQUESTS;
+    requestCount += 1
+  ) {
+    let response;
+    try {
+      response = await api.get<LatestJobResultsApiResponse>(
+        `/ai/jobs/${jobId}/results`,
+        {
+          params: {
+            page,
+            pageSize: BULK_FETCH_PAGE_SIZE,
+          },
+        }
+      );
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return null;
+      }
+
+      throw error;
     }
 
-    throw error;
+    if (!runSummary) {
+      runSummary = response.data.run;
+    }
+    aggregatedResults.push(...response.data.results);
+
+    const pagination =
+      response.data.pagination ??
+      buildFallbackPagination(
+        response.data.results.length,
+        page,
+        BULK_FETCH_PAGE_SIZE
+      );
+
+    if (!pagination.hasNextPage || page >= pagination.totalPages) {
+      break;
+    }
+
+    page += 1;
   }
+
+  if (!runSummary) {
+    return null;
+  }
+
+  return {
+    run: runSummary,
+    results: aggregatedResults,
+  };
 }
 
 export async function getScreeningRuns(
@@ -754,10 +907,35 @@ export async function getScreeningRuns(
     return results ? [results.run] : [];
   }
 
-  const response = await api.get<ScreeningRunsResponse>('/ai/runs', {
-    params: jobId ? { jobId } : undefined,
-  });
-  return response.data.runs;
+  const runs: ScreeningRunSummary[] = [];
+  let page = 1;
+
+  for (
+    let requestCount = 0;
+    requestCount < MAX_PAGINATION_REQUESTS;
+    requestCount += 1
+  ) {
+    const response = await api.get<ScreeningRunsResponse>('/ai/runs', {
+      params: {
+        ...(jobId ? { jobId } : {}),
+        page,
+        pageSize: BULK_FETCH_PAGE_SIZE,
+      },
+    });
+    runs.push(...response.data.runs);
+
+    const pagination =
+      response.data.pagination ??
+      buildFallbackPagination(response.data.runs.length, page, BULK_FETCH_PAGE_SIZE);
+
+    if (!pagination.hasNextPage || page >= pagination.totalPages) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return runs;
 }
 
 export async function getWorkspaceScreeningIndex(jobIds: string[]) {
@@ -837,8 +1015,27 @@ export async function signupUser(
   return response.data;
 }
 
-export async function confirmSignup(token: string): Promise<ConfirmResponse> {
-  const response = await api.post<ConfirmResponse>('/auth/confirm', { token });
+export async function confirmSignup(
+  token: string,
+  signupToken?: string
+): Promise<ConfirmResponse> {
+  const response = await api.post<ConfirmResponse>('/auth/confirm', {
+    token,
+    ...(signupToken ? { signup_token: signupToken } : {}),
+  });
+  return response.data;
+}
+
+export async function confirmSignupWithLink(
+  confirmationLinkId: string,
+  signupToken?: string
+): Promise<ConfirmResponse> {
+  const response = await api.get<ConfirmResponse>(
+    `/auth/confirm_link/${encodeURIComponent(confirmationLinkId)}`,
+    {
+      params: signupToken ? { signup_token: signupToken } : undefined,
+    }
+  );
   return response.data;
 }
 
@@ -860,7 +1057,8 @@ export async function forgotPassword(
 }
 
 export async function verifyResetCode(
-  token: string
+  token: string,
+  recoveryToken?: string
 ): Promise<VerifyResetCodeResponse> {
   if (isMockMode()) {
     await sleep(350);
@@ -869,6 +1067,7 @@ export async function verifyResetCode(
 
   const response = await api.post<VerifyResetCodeResponse>('/auth/verify', {
     token,
+    ...(recoveryToken ? { recovery_token: recoveryToken } : {}),
   });
   return response.data;
 }
@@ -909,7 +1108,8 @@ export async function createJob(
 }
 
 export async function uploadCandidatesFile(
-  file: File
+  file: File,
+  defaults?: { jobId?: string; jobTitle?: string }
 ): Promise<RegisterCandidatesResponse> {
   if (isMockMode()) {
     await sleep(450);
@@ -923,6 +1123,12 @@ export async function uploadCandidatesFile(
 
   const formData = new FormData();
   formData.append('file', file);
+  if (defaults?.jobId) {
+    formData.append('default_job_id', defaults.jobId);
+  }
+  if (defaults?.jobTitle) {
+    formData.append('default_job_title', defaults.jobTitle);
+  }
 
   const response = await api.post<RegisterCandidatesResponse>(
     '/register-candidates',
@@ -938,7 +1144,8 @@ export async function uploadCandidatesFile(
 }
 
 export async function uploadResumeZip(
-  file: File
+  file: File,
+  defaults?: { jobId?: string; jobTitle?: string }
 ): Promise<ResumeUploadResponse> {
   if (isMockMode()) {
     await sleep(450);
@@ -951,11 +1158,18 @@ export async function uploadResumeZip(
 
   const formData = new FormData();
   formData.append('file', file);
+  if (defaults?.jobId) {
+    formData.append('default_job_id', defaults.jobId);
+  }
+  if (defaults?.jobTitle) {
+    formData.append('default_job_title', defaults.jobTitle);
+  }
 
   const response = await api.post<ResumeUploadResponse>('/resume', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: RESUME_UPLOAD_TIMEOUT_MS,
   });
 
   return response.data;
@@ -1015,6 +1229,8 @@ export async function runScreening(
   const response = await api.post<ScreeningRunResponse>('/ask', {
     jobId,
     jobTitle,
+  }, {
+    timeout: SCREENING_RUN_TIMEOUT_MS,
   });
   const result = response.data.success;
 
@@ -1064,6 +1280,8 @@ export async function askAssistantQuestion(input: {
     ...(typeof input.maxApplicants === 'number'
       ? { maxApplicants: input.maxApplicants }
       : {}),
+  }, {
+    timeout: AI_REQUEST_TIMEOUT_MS,
   });
 
   return response.data;

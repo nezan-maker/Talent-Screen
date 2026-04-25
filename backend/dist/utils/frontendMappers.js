@@ -83,6 +83,7 @@ export function mapApplicantToFrontend(applicant) {
         yearsExperience: inferExperienceYears(experience),
         email: trimText(applicant?.applicant_email ?? applicant?.email) || undefined,
         linkedIn: socialLinks.linkedin || undefined,
+        resumeParsed: Boolean(trimText(applicant?.resume_text)),
         shortlisted: Boolean(applicant?.shortlisted) ||
             trimText(applicant?.applicant_state) === "Shortlisted",
         appliedJobId: trimText(applicant?.job_id) || undefined,

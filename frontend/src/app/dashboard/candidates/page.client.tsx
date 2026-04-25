@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Users } from "lucide-react";
 import { CandidatesListSkeleton } from "@/components/dashboard/DashboardSkeletons";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -13,6 +13,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { getCandidates } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatShortDate, initials } from "@/lib/utils";
+
+const PAGE_SIZE = 5;
 
 export default function CandidatesListPage() {
   const { data: candidates, isLoading, error, refetch } = useQuery({
@@ -24,6 +26,7 @@ export default function CandidatesListPage() {
 
   const [query, setQuery] = useState("");
   const [stage, setStage] = useState<"All" | "Shortlisted" | "In Review">("All");
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     const list = candidates ?? [];
@@ -50,6 +53,20 @@ export default function CandidatesListPage() {
       return matchesStage && matchesQuery;
     });
   }, [candidates, query, stage]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pagedCandidates = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, stage]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   if (isLoading) {
     return <CandidatesListSkeleton />;
@@ -124,7 +141,7 @@ export default function CandidatesListPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filtered.map((candidate) => (
+                  {pagedCandidates.map((candidate) => (
                     <tr key={candidate.id} className="transition-colors hover:bg-bg/40">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -165,6 +182,37 @@ export default function CandidatesListPage() {
               </table>
             </div>
           )}
+
+          {!error && filtered.length > 0 ? (
+            <div className="flex flex-col gap-3 border-t border-border pt-4 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-text-muted">
+                Showing {pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filtered.length)} of {filtered.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <div className="min-w-[110px] text-center text-sm font-semibold text-text-primary">
+                  Page {page} of {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardBody>
       </Card>
     </motion.div>

@@ -8,7 +8,7 @@ import User from "../models/User.js";
 import env from "../config/env.js";
 import { seedApplicants, seedJobs, seedUser } from "../data/seedData.js";
 export async function ensureSeedData() {
-    if (env.AUTO_SEED === "false") {
+    if (!env.AUTO_SEED) {
         return;
     }
     const [users, jobs, applicants] = await Promise.all([

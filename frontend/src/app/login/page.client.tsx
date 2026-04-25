@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import toast from 'react-hot-toast';
+import toast from '@/lib/toast';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/Button';
 import { getApiErrorMessage, loginUser } from '@/lib/api';
@@ -184,11 +184,9 @@ export default function LoginPage() {
         <Button type="submit" className="h-11 w-full" disabled={busy}>
           {busy ? 'Signing in...' : 'Sign in'}
         </Button>
-
-        <p className="text-center text-xs text-text-muted">
-          This screen now uses your backend `POST /auth/login` route.
-        </p>
+        
       </form>
     </AuthShell>
   );
 }
+

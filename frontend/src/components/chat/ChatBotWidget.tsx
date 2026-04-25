@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { MessageSquare, Send, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import toast from "react-hot-toast";
+import toast from "@/lib/toast";
 import { BrandMark } from "@/components/brand/BrandLogo";
 import { Button } from "@/components/ui/Button";
 import { askAssistantQuestion, getApiErrorMessage } from "@/lib/api";
@@ -199,3 +199,4 @@ export function ChatBotWidget() {
     </>
   );
 }
+

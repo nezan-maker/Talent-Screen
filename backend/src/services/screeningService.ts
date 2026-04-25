@@ -188,12 +188,28 @@ export async function evaluateApplicantsForJob(input: {
     const skillNames = skills.map((skill) => skill.name);
     const projectTechnologies = projects.flatMap((project) => project.technologies);
     const experienceTechnologies = experience.flatMap((entry) => entry.technologies);
+    const educationSignals = education
+      .flatMap((item) => [
+        trimText(item.degree),
+        trimText(item.field_of_study),
+        trimText(item.institution),
+      ])
+      .filter(Boolean);
+    const certificationSignals = (applicant?.certifications ?? [])
+      .map((item: any) => trimText(item?.name))
+      .filter(Boolean);
+    const resumeText = trimText(applicant?.resume_text);
+    const additionalSignals = splitList(applicant?.additional_info);
     const evidencePool = [
       ...skillNames,
       ...projectTechnologies,
       ...experienceTechnologies,
+      ...educationSignals,
+      ...certificationSignals,
+      ...additionalSignals,
       trimText(applicant?.headline),
       trimText(applicant?.bio),
+      resumeText,
     ].filter(Boolean);
 
     const matched = jobCriteria.mustHave.filter((item) =>

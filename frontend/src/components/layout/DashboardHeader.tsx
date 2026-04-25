@@ -17,7 +17,7 @@ import {
   Sun,
   Users,
 } from "lucide-react";
-import toast from "react-hot-toast";
+import toast from "@/lib/toast";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -415,3 +415,4 @@ export function DashboardHeader({ showLogo = false }: { showLogo?: boolean }) {
     </header>
   );
 }
+

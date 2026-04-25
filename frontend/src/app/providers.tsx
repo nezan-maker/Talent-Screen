@@ -1,8 +1,8 @@
 "use client";
 
 import { Provider } from "react-redux";
-import { Toaster } from "react-hot-toast";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { AppToaster } from "@/components/ui/AppToaster";
 import { store } from "@/store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/Tooltip";
@@ -16,16 +16,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         <ThemeProvider>
           <TooltipProvider>
             {children}
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                style: {
-                  background: "#FFFFFF",
-                  color: "#0F172A",
-                  border: "1px solid #E2E8F0",
-                },
-              }}
-            />
+            <AppToaster />
           </TooltipProvider>
         </ThemeProvider>
       </Provider>

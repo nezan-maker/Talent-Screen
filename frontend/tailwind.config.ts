@@ -37,7 +37,7 @@ const config: Config = {
       },
       fontFamily: {
         mono: ["var(--font-jetbrains)", "ui-monospace", "SFMono-Regular", "Monaco", "Consolas", "monospace"],
-        sans: ["ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto"],
+        sans: ["var(--font-gresa)","ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto"],
       },
       animation: {
         "fade-in": "fadeIn 0.5s ease-in-out",

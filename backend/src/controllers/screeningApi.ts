@@ -1,12 +1,18 @@
 import type { Request, Response } from "express";
-import nodemailer from "nodemailer";
 import Applicant from "../models/Applicant.js";
 import Job from "../models/Job.js";
+import Resume from "../models/Resume.js";
 import { ScreeningResultModel } from "../models/ScreenResult.js";
 import ScreeningRunModel from "../models/ScreeningRun.js";
 import env from "../config/env.js";
 import { askRecruiterAssistant } from "../lib/gemini.js";
+import {
+  buildRejectedApplicantEmail,
+  buildShortlistedApplicantEmail,
+} from "../lib/emailTemplates.js";
+import { sendMailIfConfigured } from "../lib/mailer.js";
 import { evaluateApplicantsForJob } from "../services/screeningService.js";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 import { trimText } from "../utils/talentProfile.js";
 import {
   isMongoTransientError,
@@ -18,7 +24,90 @@ function latestRunSummary(jobTitle: string, shortlist: Awaited<ReturnType<typeof
   return `Screened ${shortlist.length} top candidates for ${jobTitle}. Shortlist ready for recruiter review: ${topNames || "none"}.`;
 }
 
+function buildApplicantJobQuery(job: { _id?: string; job_title?: string }) {
+  const jobId = trimText(job?._id);
+  const jobTitle = trimText(job?.job_title);
+  const scopedFilters = [
+    ...(jobId ? [{ job_id: jobId }] : []),
+    ...(jobTitle ? [{ job_title: jobTitle }] : []),
+  ];
+
+  if (scopedFilters.length === 0) {
+    return {};
+  }
+
+  if (scopedFilters.length === 1) {
+    return scopedFilters[0];
+  }
+
+  return { $or: scopedFilters };
+}
+
+async function hydrateApplicantsWithResumeText(job: any, applicants: any[]) {
+  const applicantsMissingResumeText = applicants
+    .filter((item) => !trimText(item?.resume_text))
+    .map((item) => trimText(item?._id))
+    .filter(Boolean);
+
+  if (applicantsMissingResumeText.length === 0) {
+    return applicants;
+  }
+
+  const resumeScope = buildApplicantJobQuery(job);
+  const resumeFilters = {
+    applicant_id: { $in: applicantsMissingResumeText },
+    ...resumeScope,
+  };
+  const resumes = await Resume.find(resumeFilters)
+    .select({ applicant_id: 1, parsed_text: 1, updatedAt: 1 })
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  if (resumes.length === 0) {
+    return applicants;
+  }
+
+  const resumeTextByApplicantId = new Map<string, string>();
+  for (const resume of resumes) {
+    const applicantId = trimText((resume as any)?.applicant_id);
+    const parsedText = trimText((resume as any)?.parsed_text);
+    if (!applicantId || !parsedText || resumeTextByApplicantId.has(applicantId)) {
+      continue;
+    }
+
+    resumeTextByApplicantId.set(applicantId, parsedText);
+  }
+
+  if (resumeTextByApplicantId.size === 0) {
+    return applicants;
+  }
+
+  await Promise.all(
+    Array.from(resumeTextByApplicantId.entries()).map(([applicantId, resumeText]) =>
+      Applicant.findByIdAndUpdate(applicantId, { resume_text: resumeText }),
+    ),
+  );
+
+  return applicants.map((applicant) => {
+    const applicantId = trimText(applicant?._id);
+    if (!applicantId || trimText(applicant?.resume_text)) {
+      return applicant;
+    }
+
+    const resumeText = resumeTextByApplicantId.get(applicantId);
+    if (!resumeText) {
+      return applicant;
+    }
+
+    return {
+      ...applicant,
+      resume_text: resumeText,
+    };
+  });
+}
+
 export async function runScreening(req: Request, res: Response) {
+  let runId = "";
   try {
     const jobId = trimText(req.body?.jobId ?? req.body?.job_id);
     const jobTitle = trimText(req.body?.jobTitle ?? req.body?.job_title);
@@ -32,9 +121,7 @@ export async function runScreening(req: Request, res: Response) {
       });
     }
 
-    const applicants = await Applicant.find({
-      ...(job._id ? { job_id: job._id } : { job_title: job.job_title }),
-    }).lean();
+    const applicants = await Applicant.find(buildApplicantJobQuery(job)).lean();
 
     if (applicants.length === 0) {
       return res.status(404).json({
@@ -42,20 +129,26 @@ export async function runScreening(req: Request, res: Response) {
       });
     }
 
+    const hydratedApplicants = await hydrateApplicantsWithResumeText(
+      job,
+      applicants,
+    );
+
     const run = await ScreeningRunModel.create({
       job_id: job._id,
       job_title: job.job_title,
-      applicant_ids: applicants.map((applicant) => applicant._id),
+      applicant_ids: hydratedApplicants.map((applicant) => applicant._id),
       topK: Number(job.job_shortlist_size) === 20 ? 20 : 10,
       status: "running",
       model: env.GOOGLE_AI_MODEL || "deterministic+gemini",
       started_at: new Date(),
     });
+    runId = trimText(run._id);
 
     const evaluated = await evaluateApplicantsForJob({
       runId: run._id,
       job,
-      applicants,
+      applicants: hydratedApplicants,
       topK: run.topK,
     });
 
@@ -93,7 +186,7 @@ export async function runScreening(req: Request, res: Response) {
         applicants_details: evaluated.shortlist.map((item) => ({
           applicant_id: item.candidate_id,
           applicant_name:
-            applicants.find((applicant) => applicant._id === item.candidate_id)
+            hydratedApplicants.find((applicant) => applicant._id === item.candidate_id)
               ?.applicant_name ?? "Candidate",
           applicant_marks: item.overall.score,
           applicant_specification_relevance: {
@@ -106,6 +199,13 @@ export async function runScreening(req: Request, res: Response) {
       },
     });
   } catch (error) {
+    if (runId) {
+      await ScreeningRunModel.findByIdAndUpdate(runId, {
+        status: "failed",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+
     console.error("Error in runScreening:", error);
     return res.status(500).json({ server_error: "Internal server error" });
   }
@@ -115,11 +215,20 @@ export async function getScreeningRuns(req: Request, res: Response) {
   try {
     const jobId = trimText(req.query.jobId);
     const query = jobId ? { job_id: jobId } : {};
-    const runs = await ScreeningRunModel.find(query)
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
-    return res.status(200).json({ runs });
+    const { page, pageSize, skip, limit } = parsePagination(req.query);
+    const [totalRuns, runs] = await Promise.all([
+      ScreeningRunModel.countDocuments(query),
+      ScreeningRunModel.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    return res.status(200).json({
+      runs,
+      pagination: buildPaginationMeta(totalRuns, page, pageSize),
+    });
   } catch (error) {
     console.error("Error in getScreeningRuns:", error);
     return res.status(500).json({ server_error: "Internal server error" });
@@ -129,16 +238,27 @@ export async function getScreeningRuns(req: Request, res: Response) {
 export async function getScreeningRunById(req: Request, res: Response) {
   try {
     const runId = trimText(req.params.runId);
-    const [run, results] = await Promise.all([
-      ScreeningRunModel.findById(runId).lean(),
-      ScreeningResultModel.find({ screening_run_id: runId }).sort({ rank: 1 }).lean(),
-    ]);
+    const { page, pageSize, skip, limit } = parsePagination(req.query);
+    const run = await ScreeningRunModel.findById(runId).lean();
 
     if (!run) {
       return res.status(404).json({ data_error: "Run not found" });
     }
 
-    return res.status(200).json({ run, results });
+    const [totalResults, results] = await Promise.all([
+      ScreeningResultModel.countDocuments({ screening_run_id: runId }),
+      ScreeningResultModel.find({ screening_run_id: runId })
+        .sort({ rank: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    return res.status(200).json({
+      run,
+      results,
+      pagination: buildPaginationMeta(totalResults, page, pageSize),
+    });
   } catch (error) {
     console.error("Error in getScreeningRunById:", error);
     return res.status(500).json({ server_error: "Internal server error" });
@@ -148,6 +268,7 @@ export async function getScreeningRunById(req: Request, res: Response) {
 export async function getLatestJobResults(req: Request, res: Response) {
   try {
     const jobId = trimText(req.params.jobId);
+    const { page, pageSize, skip, limit } = parsePagination(req.query);
     const job = await withMongoTransientRetry(() =>
       Job.findById(jobId)
         .select({ _id: 1, job_title: 1, job_state: 1 })
@@ -176,17 +297,27 @@ export async function getLatestJobResults(req: Request, res: Response) {
       });
     }
 
-    const results = await withMongoTransientRetry(() =>
-      ScreeningResultModel.find({
-        screening_run_id: latestRun._id,
-      })
-        .sort({ rank: 1 })
-        .lean(),
-    );
+    const [totalResults, results] = await Promise.all([
+      withMongoTransientRetry(() =>
+        ScreeningResultModel.countDocuments({
+          screening_run_id: latestRun._id,
+        }),
+      ),
+      withMongoTransientRetry(() =>
+        ScreeningResultModel.find({
+          screening_run_id: latestRun._id,
+        })
+          .sort({ rank: 1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+      ),
+    ]);
 
     return res.status(200).json({
       run: latestRun,
       results,
+      pagination: buildPaginationMeta(totalResults, page, pageSize),
     });
   } catch (error) {
     console.error("Error in getLatestJobResults:", error);
@@ -246,44 +377,79 @@ export async function sendEmails(req: Request, res: Response) {
       return res.status(400).json({ data_error: "No job name provided" });
     }
 
-    const applicants = await Applicant.find({
-      shortlisted: true,
-      job_title: jobTitle,
-    }).lean();
+    const applicants = await Applicant.find({ job_title: jobTitle }).lean();
+    const shortlistedApplicants = applicants.filter((applicant) => {
+      const state = trimText(applicant.applicant_state).toLowerCase();
+      return Boolean(applicant.shortlisted) || state === "shortlisted";
+    });
+    const rejectedApplicants = applicants.filter((applicant) => {
+      const state = trimText(applicant.applicant_state).toLowerCase();
+      return state === "rejected";
+    });
 
-    let sentCount = 0;
-    if (env.USER_EMAIL && env.USER_PASS) {
-      const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        auth: {
-          user: env.USER_EMAIL,
-          pass: env.USER_PASS,
-        },
-      });
+    let shortlistedSentCount = 0;
+    let rejectedSentCount = 0;
 
-      for (const applicant of applicants) {
-        try {
-          await transporter.sendMail({
-            from: env.USER_EMAIL,
-            to: applicant.applicant_email,
-            subject: `Talvo shortlist update for ${jobTitle}`,
-            text: `Hello ${applicant.applicant_name}, you have been shortlisted for ${jobTitle}.`,
-          });
-          sentCount += 1;
-        } catch (error) {
-          console.error("Error sending shortlist email:", error);
-        }
+    for (const applicant of shortlistedApplicants) {
+      const recipient = trimText(applicant.applicant_email || applicant.email);
+      if (!recipient) {
+        continue;
       }
-    } else {
-      sentCount = applicants.length;
+
+      const mail = buildShortlistedApplicantEmail({
+        applicantName: trimText(applicant.applicant_name) || "Applicant",
+        jobTitle,
+      });
+      const sent = await sendMailIfConfigured({
+        to: recipient,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      });
+      if (sent) {
+        shortlistedSentCount += 1;
+      }
     }
 
+    for (const applicant of rejectedApplicants) {
+      const recipient = trimText(applicant.applicant_email || applicant.email);
+      if (!recipient) {
+        continue;
+      }
+
+      const mail = buildRejectedApplicantEmail({
+        applicantName: trimText(applicant.applicant_name) || "Applicant",
+        jobTitle,
+      });
+      const sent = await sendMailIfConfigured({
+        to: recipient,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      });
+      if (sent) {
+        rejectedSentCount += 1;
+      }
+    }
+
+    const sentCount =
+      env.USER_EMAIL && env.USER_PASS
+        ? shortlistedSentCount + rejectedSentCount
+        : shortlistedApplicants.length + rejectedApplicants.length;
+
     return res.status(200).json({
-      success: "Shortlist emails processed successfully",
+      success: "Applicant outcome emails processed successfully",
       sentCount,
-      shortlistedCount: applicants.length,
+      shortlistedCount: shortlistedApplicants.length,
+      rejectedCount: rejectedApplicants.length,
+      shortlistedSentCount:
+        env.USER_EMAIL && env.USER_PASS
+          ? shortlistedSentCount
+          : shortlistedApplicants.length,
+      rejectedSentCount:
+        env.USER_EMAIL && env.USER_PASS
+          ? rejectedSentCount
+          : rejectedApplicants.length,
     });
   } catch (error) {
     console.error("Error in sendEmails:", error);

@@ -1,6 +1,5 @@
 import mongoose, { Schema } from "mongoose";
 import { buildEntityId } from "../utils/ids.js";
-
 const criterionSchema = new Schema(
   {
     criteria_string: { type: String, required: true },
@@ -29,7 +28,7 @@ const jobSchema = new mongoose.Schema(
       type: String,
       required: true,
       index: true,
-    },
+},
     job_department: {
       type: String,
       required: true,
@@ -100,7 +99,6 @@ const jobSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-
 const Job = mongoose.model("Job", jobSchema);
 
 export default Job;

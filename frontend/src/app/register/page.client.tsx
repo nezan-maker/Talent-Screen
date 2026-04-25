@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import toast from "react-hot-toast";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import toast from "@/lib/toast";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
-import { confirmSignup, getApiErrorMessage, signupUser } from "@/lib/api";
+import {
+  confirmSignup,
+  confirmSignupWithLink,
+  getApiErrorMessage,
+  signupUser,
+} from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 
 const isValidEmail = (email: string) => {
@@ -20,6 +25,8 @@ const isStrongPassword = (password: string) => {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoConfirmHandledRef = useRef(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,6 +48,22 @@ export default function RegisterPage() {
   }>({});
   const [busy, setBusy] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const signupTokenFromLink = useMemo(
+    () => searchParams.get("signup_token")?.trim() ?? "",
+    [searchParams]
+  );
+  const confirmationLinkId = useMemo(
+    () => searchParams.get("confirmation_link_id")?.trim() ?? "",
+    [searchParams]
+  );
+  const emailFromLink = useMemo(
+    () => searchParams.get("email")?.trim() ?? "",
+    [searchParams]
+  );
+  const otpFromLink = useMemo(
+    () => searchParams.get("confirm_otp")?.trim() ?? "",
+    [searchParams]
+  );
 
   const validateForm = () => {
     const newErrors: typeof errors = {};
@@ -150,7 +173,7 @@ export default function RegisterPage() {
     setBusy(true);
 
     try {
-      await confirmSignup(code);
+      await confirmSignup(code, signupTokenFromLink || undefined);
       toast.success("Account verified successfully.");
       router.push(ROUTES.dashboard);
     } catch (error) {
@@ -159,6 +182,71 @@ export default function RegisterPage() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (
+      autoConfirmHandledRef.current ||
+      !signupTokenFromLink ||
+      !confirmationLinkId
+    ) {
+      return;
+    }
+
+    autoConfirmHandledRef.current = true;
+    if (emailFromLink) {
+      setPendingEmail(emailFromLink);
+    }
+    setBusy(true);
+
+    void (async () => {
+      try {
+        await confirmSignupWithLink(confirmationLinkId, signupTokenFromLink);
+        toast.success("Account verified successfully.");
+        router.push(ROUTES.dashboard);
+      } catch (error) {
+        setAwaitingVerification(true);
+        if (emailFromLink) {
+          setPendingEmail(emailFromLink);
+        }
+        if (otpFromLink) {
+          setVerificationCode(otpFromLink);
+        }
+        toast.error(
+          getApiErrorMessage(
+            error,
+            "Confirmation link could not be completed. Please use the OTP code."
+          )
+        );
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [
+    confirmationLinkId,
+    emailFromLink,
+    otpFromLink,
+    router,
+    signupTokenFromLink,
+  ]);
+
+  useEffect(() => {
+    if (confirmationLinkId || !signupTokenFromLink) {
+      return;
+    }
+
+    setAwaitingVerification(true);
+    if (emailFromLink) {
+      setPendingEmail(emailFromLink);
+    }
+    if (otpFromLink) {
+      setVerificationCode(otpFromLink);
+    }
+  }, [
+    confirmationLinkId,
+    emailFromLink,
+    otpFromLink,
+    signupTokenFromLink,
+  ]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -402,3 +490,4 @@ export default function RegisterPage() {
     </AuthShell>
   );
 }
+

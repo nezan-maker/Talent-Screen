@@ -1,9 +1,10 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import { z } from "zod";
 import env from "../config/env.js";
+import { buildPasswordRecoveryEmail, buildSignupVerificationEmail, } from "../lib/emailTemplates.js";
+import { sendMailIfConfigured } from "../lib/mailer.js";
 import User from "../models/User.js";
 import { inferDefaultCompanyName, mapUserToFrontend, } from "../utils/frontendMappers.js";
 const passwordSchema = z
@@ -26,6 +27,11 @@ const forgotPayloadSchema = z.object({
 });
 const confirmPayloadSchema = z.object({
     token: z.string().trim().regex(/^\d{6}$/),
+    signup_token: z.string().trim().min(1).optional(),
+});
+const verifyCodePayloadSchema = z.object({
+    token: z.string().trim().regex(/^\d{6}$/),
+    recovery_token: z.string().trim().min(1).optional(),
 });
 const resetPayloadSchema = z.object({
     user_pass: passwordSchema,
@@ -62,31 +68,6 @@ function clearSessionCookies(res) {
         "reset_reference_token",
     ]) {
         res.clearCookie(name, { sameSite: "lax", httpOnly: true });
-    }
-}
-async function sendEmailIfConfigured(options) {
-    if (!env.USER_EMAIL || !env.USER_PASS) {
-        return false;
-    }
-    try {
-        const transporter = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 587,
-            secure: false,
-            auth: {
-                user: env.USER_EMAIL,
-                pass: env.USER_PASS,
-            },
-        });
-        await transporter.sendMail({
-            from: env.USER_EMAIL,
-            ...options,
-        });
-        return true;
-    }
-    catch (error) {
-        console.error("Email delivery skipped:", error);
-        return false;
     }
 }
 function signSignupToken(userId) {
@@ -139,6 +120,15 @@ function extractVerifyToken(body) {
     }
     return "";
 }
+function toStringValue(value) {
+    if (typeof value === "string") {
+        return value.trim();
+    }
+    if (Array.isArray(value) && typeof value[0] === "string") {
+        return value[0].trim();
+    }
+    return "";
+}
 async function finalizeConfirmation(res, user) {
     user.isVerified = true;
     user.sign_otp_token = null;
@@ -178,11 +168,18 @@ export const signUp = async (req, res) => {
         });
         const signupReferenceToken = signSignupToken(newUser._id.toString());
         res.cookie("signup_reference_token", signupReferenceToken, getCookieOptions(10 * 60 * 1000));
-        const emailSent = await sendEmailIfConfigured({
+        const verificationEmail = buildSignupVerificationEmail({
+            userName: newUser.user_name,
+            userEmail: newUser.user_email,
+            otpCode: otpToken,
+            signupToken: signupReferenceToken,
+            confirmationLinkId: newUser.confirmation_link_id,
+        });
+        const emailSent = await sendMailIfConfigured({
             to: newUser.user_email,
-            subject: "Confirm your WiseRank account",
-            text: `Your WiseRank verification code is ${otpToken}.`,
-            html: `<p>Your WiseRank verification code is <strong>${otpToken}</strong>.</p>`,
+            subject: verificationEmail.subject,
+            text: verificationEmail.text,
+            html: verificationEmail.html,
         });
         return res.status(201).json({
             success: "Sign up successful",
@@ -205,8 +202,11 @@ export const confirm = async (req, res) => {
     try {
         const payload = confirmPayloadSchema.parse({
             token: extractVerifyToken(req.body),
+            signup_token: toStringValue(req.body?.signup_token) ||
+                toStringValue(req.body?.signupToken),
         });
-        const signupReferenceToken = req.cookies.signup_reference_token;
+        const signupReferenceToken = payload.signup_token ||
+            toStringValue(req.cookies?.signup_reference_token);
         if (!signupReferenceToken) {
             return res
                 .status(401)
@@ -236,7 +236,9 @@ export const confirm = async (req, res) => {
 };
 export const confirm_get = async (req, res) => {
     try {
-        const signupReferenceToken = req.cookies.signup_reference_token;
+        const signupReferenceToken = toStringValue(req.query?.signup_token) ||
+            toStringValue(req.query?.signupToken) ||
+            toStringValue(req.cookies?.signup_reference_token);
         const confirmationId = String(req.params.confirmation_link_id ?? "").trim();
         if (!signupReferenceToken || !confirmationId) {
             return res
@@ -305,11 +307,17 @@ export const forgot = async (req, res) => {
         await user.save();
         const recoveryReferenceToken = signRecoveryToken(user._id.toString());
         res.cookie("recovery_reference_token", recoveryReferenceToken, getCookieOptions(10 * 60 * 1000));
-        const emailSent = await sendEmailIfConfigured({
+        const recoveryEmail = buildPasswordRecoveryEmail({
+            userName: user.user_name,
+            userEmail: user.user_email,
+            otpCode: otpToken,
+            recoveryToken: recoveryReferenceToken,
+        });
+        const emailSent = await sendMailIfConfigured({
             to: user.user_email,
-            subject: "Reset your WiseRank password",
-            text: `Your WiseRank reset code is ${otpToken}.`,
-            html: `<p>Your WiseRank reset code is <strong>${otpToken}</strong>.</p>`,
+            subject: recoveryEmail.subject,
+            text: recoveryEmail.text,
+            html: recoveryEmail.html,
         });
         return res.status(200).json({
             success: "Reset code generated successfully",
@@ -328,10 +336,13 @@ export const forgot = async (req, res) => {
 };
 export const verifyCode = async (req, res) => {
     try {
-        const payload = confirmPayloadSchema.parse({
+        const payload = verifyCodePayloadSchema.parse({
             token: extractVerifyToken(req.body),
+            recovery_token: toStringValue(req.body?.recovery_token) ||
+                toStringValue(req.body?.recoveryToken),
         });
-        const recoveryReferenceToken = req.cookies.recovery_reference_token;
+        const recoveryReferenceToken = payload.recovery_token ||
+            toStringValue(req.cookies?.recovery_reference_token);
         if (!recoveryReferenceToken) {
             return res
                 .status(401)

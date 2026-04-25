@@ -29,7 +29,8 @@ const certificationSchema = new Schema({
     name: { type: String, default: "" },
     issuer: { type: String, default: "" },
     issue_date: { type: String, default: "" },
-}, { _id: false });
+    applicant_email: { type: String, default: "" },
+});
 const projectSchema = new Schema({
     name: { type: String, default: "" },
     description: { type: String, default: "" },

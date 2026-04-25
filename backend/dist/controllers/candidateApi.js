@@ -1,11 +1,21 @@
 import Applicant from "../models/Applicant.js";
 import { mapApplicantToFrontend } from "../utils/frontendMappers.js";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 import { trimText } from "../utils/talentProfile.js";
-export async function getCandidates(_req, res) {
+export async function getCandidates(req, res) {
     try {
-        const applicants = await Applicant.find().sort({ updatedAt: -1, createdAt: -1 }).lean();
+        const { page, pageSize, skip, limit } = parsePagination(req.query);
+        const [totalCandidates, applicants] = await Promise.all([
+            Applicant.countDocuments(),
+            Applicant.find()
+                .sort({ updatedAt: -1, createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+        ]);
         return res.status(200).json({
             candidates: applicants.map(mapApplicantToFrontend),
+            pagination: buildPaginationMeta(totalCandidates, page, pageSize),
         });
     }
     catch (error) {

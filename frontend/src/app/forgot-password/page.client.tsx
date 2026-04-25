@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import toast from 'react-hot-toast';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import toast from '@/lib/toast';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/Button';
 import {
@@ -37,6 +37,8 @@ function inputClass(hasError?: boolean) {
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const recoveryLinkHandledRef = useRef(false);
   const [step, setStep] = useState<Step>('request');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -49,6 +51,18 @@ export default function ForgotPasswordPage() {
     password?: string;
     confirm?: string;
   }>({});
+  const emailFromLink = useMemo(
+    () => searchParams.get('email')?.trim() ?? '',
+    [searchParams]
+  );
+  const codeFromLink = useMemo(
+    () => searchParams.get('reset_code')?.trim() ?? '',
+    [searchParams]
+  );
+  const recoveryTokenFromLink = useMemo(
+    () => searchParams.get('recovery_token')?.trim() ?? '',
+    [searchParams]
+  );
 
   async function handleRequestReset(event: React.FormEvent) {
     event.preventDefault();
@@ -91,7 +105,10 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  async function handleVerifyCode(codeOverride?: string) {
+  async function handleVerifyCode(
+    codeOverride?: string,
+    recoveryTokenOverride?: string
+  ) {
     const token = (codeOverride ?? code).trim();
     const nextErrors: typeof errors = {};
 
@@ -107,7 +124,10 @@ export default function ForgotPasswordPage() {
     setBusy(true);
 
     try {
-      await verifyResetCode(token);
+      await verifyResetCode(
+        token,
+        recoveryTokenOverride || recoveryTokenFromLink || undefined
+      );
       toast.success('Code verified. Set a new password.');
       setCode(token);
       setStep('reset');
@@ -120,6 +140,33 @@ export default function ForgotPasswordPage() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!emailFromLink) {
+      return;
+    }
+
+    setEmail((current) => (current ? current : emailFromLink));
+  }, [emailFromLink]);
+
+  useEffect(() => {
+    if (
+      recoveryLinkHandledRef.current ||
+      !codeFromLink ||
+      !recoveryTokenFromLink
+    ) {
+      return;
+    }
+
+    recoveryLinkHandledRef.current = true;
+    if (emailFromLink) {
+      setEmail(emailFromLink);
+    }
+    setStep('verify');
+    setCode(codeFromLink);
+
+    void handleVerifyCode(codeFromLink, recoveryTokenFromLink);
+  }, [codeFromLink, emailFromLink, recoveryTokenFromLink]);
 
   async function handleResetPassword(event: React.FormEvent) {
     event.preventDefault();
@@ -332,3 +379,4 @@ export default function ForgotPasswordPage() {
     </AuthShell>
   );
 }
+

@@ -1,6 +1,7 @@
 import Job from "../models/Job.js";
 import Applicant from "../models/Applicant.js";
 import { mapApplicantToFrontend, mapJobToFrontend } from "../utils/frontendMappers.js";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 import { parseJobCriteria, trimText } from "../utils/talentProfile.js";
 function buildExampleForm(payload) {
     const criteria = parseJobCriteria(payload.job_ai_criteria);
@@ -20,15 +21,22 @@ function extractPayload(body) {
     }
     return (body ?? {});
 }
-export async function getJobs(_req, res) {
+export async function getJobs(req, res) {
     try {
-        const [jobs, applicants] = await Promise.all([
-            Job.find().sort({ updatedAt: -1, createdAt: -1 }).lean(),
+        const { page, pageSize, skip, limit } = parsePagination(req.query);
+        const [totalJobs, jobs, applicants] = await Promise.all([
+            Job.countDocuments(),
+            Job.find()
+                .sort({ updatedAt: -1, createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
             Applicant.find().sort({ updatedAt: -1, createdAt: -1 }).lean(),
         ]);
         const mappedApplicants = applicants.map(mapApplicantToFrontend);
         return res.status(200).json({
             jobs: jobs.map((job) => mapJobToFrontend(job, mappedApplicants)),
+            pagination: buildPaginationMeta(totalJobs, page, pageSize),
         });
     }
     catch (error) {

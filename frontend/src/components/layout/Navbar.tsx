@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { LogOut, ShieldCheck } from "lucide-react";
-import toast from "react-hot-toast";
+import toast from "@/lib/toast";
 import { Badge } from "@/components/ui/Badge";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -115,3 +115,4 @@ export function Navbar() {
     </div>
   );
 }
+

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import toast from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { DashboardOverviewSkeleton } from "@/components/dashboard/DashboardSkeletons";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -453,3 +453,4 @@ export default function DashboardPage() {
     </motion.div>
   );
 }
+

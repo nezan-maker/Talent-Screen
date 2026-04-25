@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { ROUTES } from "@/lib/constants";
 import { useState } from "react";
-import toast from "react-hot-toast";
+import toast from "@/lib/toast";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 
 export default function ContactPage() {
@@ -114,7 +114,10 @@ export default function ContactPage() {
     try {
       // Simulate form submission
       await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success("Message sent successfully! We'll get back to you soon.");
+      toast.success({
+        title: "Message Sent",
+        description: "Your message has been sent. We'll get back to you soon.",
+      });
       setFormData({ name: "", email: "", subject: "", message: "" });
       setTouched({});
     } catch {
@@ -404,3 +407,4 @@ export default function ContactPage() {
     </div>
   );
 }
+

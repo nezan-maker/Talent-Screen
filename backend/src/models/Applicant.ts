@@ -47,10 +47,9 @@ const certificationSchema = new Schema(
     name: { type: String, default: "" },
     issuer: { type: String, default: "" },
     issue_date: { type: String, default: "" },
-  },
-  { _id: false },
-);
-
+  applicant_email: {type:String,default:"" },
+  }
+)
 const projectSchema = new Schema(
   {
     name: { type: String, default: "" },
@@ -73,13 +72,17 @@ const availabilitySchema = new Schema(
   { _id: false },
 );
 
-const socialLinksSchema = new Schema(
-  {
+const socialLinksSchema = new Schema({
+  
+
+  
     linkedin: { type: String, default: "" },
     github: { type: String, default: "" },
     portfolio: { type: String, default: "" },
-  },
+},
+
   { _id: false },
+
 );
 
 const applicantSchema = new mongoose.Schema(

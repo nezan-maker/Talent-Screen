@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
+import toast from "@/lib/toast";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -742,7 +742,7 @@ export default function NewJobPage() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      toast("Draft saving is not available in the current backend yet.", { icon: "i" });
+                      toast.info("Draft saving is not available in the current backend yet.");
                     }}
                   >
                     Save as Draft
@@ -774,3 +774,4 @@ export default function NewJobPage() {
     </motion.div>
   );
 }
+

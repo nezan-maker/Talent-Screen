@@ -41,6 +41,7 @@ type FrontendCandidate = {
   yearsExperience: number;
   email?: string | undefined;
   linkedIn?: string | undefined;
+  resumeParsed?: boolean | undefined;
   shortlisted: boolean;
   appliedJobId?: string | undefined;
   appliedJobTitle: string;
@@ -196,6 +197,7 @@ export function mapApplicantToFrontend(applicant: any): FrontendCandidate {
     yearsExperience: inferExperienceYears(experience),
     email: trimText(applicant?.applicant_email ?? applicant?.email) || undefined,
     linkedIn: socialLinks.linkedin || undefined,
+    resumeParsed: Boolean(trimText(applicant?.resume_text)),
     shortlisted:
       Boolean(applicant?.shortlisted) ||
       trimText(applicant?.applicant_state) === "Shortlisted",

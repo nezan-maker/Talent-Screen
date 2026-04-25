@@ -4,8 +4,13 @@ import { z } from "zod";
 import env from "../config/env.js";
 import {
   inferExperienceYears,
+  normalizeAvailability,
+  normalizeCertifications,
   normalizeEducation,
   normalizeExperience,
+  normalizeLanguages,
+  normalizeProjects,
+  normalizeSocialLinks,
   normalizeSkills,
   parseJobCriteria,
   splitList,
@@ -84,6 +89,18 @@ const MODEL_FALLBACKS = [
   "gemini-flash-latest",
   "gemini-2.0-flash",
 ];
+const GEMINI_REQUEST_TIMEOUT_MS = 60_000;
+
+export type ParsedResumeObjectFields = {
+  skills: ReturnType<typeof normalizeSkills>;
+  languages: ReturnType<typeof normalizeLanguages>;
+  experience: ReturnType<typeof normalizeExperience>;
+  education: ReturnType<typeof normalizeEducation>;
+  certifications: ReturnType<typeof normalizeCertifications>;
+  projects: ReturnType<typeof normalizeProjects>;
+  availability?: ReturnType<typeof normalizeAvailability>;
+  social_links?: ReturnType<typeof normalizeSocialLinks>;
+};
 
 function parseYearsFromText(value: unknown) {
   const text = trimText(value);
@@ -125,6 +142,24 @@ function shouldFallbackModel(error: unknown) {
     message.includes("not supported for generatecontent") ||
     message.includes("listmodels")
   );
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutHandle = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        clearTimeout(timeoutHandle);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timeoutHandle);
+        reject(error);
+      });
+  });
 }
 
 function resolveAuthOrNull(input?: {
@@ -172,7 +207,11 @@ async function generateWithGemini(
     for (const modelName of modelsToTry) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent(opts.prompt);
+        const result = await withTimeout(
+          model.generateContent(opts.prompt),
+          GEMINI_REQUEST_TIMEOUT_MS,
+          `Gemini request timed out after ${GEMINI_REQUEST_TIMEOUT_MS / 1000} seconds.`,
+        );
         return result.response.text().trim();
       } catch (error) {
         lastError = error;
@@ -188,14 +227,18 @@ async function generateWithGemini(
 
   const vertex = new VertexAI({ project: opts.projectId, location: opts.location });
   const model = vertex.getGenerativeModel({ model: opts.model });
-  const result = await model.generateContent({
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: opts.prompt }],
-      },
-    ],
-  });
+  const result = await withTimeout<any>(
+    model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: opts.prompt }],
+        },
+      ],
+    }),
+    GEMINI_REQUEST_TIMEOUT_MS,
+    `Gemini request timed out after ${GEMINI_REQUEST_TIMEOUT_MS / 1000} seconds.`,
+  );
 
   const text =
     result.response.candidates?.[0]?.content?.parts
@@ -389,6 +432,127 @@ export async function assistantWithGemini(
   const jsonText = extractFirstJsonObject(text);
   const parsed = JSON.parse(jsonText) as unknown;
   return assistantOutputSchema.parse(parsed);
+}
+
+export async function parseResumeObjectFieldsWithGemini(
+  opts: GeminiAuth & {
+    model: string;
+    resumeText: string;
+    applicantName?: string;
+    jobTitle?: string;
+  },
+): Promise<ParsedResumeObjectFields | null> {
+  const resumeText = trimText(opts.resumeText);
+  if (!resumeText) {
+    return null;
+  }
+
+  const prompt = [
+    "You are an expert resume parser for recruiter data ingestion.",
+    "Extract ONLY object-style candidate profile fields from the resume text.",
+    "Do not infer personal primitive fields like first_name, last_name, email, headline, bio, location, or job_title.",
+    "Return ONLY valid JSON with this exact top-level shape:",
+    JSON.stringify({
+      skills: [
+        { name: "string", level: "Beginner|Intermediate|Advanced|Expert", yearsOfExperience: 0 },
+      ],
+      languages: [{ name: "string", proficiency: "Basic|Conversational|Fluent|Native" }],
+      experience: [
+        {
+          company: "string",
+          role: "string",
+          start_date: "YYYY-MM or YYYY-MM-DD or empty string",
+          end_date: "YYYY-MM or YYYY-MM-DD or empty string or Present",
+          description: "string",
+          technologies: ["string"],
+          is_current: false,
+        },
+      ],
+      education: [
+        {
+          institution: "string",
+          degree: "string",
+          field_of_study: "string",
+          start_year: 0,
+          end_year: 0,
+        },
+      ],
+      certifications: [{ name: "string", issuer: "string", issue_date: "YYYY-MM or empty string" }],
+      projects: [
+        {
+          name: "string",
+          description: "string",
+          technologies: ["string"],
+          role: "string",
+          link: "string",
+          start_date: "YYYY-MM or empty string",
+          end_date: "YYYY-MM or empty string",
+        },
+      ],
+      availability: { status: "string", type: "string", start_date: "YYYY-MM-DD or empty string" },
+      social_links: { linkedin: "string", github: "string", portfolio: "string" },
+    }),
+    "Rules:",
+    "- If a section is missing, return an empty array/object for that section.",
+    "- Keep strings concise and factual. No markdown. No commentary.",
+    "- Never include keys outside this schema.",
+    "",
+    opts.applicantName ? `Applicant context: ${opts.applicantName}` : "",
+    opts.jobTitle ? `Job context: ${opts.jobTitle}` : "",
+    "",
+    "RESUME TEXT:",
+    resumeText.slice(0, 16_000),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const text = await generateWithGemini({ ...opts, prompt });
+    const parsed = JSON.parse(extractFirstJsonObject(text)) as Record<string, unknown>;
+
+    const availabilityRaw = parsed.availability;
+    const availabilityEntry =
+      availabilityRaw && typeof availabilityRaw === "object"
+        ? (availabilityRaw as Record<string, unknown>)
+        : null;
+    const availabilityHasSignal = Boolean(
+      trimText(availabilityEntry?.status) ||
+        trimText(availabilityEntry?.type) ||
+        trimText(
+          availabilityEntry?.start_date ?? availabilityEntry?.["Start Date"],
+        ),
+    );
+
+    const socialLinksRaw =
+      parsed.social_links && typeof parsed.social_links === "object"
+        ? (parsed.social_links as Record<string, unknown>)
+        : parsed.socialLinks && typeof parsed.socialLinks === "object"
+          ? (parsed.socialLinks as Record<string, unknown>)
+          : null;
+    const socialLinksHasSignal = Boolean(
+      trimText(socialLinksRaw?.linkedin ?? socialLinksRaw?.linked_in) ||
+        trimText(socialLinksRaw?.github) ||
+        trimText(socialLinksRaw?.portfolio),
+    );
+
+    return {
+      skills: normalizeSkills(parsed.skills),
+      languages: normalizeLanguages(parsed.languages),
+      experience: normalizeExperience(parsed.experience),
+      education: normalizeEducation(parsed.education),
+      certifications: normalizeCertifications(parsed.certifications),
+      projects: normalizeProjects(parsed.projects),
+      ...(availabilityHasSignal
+        ? { availability: normalizeAvailability(availabilityRaw) }
+        : {}),
+      ...(socialLinksHasSignal
+        ? { social_links: normalizeSocialLinks(socialLinksRaw) }
+        : {}),
+    };
+  } catch (error) {
+    console.error("Gemini resume object parsing failed:", error);
+    return null;
+  }
 }
 
 export async function enrichScreeningNarratives(input: {

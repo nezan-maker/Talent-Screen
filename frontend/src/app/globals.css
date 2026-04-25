@@ -2,9 +2,6 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -37,8 +34,8 @@
   --elevation-modal: 0 28px 70px rgba(15, 23, 42, 0.18);
   --shape-input: 18px;
   --shape-badge: 9999px;
-  --font-sans: var(--font-nunito, 'Nunito'), 'Segoe UI', sans-serif;
-  --font-jetbrains: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', 'Source Code Pro', 'Droid Sans Mono', 'DejaVu Sans Mono', monospace;
+  --font-sans: var(--font-gresa), 'Segoe UI', sans-serif;
+  --font-jetbrains: var(--font-jetbrains), ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', 'Source Code Pro', 'Droid Sans Mono', 'DejaVu Sans Mono', monospace;
 }
 
 .dark {

@@ -1,12 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Briefcase, FileUp, Filter, Search, Upload, Users } from 'lucide-react';
-import toast from 'react-hot-toast';
+import {
+  Briefcase,
+  ChevronLeft,
+  ChevronRight,
+  FileUp,
+  Filter,
+  Search,
+  Upload,
+  Users,
+} from 'lucide-react';
+import toast from '@/lib/toast';
 import { ScreeningIntakeSkeleton } from '@/components/dashboard/DashboardSkeletons';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
@@ -17,6 +26,8 @@ import { useCandidates } from '@/hooks/useCandidates';
 import {
   getApiErrorMessage,
   getJob,
+  getLatestJobResults,
+  isMockMode,
   registerCandidates,
   type RegisterCandidateInput,
   uploadCandidatesFile,
@@ -43,6 +54,7 @@ const initialManualForm: ManualCandidateForm = {
   additional_info: '',
   experience_in_years: '',
 };
+const POOL_PAGE_SIZE = 5;
 
 function splitCommaList(value: string) {
   return value
@@ -94,7 +106,11 @@ export default function ScreeningIngestionPage() {
   const [tab, setTab] = useState<Tab>('pool');
   const [q, setQ] = useState('');
   const [showRoleMatchesOnly, setShowRoleMatchesOnly] = useState(true);
+  const [poolPage, setPoolPage] = useState(1);
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<
+    'idle' | 'parsing' | 'parsed' | 'failed'
+  >('idle');
   const [spreadsheetFile, setSpreadsheetFile] = useState<File | null>(null);
   const [resumeZipFile, setResumeZipFile] = useState<File | null>(null);
   const [submittingManual, setSubmittingManual] = useState(false);
@@ -109,6 +125,7 @@ export default function ScreeningIngestionPage() {
     skippedCount: number;
     uploadedResumeCount?: number;
   } | null>(null);
+  const mockMode = isMockMode();
 
   const { data: job, isLoading: jobLoading } = useQuery({
     queryKey: ['job', jobId],
@@ -122,20 +139,41 @@ export default function ScreeningIngestionPage() {
     isLoading: candidatesLoading,
     error,
   } = useCandidates();
+  const { data: latestResults, isLoading: latestResultsLoading } = useQuery({
+    queryKey: ['latestScreeningResults', jobId],
+    queryFn: () => getLatestJobResults(jobId),
+    enabled: Boolean(jobId),
+    retry: 1,
+    staleTime: 30 * 1000,
+  });
 
   const roleMatchedCandidates = useMemo(() => {
     if (!job) {
       return candidates;
     }
 
+    const normalizedJobTitle = job.title.trim().toLowerCase();
     return candidates.filter((candidate) => {
       const role = (candidate.appliedJobTitle || candidate.currentTitle || '')
         .trim()
         .toLowerCase();
-      return role === job.title.trim().toLowerCase();
+      const appliedJobId = (candidate.appliedJobId || '').trim();
+      return appliedJobId === job.id || role === normalizedJobTitle;
     });
   }, [candidates, job]);
-  const canRunScreening = Boolean(job && roleMatchedCandidates.length > 0);
+  const parsedRoleCandidates = useMemo(
+    () =>
+      roleMatchedCandidates.filter((candidate) =>
+        mockMode ? true : Boolean(candidate.resumeParsed)
+      ),
+    [mockMode, roleMatchedCandidates]
+  );
+  const canStartScreening = Boolean(job && parsedRoleCandidates.length > 0);
+  const hasCompletedScreening = Boolean(
+    latestResults?.run.status === 'completed' &&
+      ((latestResults.results?.length ?? 0) > 0 ||
+        (latestResults.run.result_count ?? 0) > 0)
+  );
 
   const filteredCandidates = useMemo(() => {
     const source = showRoleMatchesOnly ? roleMatchedCandidates : candidates;
@@ -157,6 +195,25 @@ export default function ScreeningIngestionPage() {
       );
     });
   }, [candidates, q, roleMatchedCandidates, showRoleMatchesOnly]);
+  const totalPoolPages = Math.max(
+    1,
+    Math.ceil(filteredCandidates.length / POOL_PAGE_SIZE)
+  );
+  const poolPageStart = (poolPage - 1) * POOL_PAGE_SIZE;
+  const pagedCandidates = filteredCandidates.slice(
+    poolPageStart,
+    poolPageStart + POOL_PAGE_SIZE
+  );
+
+  useEffect(() => {
+    setPoolPage(1);
+  }, [q, showRoleMatchesOnly]);
+
+  useEffect(() => {
+    if (poolPage > totalPoolPages) {
+      setPoolPage(totalPoolPages);
+    }
+  }, [poolPage, totalPoolPages]);
 
   async function refreshIngestionState(
     source: 'upload' | 'manual',
@@ -177,85 +234,98 @@ export default function ScreeningIngestionPage() {
       queryClient.invalidateQueries({ queryKey: ['candidates'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboardOverview'] }),
       queryClient.invalidateQueries({ queryKey: ['job', jobId] }),
+      queryClient.invalidateQueries({
+        queryKey: ['latestScreeningResults', jobId],
+      }),
     ]);
   }
 
   async function handleUploadFiles() {
-    if (!spreadsheetFile && !resumeZipFile) {
-      toast.error('Choose a spreadsheet, a resume ZIP, or both.');
+    if (!spreadsheetFile || !resumeZipFile) {
+      toast.error(
+        'Select both an applicant spreadsheet and a resume ZIP to continue.'
+      );
       return;
     }
 
     setUploading(true);
+    setUploadStatus('parsing');
 
     try {
-      let createdCount = 0;
-      let skippedCount = 0;
+      const candidateResponse = await uploadCandidatesFile(spreadsheetFile, {
+        jobId: job?.id,
+        jobTitle: job?.title,
+      });
+      const createdCount = candidateResponse.createdCount;
+      const skippedCount = candidateResponse.skippedCount;
       let uploadedResumeCount = 0;
 
-      if (spreadsheetFile) {
-        const candidateResponse = await uploadCandidatesFile(spreadsheetFile);
-        createdCount = candidateResponse.createdCount;
-        skippedCount = candidateResponse.skippedCount;
+      try {
+        const resumeResponse = await uploadResumeZip(resumeZipFile, {
+          jobId: job?.id,
+          jobTitle: job?.title,
+        });
+        uploadedResumeCount = resumeResponse.uploadedCount;
+      } catch (resumeUploadError) {
+        const resumeUploadMessage = getApiErrorMessage(
+          resumeUploadError,
+          'Unable to parse the resume ZIP right now.'
+        );
+        const isTimeoutError = resumeUploadMessage
+          .toLowerCase()
+          .includes('timeout');
+
         await refreshIngestionState('upload', candidateResponse);
-        setSpreadsheetFile(null);
-        if (spreadsheetInputRef.current) {
-          spreadsheetInputRef.current.value = '';
-        }
+        setLastIntakeSummary({
+          source: 'upload',
+          createdCount,
+          skippedCount,
+        });
+        setUploadStatus('failed');
+        toast.error(
+          isTimeoutError
+            ? 'Applicants were uploaded. Resume parsing took longer than expected. Refresh this role in a moment to confirm parsed counts, then retry ZIP upload only if needed.'
+            : `Applicants were uploaded, but parsing the resume ZIP failed: ${resumeUploadMessage}`
+        );
+        return;
       }
 
-      if (resumeZipFile) {
-        try {
-          const resumeResponse = await uploadResumeZip(resumeZipFile);
-          uploadedResumeCount = resumeResponse.uploadedCount;
-          setResumeZipFile(null);
-          if (resumeZipInputRef.current) {
-            resumeZipInputRef.current.value = '';
-          }
-        } catch (resumeUploadError) {
-          if (spreadsheetFile) {
-            setLastIntakeSummary({
-              source: 'upload',
-              createdCount,
-              skippedCount,
-            });
-            toast.error(
-              `Applicants were uploaded, but the resume ZIP failed: ${getApiErrorMessage(
-                resumeUploadError,
-                'Unable to upload the resume ZIP right now.'
-              )}`
-            );
-            return;
-          }
-
-          throw resumeUploadError;
-        }
-      }
-
+      await refreshIngestionState(
+        'upload',
+        candidateResponse,
+        uploadedResumeCount
+      );
       setLastIntakeSummary({
         source: 'upload',
         createdCount,
         skippedCount,
-        ...(resumeZipFile ? { uploadedResumeCount } : {}),
+        uploadedResumeCount,
       });
+      setUploadStatus('parsed');
+      setSpreadsheetFile(null);
+      setResumeZipFile(null);
+      if (spreadsheetInputRef.current) {
+        spreadsheetInputRef.current.value = '';
+      }
+      if (resumeZipInputRef.current) {
+        resumeZipInputRef.current.value = '';
+      }
 
       toast.success(
         [
-          spreadsheetFile
-            ? `${createdCount} candidate${createdCount === 1 ? '' : 's'} added.`
-            : null,
-          spreadsheetFile && skippedCount > 0
+          `${createdCount} candidate${createdCount === 1 ? '' : 's'} added.`,
+          skippedCount > 0
             ? `${skippedCount} duplicate${skippedCount === 1 ? ' was' : 's were'} skipped.`
             : null,
-          resumeZipFile
-            ? `${uploadedResumeCount} resume PDF${uploadedResumeCount === 1 ? '' : 's'} uploaded.`
-            : null,
+          `${uploadedResumeCount} resume PDF${uploadedResumeCount === 1 ? '' : 's'} parsed.`,
+          'Start screening is now available once parsing is complete.',
         ]
           .filter(Boolean)
           .join(' ')
       );
       setTab('pool');
     } catch (uploadError) {
+      setUploadStatus('failed');
       toast.error(
         getApiErrorMessage(
           uploadError,
@@ -408,13 +478,13 @@ export default function ScreeningIngestionPage() {
                   {candidatesLoading ? '-' : roleMatchedCandidates.length}
                 </div>
               </div>
-              <div className="rounded-card border border-border bg-bg p-4">
+                <div className="rounded-card border border-border bg-bg p-4">
                 <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
                   <FileUp className="h-3.5 w-3.5" />
                   Intake paths
                 </div>
                 <div className="mt-2 text-sm font-semibold text-text-primary">
-                  CSV, XLSX, or manual form
+                  CSV/XLSX + ZIP or manual form
                 </div>
               </div>
             </CardBody>
@@ -488,7 +558,7 @@ export default function ScreeningIngestionPage() {
               </Card>
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {filteredCandidates.map((candidate) => (
+                {pagedCandidates.map((candidate) => (
                       <Card key={candidate.id} className="p-5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
@@ -542,8 +612,54 @@ export default function ScreeningIngestionPage() {
                           </Link>
                         </div>
                       </Card>
-                    ))}
+                ))}
               </div>
+
+              {filteredCandidates.length > 0 ? (
+                <Card className="p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="text-sm text-text-muted">
+                      Showing {poolPageStart + 1}-
+                      {Math.min(
+                        poolPageStart + POOL_PAGE_SIZE,
+                        filteredCandidates.length
+                      )}{' '}
+                      of {filteredCandidates.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() =>
+                          setPoolPage((current) => Math.max(1, current - 1))
+                        }
+                        disabled={poolPage <= 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </Button>
+                      <div className="min-w-[110px] text-center text-sm font-semibold text-text-primary">
+                        Page {poolPage} of {totalPoolPages}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() =>
+                          setPoolPage((current) =>
+                            Math.min(totalPoolPages, current + 1)
+                          )
+                        }
+                        disabled={poolPage >= totalPoolPages}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ) : null}
 
               {!candidatesLoading && filteredCandidates.length === 0 ? (
                 <Card className="p-8 text-center">
@@ -561,7 +677,7 @@ export default function ScreeningIngestionPage() {
             <Card>
               <CardHeader
                 title="Upload Applicants and Resume ZIP"
-                subtitle="The backend accepts CSV/XLSX applicant imports and an optional ZIP of resume PDFs."
+                subtitle="Upload both files: applicant CSV/XLSX and a ZIP of resume PDFs. Screening starts only after parsing."
               />
               <CardBody className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -643,8 +759,8 @@ export default function ScreeningIngestionPage() {
                 </div>
 
                 <div className="rounded-card border border-border bg-bg p-4 text-sm text-text-muted">
-                  If both files are selected, the spreadsheet uploads first so
-                  the backend can match ZIP filenames to applicant names.
+                  The spreadsheet uploads first, then resume PDFs are parsed and
+                  matched to applicants in this role.
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -667,14 +783,14 @@ export default function ScreeningIngestionPage() {
                   </Button>
                   <Button
                     onClick={handleUploadFiles}
-                    disabled={uploading || (!spreadsheetFile && !resumeZipFile)}
+                    disabled={uploading || !spreadsheetFile || !resumeZipFile}
                     type="button"
                   >
-                    {uploading ? 'Uploading...' : 'Upload Selected Files'}
+                    {uploading ? 'Uploading and Parsing...' : 'Upload and Parse Files'}
                   </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <div className="rounded-card border border-border bg-bg p-4">
                     <div className="text-sm font-semibold text-text-primary">
                       Best for right now
@@ -690,6 +806,20 @@ export default function ScreeningIngestionPage() {
                     </div>
                     <div className="mt-2 text-sm text-text-muted">
                       {formatIntakeSummary(lastIntakeSummary)}
+                    </div>
+                  </div>
+                  <div className="rounded-card border border-border bg-bg p-4">
+                    <div className="text-sm font-semibold text-text-primary">
+                      Parsing status
+                    </div>
+                    <div className="mt-2 text-sm text-text-muted">
+                      {uploadStatus === 'parsing'
+                        ? 'Uploading and parsing in progress...'
+                        : uploadStatus === 'parsed'
+                          ? `${parsedRoleCandidates.length} role-matched candidate${parsedRoleCandidates.length === 1 ? '' : 's'} now have parsed resumes.`
+                          : uploadStatus === 'failed'
+                            ? 'Parsing did not fully complete. Refresh this role to verify parsed counts, then retry ZIP upload if required.'
+                            : `${parsedRoleCandidates.length} of ${roleMatchedCandidates.length} role-matched candidates currently have parsed resumes.`}
                     </div>
                   </div>
                 </div>
@@ -899,25 +1029,44 @@ export default function ScreeningIngestionPage() {
           <Card>
             <CardHeader
               title="Next Step"
-              subtitle="What recruiters can do after intake with the current backend."
+              subtitle="Start screening only after parsed resumes are available, then open saved results."
             />
             <CardBody className="space-y-4">
               <div className="rounded-card border border-border bg-bg p-4 text-sm text-text-muted">
-                Review the imported candidate records, verify the role
-                alignment, and decide who should remain in the pool for later
-                screening.
+                Parsed resumes ready for this role: {parsedRoleCandidates.length}
+                {' / '}
+                {roleMatchedCandidates.length}
               </div>
-              {job && canRunScreening ? (
+              <div className="rounded-card border border-border bg-bg p-4 text-sm text-text-muted">
+                {latestResultsLoading
+                  ? 'Checking latest screening status...'
+                  : hasCompletedScreening
+                    ? 'A completed AI screening run is available for this role.'
+                    : 'No completed screening run yet for this role.'}
+              </div>
+              {job && hasCompletedScreening ? (
+                <Link
+                  href={`/dashboard/screening/${job.id}/results`}
+                  className="block"
+                >
+                  <Button className="w-full">Show screening results</Button>
+                </Link>
+              ) : null}
+              {job && canStartScreening ? (
                 <Link
                   href={`/dashboard/screening/${job.id}/progress`}
                   className="block"
                 >
-                  <Button className="w-full">Run AI Screening</Button>
+                  <Button className="w-full">
+                    {hasCompletedScreening
+                      ? 'Start screening again'
+                      : 'Start screening'}
+                  </Button>
                 </Link>
               ) : null}
-              {job && !canRunScreening ? (
+              {job && !canStartScreening ? (
                 <Button className="w-full" disabled>
-                  Add matching candidates to start screening
+                  Upload and parse Excel + ZIP to start screening
                 </Button>
               ) : null}
               {job ? (
@@ -955,3 +1104,4 @@ export default function ScreeningIngestionPage() {
     </motion.div>
   );
 }
+

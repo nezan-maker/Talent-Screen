@@ -55,12 +55,12 @@ const startServer = async () => {
   });
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(cookie());
   app.use(morgan("dev"));
   app.get("/openapi.json", (req: Request, res: Response) => {
     res.sendFile(path.join(__dirname, "openapi.json"));
   });
   app.use("/docs", apiReference({ url: "/openapi.json" }));
-  app.use(cookie());
   app.use("/auth", authRoutes());
   app.use("/", dashRoutes());
   app.use("/ai", aiRoutes);

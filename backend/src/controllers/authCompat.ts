@@ -38,17 +38,11 @@ const forgotPayloadSchema = z.object({
 });
 
 const confirmPayloadSchema = z.object({
-  token: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/),
+  token: z.string().trim().regex(/^\d{6}$/),
 });
 
 const verifyCodePayloadSchema = z.object({
-  token: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/),
+  token: z.string().trim().regex(/^\d{6}$/)
 });
 
 const resetPayloadSchema = z.object({
@@ -80,7 +74,7 @@ function getCookieOptions(maxAge: number) {
   return {
     httpOnly: true,
     maxAge,
-    sameSite: true,
+    sameSite: "lax" as const,
   };
 }
 
@@ -99,7 +93,7 @@ function clearSessionCookies(res: Response) {
     "recovery_reference_token",
     "reset_reference_token",
   ]) {
-    res.clearCookie(name, { sameSite: true, httpOnly: true });
+    res.clearCookie(name, { sameSite: "lax", httpOnly: true });
   }
 }
 
@@ -183,7 +177,7 @@ async function finalizeConfirmation(res: Response, user: any) {
   user.sign_otp_token = null;
   await establishSession(res, user);
   res.clearCookie("signup_reference_token", {
-    sameSite: true,
+    sameSite: "lax",
     httpOnly: true,
   });
   await user.save();
@@ -264,9 +258,8 @@ export const confirm = async (req: Request, res: Response) => {
     const payload = confirmPayloadSchema.parse({
       token: extractVerifyToken(req.body),
     });
-    const signupReferenceToken = toStringValue(
-      req.cookies?.signup_reference_token,
-    );
+    const signupReferenceToken =
+      toStringValue(req.cookies?.signup_reference_token);
 
     if (!signupReferenceToken) {
       return res
@@ -275,9 +268,7 @@ export const confirm = async (req: Request, res: Response) => {
     }
 
     const verifiedPayload = verifyToken<SessionPayload>(signupReferenceToken);
-    const user = await User.findById(
-      verifiedPayload.userId ?? verifiedPayload.user_id,
-    );
+    const user = await User.findById(verifiedPayload.userId ?? verifiedPayload.user_id);
 
     if (!user) {
       return res.status(404).json({ data_error: "User could not be found" });
@@ -317,9 +308,7 @@ export const confirm_get = async (req: Request, res: Response) => {
     }
 
     const verifiedPayload = verifyToken<SessionPayload>(signupReferenceToken);
-    const user = await User.findById(
-      verifiedPayload.userId ?? verifiedPayload.user_id,
-    );
+    const user = await User.findById(verifiedPayload.userId ?? verifiedPayload.user_id);
 
     if (!user || user.confirmation_link_id !== confirmationId) {
       return res.status(401).json({
@@ -432,10 +421,10 @@ export const verifyCode = async (req: Request, res: Response) => {
   try {
     const payload = verifyCodePayloadSchema.parse({
       token: extractVerifyToken(req.body),
+
     });
-    const recoveryReferenceToken = toStringValue(
-      req.cookies?.recovery_reference_token,
-    );
+    const recoveryReferenceToken =
+      toStringValue(req.cookies?.recovery_reference_token);
 
     if (!recoveryReferenceToken) {
       return res
@@ -444,9 +433,7 @@ export const verifyCode = async (req: Request, res: Response) => {
     }
 
     const verifiedPayload = verifyToken<SessionPayload>(recoveryReferenceToken);
-    const user = await User.findById(
-      verifiedPayload.userId ?? verifiedPayload.user_id,
-    );
+    const user = await User.findById(verifiedPayload.userId ?? verifiedPayload.user_id);
 
     if (!user || !user.pass_token) {
       return res.status(404).json({ data_error: "User could not be found" });
@@ -492,9 +479,7 @@ export const reset = async (req: Request, res: Response) => {
     }
 
     const verifiedPayload = verifyToken<SessionPayload>(resetReferenceToken);
-    const user = await User.findById(
-      verifiedPayload.userId ?? verifiedPayload.user_id,
-    );
+    const user = await User.findById(verifiedPayload.userId ?? verifiedPayload.user_id);
 
     if (!user) {
       return res.status(404).json({ data_error: "User could not be found" });
@@ -505,11 +490,11 @@ export const reset = async (req: Request, res: Response) => {
     await user.save();
 
     res.clearCookie("recovery_reference_token", {
-      sameSite: true,
+      sameSite: "lax",
       httpOnly: true,
     });
     res.clearCookie("reset_reference_token", {
-      sameSite: true,
+      sameSite: "lax",
       httpOnly: true,
     });
 

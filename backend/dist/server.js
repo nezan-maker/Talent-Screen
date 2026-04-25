@@ -16,13 +16,21 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
-const PORT = env?.PORT || 5000;
+let PORT;
+if (env.PORT) {
+    PORT = parseInt(env.PORT || "10000", 10);
+}
+else {
+    throw new Error("Could not load environment variables");
+}
 const serverDebug = debug("app:server");
-const allowedOrigins = new Set((env.FRONTEND_ORIGIN || "http://localhost:3000")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .concat(["http://127.0.0.1:3000"]));
+const originsFromEnv = env.FRONTEND_ORIGIN?.split(",") || [
+    "https://wiserank-lmwy.onrender.com",
+];
+const allowedOrigins = new Set([
+    ...originsFromEnv.map((url) => url.trim()).filter(Boolean),
+    "http://127.0.0.1:3000",
+]);
 const startServer = async () => {
     await connectDB();
     await ensureSeedData();
@@ -51,7 +59,7 @@ const startServer = async () => {
     app.use("/auth", authRoutes());
     app.use("/", dashRoutes());
     app.use("/ai", aiRoutes);
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
         serverDebug(`Server connected on port ${PORT}`);
     });
 };

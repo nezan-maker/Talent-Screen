@@ -39,12 +39,10 @@ const forgotPayloadSchema = z.object({
 
 const confirmPayloadSchema = z.object({
   token: z.string().trim().regex(/^\d{6}$/),
-  signup_token: z.string().trim().min(1).optional(),
 });
 
 const verifyCodePayloadSchema = z.object({
-  token: z.string().trim().regex(/^\d{6}$/),
-  recovery_token: z.string().trim().min(1).optional(),
+  token: z.string().trim().regex(/^\d{6}$/)
 });
 
 const resetPayloadSchema = z.object({
@@ -76,7 +74,9 @@ function getCookieOptions(maxAge: number) {
   return {
     httpOnly: true,
     maxAge,
-    sameSite: "lax" as const,
+    secure:true,
+    sameSite: "none" as const,
+    path:"/"
   };
 }
 
@@ -95,7 +95,7 @@ function clearSessionCookies(res: Response) {
     "recovery_reference_token",
     "reset_reference_token",
   ]) {
-    res.clearCookie(name, { sameSite: "lax", httpOnly: true });
+    res.clearCookie(name, { sameSite: "none", secure:true,httpOnly: true ,path:"/"});
   }
 }
 
@@ -179,7 +179,9 @@ async function finalizeConfirmation(res: Response, user: any) {
   user.sign_otp_token = null;
   await establishSession(res, user);
   res.clearCookie("signup_reference_token", {
-    sameSite: "lax",
+    sameSite: "none",
+    secure:true,
+    path:"/",
     httpOnly: true,
   });
   await user.save();
@@ -259,12 +261,8 @@ export const confirm = async (req: Request, res: Response) => {
   try {
     const payload = confirmPayloadSchema.parse({
       token: extractVerifyToken(req.body),
-      signup_token:
-        toStringValue(req.body?.signup_token) ||
-        toStringValue(req.body?.signupToken),
     });
     const signupReferenceToken =
-      payload.signup_token ||
       toStringValue(req.cookies?.signup_reference_token);
 
     if (!signupReferenceToken) {
@@ -427,12 +425,9 @@ export const verifyCode = async (req: Request, res: Response) => {
   try {
     const payload = verifyCodePayloadSchema.parse({
       token: extractVerifyToken(req.body),
-      recovery_token:
-        toStringValue(req.body?.recovery_token) ||
-        toStringValue(req.body?.recoveryToken),
+
     });
     const recoveryReferenceToken =
-      payload.recovery_token ||
       toStringValue(req.cookies?.recovery_reference_token);
 
     if (!recoveryReferenceToken) {
@@ -499,11 +494,15 @@ export const reset = async (req: Request, res: Response) => {
     await user.save();
 
     res.clearCookie("recovery_reference_token", {
-      sameSite: "lax",
+      sameSite: "none",
+      secure:true,
+      path:"/",
       httpOnly: true,
     });
     res.clearCookie("reset_reference_token", {
-      sameSite: "lax",
+      sameSite: "none",
+      secure:true,
+      path:"/",
       httpOnly: true,
     });
 

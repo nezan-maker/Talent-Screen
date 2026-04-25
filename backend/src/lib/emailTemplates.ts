@@ -51,7 +51,7 @@ function normalizeBaseUrl(value: string) {
 }
 
 function getFrontendBaseUrl() {
-  return normalizeBaseUrl(env.FRONTEND_URL ?? env.FRONTEND_ORIGIN);
+  return normalizeBaseUrl(env.FRONTEND_ORIGIN);
 }
 
 function buildFrontendUrl(pathname: string, params?: Record<string, string>) {

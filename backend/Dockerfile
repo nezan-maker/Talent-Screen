@@ -16,5 +16,5 @@ COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/*.html ./
-EXPOSE 5000
+EXPOSE 10000
 CMD ["npm", "run", "start"]

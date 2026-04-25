@@ -184,6 +184,9 @@ const jobSchema = new mongoose.Schema({
     job_notes: {
       type: [String],
     },
+    selected_applicant_deadline: {
+      type: Date,
+    },
   },
   { timestamps: true },
 );

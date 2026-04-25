@@ -74,6 +74,7 @@ function getCookieOptions(maxAge: number) {
   return {
     httpOnly: true,
     maxAge,
+    secure:true,
     sameSite: "none" as const,
     path:"/"
   };
@@ -94,7 +95,7 @@ function clearSessionCookies(res: Response) {
     "recovery_reference_token",
     "reset_reference_token",
   ]) {
-    res.clearCookie(name, { sameSite: "none", httpOnly: true ,path:"/"});
+    res.clearCookie(name, { sameSite: "none", secure:true,httpOnly: true ,path:"/"});
   }
 }
 
@@ -179,6 +180,7 @@ async function finalizeConfirmation(res: Response, user: any) {
   await establishSession(res, user);
   res.clearCookie("signup_reference_token", {
     sameSite: "none",
+    secure:true,
     path:"/",
     httpOnly: true,
   });
@@ -493,11 +495,13 @@ export const reset = async (req: Request, res: Response) => {
 
     res.clearCookie("recovery_reference_token", {
       sameSite: "none",
+      secure:true,
       path:"/",
       httpOnly: true,
     });
     res.clearCookie("reset_reference_token", {
       sameSite: "none",
+      secure:true,
       path:"/",
       httpOnly: true,
     });

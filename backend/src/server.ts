@@ -19,7 +19,7 @@ const __dirname = dirname(__filename);
 const app = express();
 let PORT: number;
 if (env.PORT) {
-  PORT = parseInt(env.PORT) || 500;
+  PORT = parseInt(env.PORT) || 5000;
 } else {
   throw new Error("Could not load environment variables");
 }

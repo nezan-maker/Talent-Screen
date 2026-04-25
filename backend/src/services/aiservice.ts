@@ -77,12 +77,7 @@ import {
   askSchema,
 } from "../validations/functionValidations.js";
 
-if (
-  !env.GOOGLE_API_KEY ||
-  !env.VERTEX_PROJECT_ID ||
-  !env.VERTEX_LOCATION ||
-  !env.GOOGLE_AI_MODEL
-) {
+if (!env.GOOGLE_API_KEY || !env.GOOGLE_AI_MODEL) {
   throw new Error("Could not load environment variables");
 }
 
@@ -108,12 +103,7 @@ const getModels = async (req: Request, res: Response) => {
 
 const runModel = async (req: Request, res: Response) => {
   try {
-    if (
-      !env.GOOGLE_API_KEY ||
-      !env.GOOGLE_AI_MODEL ||
-      env.VERTEX_PROJECT_ID ||
-      env.VERTEX_LOCATION
-    ) {
+    if (!env.GOOGLE_API_KEY || !env.GOOGLE_AI_MODEL) {
       throw new Error("Could not load environment variables");
     }
     const input = triggerSchema.parse(req.body);
@@ -149,13 +139,8 @@ const runModel = async (req: Request, res: Response) => {
       const ai = await screenWithGemini({
         model: env.GOOGLE_AI_MODEL,
         topK,
-        ...(env.GOOGLE_API_KEY
-          ? { provider: "ai-studio" as const, apiKey: env.GOOGLE_API_KEY }
-          : {
-              provider: "vertex" as const,
-              projectId: env.VERTEX_PROJECT_ID!,
-              location: env.VERTEX_LOCATION!,
-            }),
+        provider: "ai-studio",
+        apiKey: env.GOOGLE_API_KEY,
         job: {
           job_id: String(job._id),
           title: job.job_title,
@@ -252,12 +237,7 @@ const getRunsResult = async (req: Request, res: Response) => {
 
 const askGem = async (req: Request, res: Response) => {
   try {
-    if (
-      !env.GOOGLE_API_KEY ||
-      !env.GOOGLE_AI_MODEL ||
-      env.VERTEX_PROJECT_ID ||
-      env.VERTEX_LOCATION
-    ) {
+    if (!env.GOOGLE_API_KEY || !env.GOOGLE_AI_MODEL) {
       throw new Error("Could not load environment variables");
     }
 
@@ -287,13 +267,9 @@ const askGem = async (req: Request, res: Response) => {
     const ai = await assistantWithGemini({
       model: env.GOOGLE_AI_MODEL,
       question: input.question,
-      ...(env.GOOGLE_API_KEY
-        ? { provider: "ai-studio" as const, apiKey: env.GOOGLE_API_KEY }
-        : {
-            provider: "vertex" as const,
-            projectId: env.VERTEX_PROJECT_ID!,
-            location: env.VERTEX_PROJECT_ID!,
-          }),
+      provider: "ai-studio" as const,
+      apiKey: env.GOOGLE_API_KEY,
+
       job: job
         ? {
             job_id: String(job._id),

@@ -23,7 +23,7 @@ const completeJob = async (req: Request, res: Response) => {
     const { reqString } = req.body;
     const reqBody: Desc_Job = JSON.parse(reqString);
     const z_parse_result: Job_ = JobSchema.parse(reqBody);
-    const access_token = req.cookies.reference_token;
+    const access_token = req.cookies.access_token;
     if (!access_token) {
       throw new Error("Could not find user_details cookie missing or expired");
     }

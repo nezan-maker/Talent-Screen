@@ -2,6 +2,7 @@ import mongoose, { Schema } from "mongoose";
 import { buildEntityId } from "../utils/ids.js";
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 const criterionSchema = new Schema(
   {
     criteria_string: { type: String, required: true },
@@ -30,6 +31,13 @@ const jobSchema = new mongoose.Schema(
       type: String,
       required: true,
       index: true,
+=======
+const jobSchema = new mongoose.Schema(
+  {
+    job_title: {
+      type: String,
+      required: true,
+>>>>>>> fbe6478 (Refined the shortlisting emails for shortlisted and rejected)
     },
     job_department: {
       type: String,
@@ -43,6 +51,7 @@ const jobSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+<<<<<<< HEAD
     company_name: {
       type: String,
       default: "Independent Recruiter",
@@ -148,6 +157,37 @@ const jobSchema = new mongoose.Schema({
   },
 });
 >>>>>>> a0dac98 (Refined the screening ai service)
+=======
+    job_requirements: {
+      type: [String],
+      default: [],
+    },
+    job_skills: {
+      type: [String],
+      default: [],
+    },
+    company_name: {
+      type: String,
+    },
+    job_experience: {
+      type: Number,
+      required: true,
+    },
+    job_qualifications: {
+      type: [String],
+      required: true,
+    },
+    workers_required: {
+      type: Number,
+      required: true,
+    },
+    job_notes: {
+      type: [String],
+    },
+  },
+  { timestamps: true },
+);
+>>>>>>> fbe6478 (Refined the shortlisting emails for shortlisted and rejected)
 const Job = mongoose.model("Job", jobSchema);
 
 export default Job;

@@ -218,7 +218,7 @@ export async function askRecruiterAssistant(input: {
 }
 
 async function generateWithGemini(
-  opts: (AiStudioAuth | VertexAuth) & {
+  opts: AiStudioAuth & {
     model: string;
     prompt: string;
   },
@@ -253,30 +253,10 @@ async function generateWithGemini(
     }
     throw lastErr;
   }
-
-  const vertex = new VertexAI({
-    project: opts.projectId,
-    location: opts.location,
-  });
-  const model = vertex.getGenerativeModel({ model: opts.model });
-  const result = await model.generateContent({
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: opts.prompt }],
-      },
-    ],
-  });
-
-  const text =
-    result.response.candidates?.[0]?.content?.parts
-      ?.map((p: any) => (typeof p?.text === "string" ? p.text : ""))
-      .join("") ?? "";
-  return text.trim();
 }
 
 export async function screenWithGemini(
-  opts: (AiStudioAuth | VertexAuth) & {
+  opts: AiStudioAuth & {
     model: string;
     topK: number;
     job: ScreeningJobInput;
@@ -321,6 +301,9 @@ export async function screenWithGemini(
   ].join("\n");
 
   const text = await generateWithGemini({ ...opts, prompt });
+  if (!text) {
+    throw new Error("Could not finish the ai screening");
+  }
   const jsonText = extractFirstJsonObject(text);
 
   const parsed = JSON.parse(jsonText) as unknown;
@@ -342,7 +325,7 @@ const assistantOutputSchema = z.object({
 });
 
 export async function assistantWithGemini(
-  opts: (AiStudioAuth | VertexAuth) & {
+  opts: AiStudioAuth & {
     model: string;
     question: string;
     job?: AssistantJobContext;
@@ -385,6 +368,9 @@ export async function assistantWithGemini(
   ].join("\n");
 
   const text = await generateWithGemini({ ...opts, prompt });
+  if (!text) {
+    throw new Error("Could not complete the ai screening process");
+  }
   const jsonText = extractFirstJsonObject(text);
   const parsed = JSON.parse(jsonText) as unknown;
   return assistantOutputSchema.parse(parsed);

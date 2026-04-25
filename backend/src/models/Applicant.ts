@@ -53,12 +53,83 @@ const certificationSchema = new Schema(
   applicant_email: {
 =======
 import mongoose from "mongoose";
-const applicantSchema = new mongoose.Schema({
-  first_name: {
-    type: String,
-    required: true,
-    description: "Talent 's first name",
+const applicantSchema = new mongoose.Schema(
+  {
+    first_name: {
+      type: String,
+      required: true,
+      description: "Talent 's first name",
+    },
+    last_name: {
+      type: String,
+      required: true,
+      description: "Talent 's last name",
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      description: "Unique email address",
+    },
+    headline: {
+      type: String,
+      description: "Short professional summary",
+    },
+    bio: {
+      type: String,
+      required: true,
+      description: "Detailed professional biography",
+    },
+    location: {
+      type: String,
+      required: true,
+      description: "Current location(City,Country)",
+    },
+    skills: {
+      type: [Object],
+      required: true,
+      descrption: "List of skills with proficiency",
+    },
+    language: {
+      type: [Object],
+      description: "Spoken languages",
+    },
+    experience: {
+      type: [Object],
+      required: true,
+      description: "Professional experience history",
+    },
+    education: {
+      type: [Object],
+      requied: true,
+      description: "Academic background",
+    },
+    certifications: {
+      type: [Object],
+      description: "Professional certifications",
+    },
+    projects: {
+      type: [Object],
+      description: "Portfolio projects",
+    },
+    availability: {
+      type: Object,
+      description: "Talent Availability",
+    },
+    social_links: {
+      type: Object,
+      description: "External profiles",
+    },
+    job_title: {
+      type: String,
+      required: true,
+    },
+    applicant_state: {
+      type: String,
+      default: "Queued",
+    },
   },
+<<<<<<< HEAD
   last_name: {
 >>>>>>> 5ba2726 (Prepared for ultimate debug session)
     type: String,
@@ -314,4 +385,9 @@ applicantSchema.index({ job_title: 1, applicant_name: 1 }, { unique: false });
 
 const Applicant = mongoose.model("Applicant", applicantSchema);
 
+=======
+  { timestamps: true },
+);
+const Applicant = mongoose.model("applicants", applicantSchema);
+>>>>>>> fbe6478 (Refined the shortlisting emails for shortlisted and rejected)
 export default Applicant;

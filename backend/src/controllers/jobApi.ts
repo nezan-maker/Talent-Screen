@@ -52,7 +52,7 @@ export async function getJobs(req: Request, res: Response) {
         .skip(skip)
         .limit(limit)
         .lean(),
-      Applicant.find({ user_id: req.currentUserId })
+      Applicant.find({ user_id: userId})
         .sort({ updatedAt: -1, createdAt: -1 })
         .lean(),
     ]);
@@ -77,7 +77,7 @@ export async function getJobById(req: Request, res: Response) {
     }
     const [job, applicants] = await Promise.all([
       Job.findOne({ _id: id, user_id: userId }).lean(),
-      Applicant.find({ user_id: req.currentUserId }).lean(),
+      Applicant.find({ user_id: userId }).lean(),
     ]);
 
     if (!job) {

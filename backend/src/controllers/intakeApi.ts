@@ -130,7 +130,9 @@ function worksheetToRecords(worksheet: Worksheet) {
 
     if (rowNumber === 1) {
       headers = values.map((value) =>
-        trimText(value).toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+        trimText(value)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_"),
       );
       return;
     }
@@ -169,7 +171,10 @@ async function readSpreadsheet(file: Express.Multer.File) {
   return worksheet ? worksheetToRecords(worksheet) : [];
 }
 
-async function createApplicant(normalized: ReturnType<typeof buildNormalizedApplicant>) {
+async function createApplicant(
+  normalized: ReturnType<typeof buildNormalizedApplicant>,
+  userId: string,
+) {
   const duplicateQuery = normalized.job_id
     ? {
         job_id: normalized.job_id,
@@ -192,6 +197,7 @@ async function createApplicant(normalized: ReturnType<typeof buildNormalizedAppl
   }
 
   const applicant = await Applicant.create({
+    user_id: userId,
     first_name: normalized.first_name,
     last_name: normalized.last_name,
     applicant_name: normalized.applicant_name,
@@ -232,10 +238,10 @@ function normalizeRecord(
       "full_name",
       "candidate_name",
     ]) ||
-    `${pickRecordValue(record, ["first_name", "first_name_"])} ${pickRecordValue(record, [
-      "last_name",
-      "last_name_",
-    ])}`.trim();
+    `${pickRecordValue(record, ["first_name", "first_name_"])} ${pickRecordValue(
+      record,
+      ["last_name", "last_name_"],
+    )}`.trim();
   const job_title =
     pickRecordValue(record, [
       "job_title",
@@ -254,18 +260,28 @@ function normalizeRecord(
   const applicant_state = mapApplicantStateFromStatus(status);
   const additionalInfo = splitList(
     [
-      pickRecordValue(record, ["additional_info", "additional_information", "notes"]),
+      pickRecordValue(record, [
+        "additional_info",
+        "additional_information",
+        "notes",
+      ]),
       pickRecordValue(record, ["phone", "phone_number", "mobile"]),
       pickRecordValue(record, ["linkedin"]),
       pickRecordValue(record, ["date_applied", "applied_date"]),
-      pickRecordValue(record, ["score___100_", "score_100_", "score", "candidate_score"]),
+      pickRecordValue(record, [
+        "score___100_",
+        "score_100_",
+        "score",
+        "candidate_score",
+      ]),
     ]
       .filter(Boolean)
       .join(", "),
   );
   const extracted = extractEmailAndLinks(additionalInfo);
   const job = jobs.find(
-    (item) => trimText(item.job_title).toLowerCase() === job_title.toLowerCase(),
+    (item) =>
+      trimText(item.job_title).toLowerCase() === job_title.toLowerCase(),
   );
 
   return buildNormalizedApplicant({
@@ -275,7 +291,11 @@ function normalizeRecord(
     email:
       pickRecordValue(record, ["email", "applicant_email", "e_mail"]) ||
       extracted.email,
-    headline: pickRecordValue(record, ["headline", "position_applied", "job_title"]),
+    headline: pickRecordValue(record, [
+      "headline",
+      "position_applied",
+      "job_title",
+    ]),
     bio: record.bio,
     location: pickRecordValue(record, ["location", "city", "country"]),
     job_id:
@@ -283,7 +303,11 @@ function normalizeRecord(
       pickRecordValue(record, ["job_id"]) ||
       trimText(defaults?.jobId),
     job_title: job?.job_title ?? job_title,
-    skills: pickRecordValue(record, ["skills", "key_skills", "technical_skills"]),
+    skills: pickRecordValue(record, [
+      "skills",
+      "key_skills",
+      "technical_skills",
+    ]),
     languages: record.languages || record.language,
     experience: record.experience,
     education: pickRecordValue(record, [
@@ -302,7 +326,8 @@ function normalizeRecord(
       "years",
     ]),
     availability: {
-      status: record.availability_status || record.status || "Open to Opportunities",
+      status:
+        record.availability_status || record.status || "Open to Opportunities",
       type: record.availability_type || "Full-time",
       start_date: record.availability_start_date || null,
     },
@@ -320,11 +345,18 @@ function normalizeRecord(
 
 export async function registerCandidates(req: Request, res: Response) {
   try {
-    const jobs = await Job.find().lean();
+    const userId = req.currentUserId;
+    if (!userId) {
+      return res.status(401).json("Session expired");
+    }
+    const jobs = await Job.find({ user_id: userId }).lean();
     const createdApplicants: any[] = [];
     let skippedCount = 0;
-    let normalizedRecords: Array<ReturnType<typeof buildNormalizedApplicant>> = [];
-    const defaultJobTitle = trimText(req.body?.default_job_title ?? req.body?.job_title);
+    let normalizedRecords: Array<ReturnType<typeof buildNormalizedApplicant>> =
+      [];
+    const defaultJobTitle = trimText(
+      req.body?.default_job_title ?? req.body?.job_title,
+    );
     const defaultJobId = trimText(req.body?.default_job_id ?? req.body?.job_id);
     const spreadsheetFile = getUploadedFile(req, [
       "file",
@@ -355,7 +387,7 @@ export async function registerCandidates(req: Request, res: Response) {
     }
 
     for (const record of normalizedRecords) {
-      const result = await createApplicant(record);
+      const result = await createApplicant(record, userId);
       if (result.skipped) {
         skippedCount += 1;
         continue;
@@ -370,7 +402,9 @@ export async function registerCandidates(req: Request, res: Response) {
       success: "Applicants processed successfully",
       createdCount: createdApplicants.length,
       skippedCount,
-      applicants: createdApplicants.map((item) => mapApplicantToFrontend(item.toObject())),
+      applicants: createdApplicants.map((item) =>
+        mapApplicantToFrontend(item.toObject()),
+      ),
     });
   } catch (error) {
     console.error("Error in registerCandidates:", error);
@@ -406,8 +440,12 @@ function findApplicantForResume(
   lookupKey: string,
   parsedText: string,
 ) {
-  const emailInResume = parsedText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
-  const normalizedEmailInResume = normalizeLookupKey(trimText(emailInResume).toLowerCase());
+  const emailInResume = parsedText.match(
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
+  )?.[0];
+  const normalizedEmailInResume = normalizeLookupKey(
+    trimText(emailInResume).toLowerCase(),
+  );
 
   return applicants.find((item) => {
     const fullNameKey = normalizeNameLikeKey(trimText(item.applicant_name));
@@ -507,7 +545,9 @@ export async function uploadResumeZip(req: Request, res: Response) {
 
     const directory = await unzipper.Open.buffer(resumeZipFile.buffer);
     const defaultJobId = trimText(req.body?.default_job_id ?? req.body?.job_id);
-    const defaultJobTitle = trimText(req.body?.default_job_title ?? req.body?.job_title);
+    const defaultJobTitle = trimText(
+      req.body?.default_job_title ?? req.body?.job_title,
+    );
     const applicantScope = [
       ...(defaultJobId ? [{ job_id: defaultJobId }] : []),
       ...(defaultJobTitle ? [{ job_title: defaultJobTitle }] : []),
@@ -544,9 +584,9 @@ export async function uploadResumeZip(req: Request, res: Response) {
     );
 
     if (pdfEntries.length === 0) {
-      return res
-        .status(400)
-        .json({ data_error: "No PDF files were found inside the ZIP archive." });
+      return res.status(400).json({
+        data_error: "No PDF files were found inside the ZIP archive.",
+      });
     }
 
     await forEachWithConcurrency(

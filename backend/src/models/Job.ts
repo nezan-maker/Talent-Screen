@@ -24,11 +24,15 @@ const jobSchema = new mongoose.Schema(
       type: String,
       default: () => buildEntityId("job"),
     },
+    user_id: {
+      type: String,
+      ref: 'User',
+    },
     job_title: {
       type: String,
       required: true,
       index: true,
-},
+    },
     job_department: {
       type: String,
       required: true,

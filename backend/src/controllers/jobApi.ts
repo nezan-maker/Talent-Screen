@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 import Job from "../models/Job.js";
 import Applicant from "../models/Applicant.js";
-import { mapApplicantToFrontend, mapJobToFrontend } from "../utils/frontendMappers.js";
+import {
+  mapApplicantToFrontend,
+  mapJobToFrontend,
+} from "../utils/frontendMappers.js";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 import { parseJobCriteria, trimText } from "../utils/talentProfile.js";
 
@@ -14,7 +17,9 @@ function buildExampleForm(payload: {
   return {
     ROLE_TITLE: payload.job_title,
     EXPERIENCE_LEVEL: payload.job_experience_required,
-    CORE_STRENGTHS: criteria.map((item) => item.criteria_string).filter(Boolean),
+    CORE_STRENGTHS: criteria
+      .map((item) => item.criteria_string)
+      .filter(Boolean),
   };
 }
 
@@ -35,14 +40,20 @@ function extractPayload(body: unknown) {
 export async function getJobs(req: Request, res: Response) {
   try {
     const { page, pageSize, skip, limit } = parsePagination(req.query);
+    const userId = req.currentUserId;
+    if (!userId) {
+      return res.status(401).json({ expiration_error: "Session expired" });
+    }
     const [totalJobs, jobs, applicants] = await Promise.all([
       Job.countDocuments(),
-      Job.find()
+      Job.find({ user_id: userId })
         .sort({ updatedAt: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      Applicant.find().sort({ updatedAt: -1, createdAt: -1 }).lean(),
+      Applicant.find({ user_id: req.currentUserId })
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .lean(),
     ]);
     const mappedApplicants = applicants.map(mapApplicantToFrontend);
 
@@ -59,9 +70,13 @@ export async function getJobs(req: Request, res: Response) {
 export async function getJobById(req: Request, res: Response) {
   try {
     const id = trimText(req.params.id);
+    const userId = req.currentUserId;
+    if (!userId) {
+      return res.status(401).json({ expiration_error: "Session expired" });
+    }
     const [job, applicants] = await Promise.all([
-      Job.findById(id).lean(),
-      Applicant.find().lean(),
+      Job.findOne({ _id: id, user_id: userId }).lean(),
+      Applicant.find({ user_id: req.currentUserId }).lean(),
     ]);
 
     if (!job) {
@@ -86,6 +101,11 @@ export async function createJob(req: Request, res: Response) {
     const job_location = trimText(payload.job_location);
     const job_employment_type = trimText(payload.job_employment_type);
     const job_description = trimText(payload.job_description);
+    const user_Id = req.currentUserId;
+    if (!user_Id) {
+      return res.status(401).json({ expiration_error: "Session expired" });
+    }
+    const user_id = user_Id;
 
     if (
       !job_title ||
@@ -94,7 +114,9 @@ export async function createJob(req: Request, res: Response) {
       !job_employment_type ||
       !job_description
     ) {
-      return res.status(400).json({ data_error: "Missing required job fields" });
+      return res
+        .status(400)
+        .json({ data_error: "Missing required job fields" });
     }
 
     const oldJob = await Job.findOne({ job_title }).lean();
@@ -103,12 +125,14 @@ export async function createJob(req: Request, res: Response) {
     }
 
     const job = await Job.create({
+      user_id,
       job_title,
       job_department,
       job_location,
       job_employment_type,
       company_name: req.currentUser?.company_name ?? "Independent Recruiter",
-      job_experience_required: trimText(payload.job_experience_required) || "Mid",
+      job_experience_required:
+        trimText(payload.job_experience_required) || "Mid",
       job_description,
       job_responsibilities: trimText(payload.job_responsibilities),
       job_qualifications: trimText(payload.job_qualifications),
@@ -116,11 +140,17 @@ export async function createJob(req: Request, res: Response) {
       job_shortlist_size: Number(payload.job_shortlist_size) === 20 ? 20 : 10,
       job_state: trimText(payload.job_state) || "Active",
       job_salary_min:
-        typeof payload.job_salary_min === "number" ? payload.job_salary_min : null,
+        typeof payload.job_salary_min === "number"
+          ? payload.job_salary_min
+          : null,
       job_salary_max:
-        typeof payload.job_salary_max === "number" ? payload.job_salary_max : null,
+        typeof payload.job_salary_max === "number"
+          ? payload.job_salary_max
+          : null,
       workers_required:
-        typeof payload.workers_required === "number" ? payload.workers_required : 1,
+        typeof payload.workers_required === "number"
+          ? payload.workers_required
+          : 1,
       job_example_form: buildExampleForm({
         job_title,
         job_experience_required:
@@ -129,7 +159,9 @@ export async function createJob(req: Request, res: Response) {
       }),
     });
 
-    const mappedApplicants = (await Applicant.find().lean()).map(mapApplicantToFrontend);
+    const mappedApplicants = (await Applicant.find().lean()).map(
+      mapApplicantToFrontend,
+    );
     return res.status(201).json({
       success: "Job successfully created",
       job: mapJobToFrontend(job.toObject(), mappedApplicants),

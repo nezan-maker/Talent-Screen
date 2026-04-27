@@ -11,8 +11,9 @@ export async function getCandidates(req: Request, res: Response) {
     if (!userId) {
       return res.status(401).json({ expiration_error: "Session expired" });
     }
+    const filter = { user_id: userId };
     const [totalCandidates, applicants] = await Promise.all([
-      Applicant.countDocuments(),
+      Applicant.countDocuments(filter),
       Applicant.find({ user_id: userId })
         .sort({ updatedAt: -1, createdAt: -1 })
         .skip(skip)

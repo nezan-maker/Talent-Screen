@@ -44,8 +44,9 @@ export async function getJobs(req: Request, res: Response) {
     if (!userId) {
       return res.status(401).json({ expiration_error: "Session expired" });
     }
+    const filter = { user_id: userId };
     const [totalJobs, jobs, applicants] = await Promise.all([
-      Job.countDocuments(),
+      Job.countDocuments(filter),
       Job.find({ user_id: userId })
         .sort({ updatedAt: -1, createdAt: -1 })
         .skip(skip)

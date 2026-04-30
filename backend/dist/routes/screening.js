@@ -7,6 +7,7 @@ import { ScreeningResultModel } from "../models/ScreenResult.js";
 import { resolveGeminiAuth, screenWithGemini, toLegacyScreeningResult, } from "../lib/gemini.js";
 import { inferExperienceYears, normalizeEducation, normalizeExperience, normalizeSkills, parseJobCriteria, splitList, trimText, } from "../utils/talentProfile.js";
 import env from "../config/env.js";
+import { createRateLimit } from "../middlewares/rateLimit.js";
 const runSchema = z.object({
     jobId: z.string().min(1),
     applicantIds: z.array(z.string().min(1)).optional(),
@@ -14,6 +15,12 @@ const runSchema = z.object({
 });
 const listRunsSchema = z.object({
     jobId: z.string().min(1).optional(),
+});
+const screeningRunRateLimit = createRateLimit({
+    windowMs: 60_000,
+    maxRequests: 5,
+    keyPrefix: "screening-run",
+    message: "Too many screening runs. Please wait a minute and try again.",
 });
 function mapJob(job) {
     const criteria = parseJobCriteria(job?.job_ai_criteria);
@@ -83,7 +90,7 @@ export default function screeningRouter(options = {}) {
             return res.status(500).json({ server_error: "Internal server error" });
         }
     });
-    router.post("/run", async (req, res) => {
+    router.post("/run", screeningRunRateLimit, async (req, res) => {
         let runId = "";
         try {
             const input = runSchema.parse(req.body);

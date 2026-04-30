@@ -1,12 +1,7 @@
 import multer from "multer";
 import type { Request } from "express";
-class HttpError extends Error {
-  status: number;
-  constructor(status: number, msg: string) {
-    super(msg);
-    this.status = status;
-  }
-}
+import { createUploadError } from "../middlewares/errorHandler.js";
+
 export function makeUploadMiddleware(opts: { maxUploadMb: number }) {
   const storage = multer.memoryStorage();
   const maxBytes = Math.max(1, opts.maxUploadMb) * 1024 * 1024;
@@ -25,8 +20,7 @@ export function makeUploadMiddleware(opts: { maxUploadMb: number }) {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ]);
       if (allowed.has(file.mimetype)) return cb(null, true);
-      return cb(new HttpError(400, `Unsupported file type: ${file.mimetype}`));
+      return cb(createUploadError("Unsupported file format."));
     }
   });
 }
-

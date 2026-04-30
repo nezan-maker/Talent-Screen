@@ -16,6 +16,15 @@ import {
   runScreening,
   sendEmails,
 } from "../controllers/screeningApi.js";
+import { createUploadError } from "../middlewares/errorHandler.js";
+import { createRateLimit } from "../middlewares/rateLimit.js";
+
+const uploadRateLimit = createRateLimit({
+  windowMs: 60_000,
+  maxRequests: 10,
+  keyPrefix: "upload",
+  message: "Too many upload requests. Please wait a minute and try again.",
+});
 
 const storage = multer.memoryStorage();
 const spreadsheetMimes = new Set([
@@ -35,7 +44,7 @@ const spreadsheetUpload = multer({
   storage,
   fileFilter: (_req, file, cb) => {
     if (!spreadsheetFields.has(file.fieldname)) {
-      cb(new Error("Unexpected file field for applicant spreadsheet upload."));
+      cb(createUploadError("Unexpected file field for applicant spreadsheet upload."));
       return;
     }
 
@@ -45,9 +54,7 @@ const spreadsheetUpload = multer({
       return;
     }
 
-    cb(
-      new Error("File type not supported. Only CSV and XLSX are allowed."),
-    );
+    cb(createUploadError("File type not supported. Only CSV and XLSX are allowed."));
   },
 }).fields([
   { name: "file", maxCount: 1 },
@@ -58,7 +65,7 @@ const resumeZipUpload = multer({
   storage,
   fileFilter: (_req, file, cb) => {
     if (!resumeZipFields.has(file.fieldname)) {
-      cb(new Error("Unexpected file field for resume ZIP upload."));
+      cb(createUploadError("Unexpected file field for resume ZIP upload."));
       return;
     }
 
@@ -68,24 +75,12 @@ const resumeZipUpload = multer({
       return;
     }
 
-    cb(new Error("File type not supported. Only ZIP is allowed."));
+    cb(createUploadError("File type not supported. Only ZIP is allowed."));
   },
 }).fields([
   { name: "file", maxCount: 1 },
   { name: "resume_pdf_zip", maxCount: 1 },
 ]);
-
-const uploadErrorHandler: express.ErrorRequestHandler = (error, _req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    return res.status(400).json({ data_error: error.message });
-  }
-
-  if (error instanceof Error) {
-    return res.status(400).json({ data_error: error.message });
-  }
-
-  return next(error);
-};
 
 const dashRoutes = () => {
   const router = express.Router();
@@ -100,16 +95,16 @@ const dashRoutes = () => {
   router.post(
     "/register-candidates",
     middleAuth,
+    uploadRateLimit,
     spreadsheetUpload,
     registerCandidates,
-    uploadErrorHandler,
   );
   router.post(
     "/resume",
     middleAuth,
+    uploadRateLimit,
     resumeZipUpload,
     uploadResumeZip,
-    uploadErrorHandler,
   );
   router.post("/ask", middleAuth, runScreening);
   router.post("/review-result", middleAuth, reviewResult);

@@ -21,6 +21,7 @@ import {
   trimText,
 } from "../utils/talentProfile.js";
 import env from "../config/env.js";
+import { createRateLimit } from "../middlewares/rateLimit.js";
 
 type ScreeningRouterOptions = {
   geminiModel?: string;
@@ -37,6 +38,13 @@ const runSchema = z.object({
 
 const listRunsSchema = z.object({
   jobId: z.string().min(1).optional(),
+});
+
+const screeningRunRateLimit = createRateLimit({
+  windowMs: 60_000,
+  maxRequests: 5,
+  keyPrefix: "screening-run",
+  message: "Too many screening runs. Please wait a minute and try again.",
 });
 
 function mapJob(job: any): ScreeningJobInput {
@@ -121,7 +129,7 @@ export default function screeningRouter(options: ScreeningRouterOptions = {}) {
     }
   });
 
-  router.post("/run", async (req: Request, res: Response) => {
+  router.post("/run", screeningRunRateLimit, async (req: Request, res: Response) => {
     let runId = "";
 
     try {

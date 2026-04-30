@@ -1,4 +1,5 @@
-import type { Request, Response, NextFunction } from "express";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { createRateLimitError, sendSafeError } from "./errorHandler.js";
 
 type RateLimitOptions = {
   windowMs: number;
@@ -7,28 +8,12 @@ type RateLimitOptions = {
   message?: string;
 };
 
-type RateLimitEntry = {
-  count: number;
-  resetAt: number;
-};
-
-const store = new Map<string, RateLimitEntry>();
-
-function getClientIdentifier(req: Request) {
-  const forwardedFor = req.headers["x-forwarded-for"];
-  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
-    return forwardedFor.split(",")[0]?.trim() || req.ip || "unknown";
+function getRetryAfterSeconds(resetTime?: Date) {
+  if (!resetTime) {
+    return undefined;
   }
 
-  return req.ip || "unknown";
-}
-
-function cleanupExpiredEntries(now: number) {
-  for (const [key, entry] of store.entries()) {
-    if (entry.resetAt <= now) {
-      store.delete(key);
-    }
-  }
+  return Math.max(Math.ceil((resetTime.getTime() - Date.now()) / 1000), 1);
 }
 
 export function createRateLimit(options: RateLimitOptions) {
@@ -39,39 +24,29 @@ export function createRateLimit(options: RateLimitOptions) {
     message = "Too many requests. Please try again shortly.",
   } = options;
 
-  return (req: Request, res: Response, next: NextFunction) => {
-    const now = Date.now();
-    cleanupExpiredEntries(now);
+  return rateLimit({
+    windowMs,
+    limit: maxRequests,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    keyGenerator: (req) =>
+      `${keyPrefix}:${ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown")}`,
+    handler: (req, res) => {
+      const requestWithRateLimit = req as typeof req & {
+        rateLimit?: {
+          resetTime?: Date;
+        };
+      };
+      const retryAfterSeconds = getRetryAfterSeconds(
+        requestWithRateLimit.rateLimit?.resetTime,
+      );
+      if (retryAfterSeconds) {
+        res.setHeader("Retry-After", String(retryAfterSeconds));
+      }
 
-    const clientKey = `${keyPrefix}:${req.method}:${req.path}:${getClientIdentifier(req)}`;
-    const currentEntry = store.get(clientKey);
-
-    if (!currentEntry || currentEntry.resetAt <= now) {
-      store.set(clientKey, {
-        count: 1,
-        resetAt: now + windowMs,
+      return sendSafeError(res, createRateLimitError(message), {
+        retryAfterSeconds: retryAfterSeconds ?? 0,
       });
-
-      res.setHeader("X-RateLimit-Limit", String(maxRequests));
-      res.setHeader("X-RateLimit-Remaining", String(maxRequests - 1));
-      res.setHeader("X-RateLimit-Reset", String(Math.ceil((now + windowMs) / 1000)));
-      return next();
-    }
-
-    currentEntry.count += 1;
-    store.set(clientKey, currentEntry);
-
-    const remaining = Math.max(maxRequests - currentEntry.count, 0);
-    res.setHeader("X-RateLimit-Limit", String(maxRequests));
-    res.setHeader("X-RateLimit-Remaining", String(remaining));
-    res.setHeader("X-RateLimit-Reset", String(Math.ceil(currentEntry.resetAt / 1000)));
-
-    if (currentEntry.count > maxRequests) {
-      return res.status(429).json({
-        rate_error: message,
-      });
-    }
-
-    return next();
-  };
+    },
+  });
 }

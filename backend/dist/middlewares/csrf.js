@@ -1,6 +1,7 @@
 import crypto from "crypto";
+import { createSecurityError, sendSafeError } from "./errorHandler.js";
 const CSRF_COOKIE_NAME = "csrf_token";
-const CSRF_HEADER_NAME = "x-csrf-token";
+const CSRF_HEADER_NAME = "X-CSRF-Token";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 function getCookieOptions() {
     return {
@@ -41,18 +42,14 @@ export function verifyCsrfToken(req, res, next) {
     const origin = req.get("origin");
     const allowedOrigins = getAllowedOrigins();
     if (origin && allowedOrigins.size > 0 && !allowedOrigins.has(origin)) {
-        return res.status(403).json({
-            security_error: "Invalid request origin.",
-        });
+        return sendSafeError(res, createSecurityError("Invalid request origin."));
     }
     const cookieToken = typeof req.cookies?.[CSRF_COOKIE_NAME] === "string"
         ? req.cookies[CSRF_COOKIE_NAME].trim()
         : "";
     const headerToken = req.get(CSRF_HEADER_NAME)?.trim() || "";
     if (!cookieToken || !headerToken || cookieToken !== headerToken) {
-        return res.status(403).json({
-            security_error: "CSRF token validation failed.",
-        });
+        return sendSafeError(res, createSecurityError("CSRF token validation failed."));
     }
     return next();
 }

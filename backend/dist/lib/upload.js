@@ -1,11 +1,5 @@
 import multer from "multer";
-class HttpError extends Error {
-    status;
-    constructor(status, msg) {
-        super(msg);
-        this.status = status;
-    }
-}
+import { createUploadError } from "../middlewares/errorHandler.js";
 export function makeUploadMiddleware(opts) {
     const storage = multer.memoryStorage();
     const maxBytes = Math.max(1, opts.maxUploadMb) * 1024 * 1024;
@@ -24,7 +18,7 @@ export function makeUploadMiddleware(opts) {
             ]);
             if (allowed.has(file.mimetype))
                 return cb(null, true);
-            return cb(new HttpError(400, `Unsupported file type: ${file.mimetype}`));
+            return cb(createUploadError("Unsupported file format."));
         }
     });
 }

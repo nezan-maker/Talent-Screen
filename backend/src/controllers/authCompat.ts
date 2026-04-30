@@ -25,7 +25,6 @@ const signupPayloadSchema = z.object({
   user_email: z.string().trim().email(),
   company_name: z.string().trim().min(2).optional(),
   user_pass: passwordSchema,
-  user_pass_conf: passwordSchema,
 });
 
 const loginPayloadSchema = z.object({
@@ -326,11 +325,6 @@ async function finalizeConfirmation(res: Response, user: any) {
 export const signUp = async (req: Request, res: Response) => {
   try {
     const payload = signupPayloadSchema.parse(getPayload(req.body));
-    if (payload.user_pass !== payload.user_pass_conf) {
-      return res
-        .status(400)
-        .json({ input_error: "Passwords must be the same" });
-    }
 
     const oldUser = await User.findOne({ user_email: payload.user_email });
     if (oldUser) {

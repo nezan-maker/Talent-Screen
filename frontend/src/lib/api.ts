@@ -23,6 +23,7 @@ const RESUME_UPLOAD_TIMEOUT_MS = 10 * 60_000;
 const SCREENING_RUN_TIMEOUT_MS = 10 * 60_000;
 const CSRF_COOKIE_NAME = "csrf_token";
 const CSRF_HEADER_NAME = "X-CSRF-Token";
+const CSRF_FAILURE_MESSAGE = "CSRF token validation failed.";
 
 export const api: AxiosInstance = axios.create({
   baseURL,
@@ -31,6 +32,7 @@ export const api: AxiosInstance = axios.create({
 });
 
 let csrfBootstrapPromise: Promise<void> | null = null;
+let csrfTokenValue = "";
 
 function isUnsafeMethod(method?: string) {
   const normalized = method?.toUpperCase();
@@ -56,15 +58,25 @@ async function ensureCsrfToken() {
     return;
   }
 
-  if (readCookie(CSRF_COOKIE_NAME)) {
+  if (csrfTokenValue || readCookie(CSRF_COOKIE_NAME)) {
+    csrfTokenValue ||= readCookie(CSRF_COOKIE_NAME);
     return;
   }
 
   if (!csrfBootstrapPromise) {
     csrfBootstrapPromise = axios
-      .get(`${baseURL}/auth/csrf`, {
+      .get<{ csrfToken?: string }>(`${baseURL}/auth/csrf`, {
         withCredentials: true,
         timeout: DEFAULT_API_TIMEOUT_MS,
+      })
+      .then((response) => {
+        const token = response.data?.csrfToken?.trim();
+        if (token) {
+          csrfTokenValue = token;
+          return;
+        }
+
+        csrfTokenValue = readCookie(CSRF_COOKIE_NAME);
       })
       .then(() => undefined)
       .finally(() => {
@@ -80,6 +92,11 @@ api.interceptors.response.use(
   (error) => {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status ?? 0;
+      const message = getApiErrorMessage(error, "");
+      if (status === 403 && message.includes(CSRF_FAILURE_MESSAGE)) {
+        csrfTokenValue = "";
+      }
+
       if (status === 401 || status === 403) {
         return Promise.reject(error);
       }
@@ -92,7 +109,7 @@ api.interceptors.response.use(
 api.interceptors.request.use((config) => {
   if (isUnsafeMethod(config.method)) {
     return ensureCsrfToken().then(() => {
-      const csrfToken = readCookie(CSRF_COOKIE_NAME);
+      const csrfToken = csrfTokenValue || readCookie(CSRF_COOKIE_NAME);
       if (csrfToken) {
         config.headers.set(CSRF_HEADER_NAME, csrfToken);
       }

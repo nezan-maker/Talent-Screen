@@ -68,14 +68,15 @@ function ChoiceGroup({
               key={option}
               type="button"
               onClick={() => onChange(option)}
-              className={`rounded-xl border px-3 py-3 text-left text-xs transition-all duration-300 ease-out ${
+              aria-pressed={selected}
+              className={`rounded-xl px-3 py-3 text-left text-xs transition-all duration-300 ease-out ${
                 selected
                   ? theme === "dark"
-                    ? "border-orange-500 bg-white/4 text-white"
-                    : "border-orange-500 bg-white text-text-primary"
+                    ? "border-2 border-orange-500 bg-white/4 text-white"
+                    : "border-2 border-orange-500 bg-white text-text-primary"
                   : theme === "dark"
-                    ? "border-white/12 bg-white/4 text-slate-400 hover:-translate-y-0.5 hover:border-orange-500/40 hover:text-slate-200"
-                    : "border-slate-300 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-orange-400 hover:text-text-primary"
+                    ? "border border-white/12 bg-white/4 text-slate-400 hover:-translate-y-0.5 hover:border-orange-500/40 hover:text-slate-200"
+                    : "border border-slate-300 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-orange-400 hover:text-text-primary"
               }`}
             >
               <span className="block font-semibold leading-snug">{option}</span>

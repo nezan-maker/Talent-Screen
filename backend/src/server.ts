@@ -32,7 +32,7 @@ const startServer = async () => {
   await ensureSeedData();
   app.use(
     cors({
-      origin: ["https://wiserank-lmwy.onrender.com", "http://localhost:3001"],
+      origin: [originsFromEnv, "http://localhost:3001"],
       credentials: true,
     }),
   );

@@ -19,13 +19,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
 app.set("trust proxy", 1);
-const PORT = parseInt(process.env.PORT || "5000", 10);
+const PORT = Number(process.env.PORT ?? 10000);
 const serverDebug = debug("app:server");
 
 const originsFromEnv =
   process.env.FRONTEND_ORIGIN || "https://wiserank-lmwy.onrender.com";
-
-const allowedOrigins = new Set([originsFromEnv, "http://localhost:3001"]);
 
 const startServer = async () => {
   await connectDB();

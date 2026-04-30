@@ -6,6 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   completeOnboarding,
@@ -42,15 +43,21 @@ function ChoiceGroup({
   value,
   onChange,
   options,
+  theme,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: readonly string[];
+  theme: "light" | "dark";
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+      <p
+        className={`text-xs font-semibold uppercase tracking-widest ${
+          theme === "dark" ? "text-slate-500" : "text-slate-600"
+        }`}
+      >
         {label}
       </p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -61,10 +68,14 @@ function ChoiceGroup({
               key={option}
               type="button"
               onClick={() => onChange(option)}
-            className={`rounded-xl border px-3 py-3 text-left text-xs transition-all duration-300 ease-out ${
+              className={`rounded-xl border px-3 py-3 text-left text-xs transition-all duration-300 ease-out ${
                 selected
-                  ? "border-orange-500 bg-orange-500/10 text-white"
-                  : "border-white/12 bg-white/4 text-slate-400 hover:-translate-y-0.5 hover:border-orange-500/40 hover:text-slate-200"
+                  ? theme === "dark"
+                    ? "border-orange-500 bg-white/4 text-white"
+                    : "border-orange-500 bg-white text-text-primary"
+                  : theme === "dark"
+                    ? "border-white/12 bg-white/4 text-slate-400 hover:-translate-y-0.5 hover:border-orange-500/40 hover:text-slate-200"
+                    : "border-slate-300 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-orange-400 hover:text-text-primary"
               }`}
             >
               <span className="block font-semibold leading-snug">{option}</span>
@@ -82,6 +93,7 @@ function getDefaultRoute(user?: AuthUser) {
 
 export default function WelcomePageClient() {
   const router = useRouter();
+  const { theme } = useTheme();
   const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
   const { data: currentUser, isLoading, error } = useCurrentUser();
@@ -181,10 +193,18 @@ export default function WelcomePageClient() {
 
   if (isLoading || isAuthError || !currentUser) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0e14]">
+      <div
+        className={`flex min-h-screen items-center justify-center ${
+          theme === "dark" ? "bg-[#0b0e14]" : "bg-[#f4f5f7]"
+        }`}
+      >
         <div className="flex flex-col items-center gap-4">
           <BrainLoader className="h-8 w-8" label="Preparing workspace" />
-          <p className="text-xs tracking-widest uppercase text-slate-600">
+          <p
+            className={`text-xs tracking-widest uppercase ${
+              theme === "dark" ? "text-slate-600" : "text-slate-500"
+            }`}
+          >
             Preparing workspace
           </p>
         </div>
@@ -298,7 +318,11 @@ export default function WelcomePageClient() {
         }
       `}</style>
 
-      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b0e14] px-4 py-8">
+      <div
+        className={`relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 ${
+          theme === "dark" ? "bg-[#0b0e14]" : "bg-[#f4f5f7]"
+        }`}
+      >
         <motion.div
           animate={
             prefersReducedMotion
@@ -345,7 +369,11 @@ export default function WelcomePageClient() {
               >
                 <motion.div
                   variants={itemVariants}
-                  className="mb-10 inline-flex items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/8 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-orange-400"
+                  className={`mb-10 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-orange-400 ${
+                    theme === "dark"
+                      ? "border-orange-500/20 bg-orange-500/8"
+                      : "border-orange-200 bg-orange-50"
+                  }`}
                 >
                   <Sparkles className="h-3 w-3" />
                   Talvo workspace
@@ -353,6 +381,7 @@ export default function WelcomePageClient() {
 
                 <motion.h1
                   variants={headingVariants}
+                  className={theme === "dark" ? "text-white" : "text-slate-900"}
                   style={{
                     fontSize: "clamp(3.4rem, 10vw, 7.5rem)",
                     fontWeight: 800,
@@ -361,12 +390,14 @@ export default function WelcomePageClient() {
                   }}
                 >
                   Hi, <span className="name-gradient">{firstName}</span>
-                  <span className="text-white">.</span>
+                  <span className={theme === "dark" ? "text-white" : "text-slate-900"}>.</span>
                 </motion.h1>
 
                 <motion.p
                   variants={itemVariants}
-                  className="mt-7 max-w-lg text-base leading-7 text-slate-400 sm:text-lg sm:leading-8"
+                  className={`mt-7 max-w-lg text-base leading-7 sm:text-lg sm:leading-8 ${
+                    theme === "dark" ? "text-slate-400" : "text-slate-600"
+                  }`}
                 >
                   Let's shape your hiring workspace — it only takes a moment and
                   makes everything smarter from day one.
@@ -375,7 +406,7 @@ export default function WelcomePageClient() {
                 <motion.button
                   variants={itemVariants}
                   onClick={() => setStage("form")}
-                  className="btn-continue mt-10 inline-flex items-center gap-3 rounded-2xl bg-orange-500 px-9 py-4 text-sm font-semibold text-white shadow-[0_16px_48px_rgba(249,115,22,0.38)] transition-all duration-300 hover:bg-orange-400 hover:gap-4 hover:shadow-[0_20px_56px_rgba(249,115,22,0.52)] active:scale-[0.97]"
+                  className="btn-continue mt-10 inline-flex items-center gap-3 rounded-2xl bg-orange-500 px-9 py-4 text-sm font-semibold text-white transition-all duration-300 hover:bg-orange-400 hover:gap-4 active:scale-[0.97]"
                 >
                   Continue
                   <ArrowRight className="h-4 w-4" />
@@ -398,7 +429,11 @@ export default function WelcomePageClient() {
                 variants={formContainerVariants}
                 initial="initial"
                 animate="animate"
-                className="rounded-[28px] border border-white/8 bg-[#13171f] px-8 py-8 shadow-[0_40px_120px_rgba(0,0,0,0.75)] sm:px-10 sm:py-9"
+                className={`rounded-[28px] px-8 py-8 sm:px-10 sm:py-9 ${
+                  theme === "dark"
+                    ? "border border-white/8 bg-[#13171f] shadow-[0_40px_120px_rgba(0,0,0,0.75)]"
+                    : "border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.12)]"
+                }`}
               >
                 <motion.div
                   variants={itemVariants}
@@ -408,12 +443,22 @@ export default function WelcomePageClient() {
                     <p className="text-xs font-semibold uppercase tracking-[0.22em] text-orange-500">
                       One last thing
                     </p>
-                    <h2 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                    <h2
+                      className={`mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl ${
+                        theme === "dark" ? "text-white" : "text-slate-900"
+                      }`}
+                    >
                       How do you hire,{" "}
                       <span className="text-orange-400">{firstName}</span>?
                     </h2>
                   </div>
-                  <div className="hidden shrink-0 items-center gap-2 rounded-full border border-white/8 bg-white/4 px-3 py-1.5 text-xs text-slate-500 sm:flex">
+                  <div
+                    className={`hidden shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs sm:flex ${
+                      theme === "dark"
+                        ? "border-white/8 bg-white/4 text-slate-500"
+                        : "border-slate-200 bg-slate-50 text-slate-500"
+                    }`}
+                  >
                     <Sparkles className="h-3 w-3 text-orange-500/60" />
                     Workspace setup
                   </div>
@@ -424,7 +469,9 @@ export default function WelcomePageClient() {
                     <motion.div variants={itemVariants}>
                       <label
                         htmlFor="company-name"
-                        className="text-xs font-semibold uppercase tracking-widest text-slate-500"
+                        className={`text-xs font-semibold uppercase tracking-widest ${
+                          theme === "dark" ? "text-slate-500" : "text-slate-600"
+                        }`}
                       >
                         Company name
                       </label>
@@ -435,7 +482,11 @@ export default function WelcomePageClient() {
                         autoComplete="organization"
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
-                        className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/8"
+                        className={`mt-2 h-11 w-full rounded-xl border px-4 text-sm outline-none transition-all placeholder:text-slate-500 focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/8 ${
+                          theme === "dark"
+                            ? "border-white/10 bg-white/5 text-white"
+                            : "border-slate-300 bg-white text-slate-900"
+                        }`}
                         placeholder="Acme Talent"
                       />
                     </motion.div>
@@ -447,6 +498,7 @@ export default function WelcomePageClient() {
                       value={hiringFocus}
                       onChange={setHiringFocus}
                       options={hiringFocusOptions}
+                      theme={theme}
                     />
                   </motion.div>
 
@@ -456,6 +508,7 @@ export default function WelcomePageClient() {
                       value={teamSetup}
                       onChange={setTeamSetup}
                       options={teamSetupOptions}
+                      theme={theme}
                     />
                   </motion.div>
 
@@ -465,6 +518,7 @@ export default function WelcomePageClient() {
                       value={workflowGoal}
                       onChange={setWorkflowGoal}
                       options={workflowGoalOptions}
+                      theme={theme}
                     />
                   </motion.div>
 

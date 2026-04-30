@@ -1,6 +1,7 @@
 import Job from "../models/Job.js";
 import Applicant from "../models/Applicant.js";
 import { mapApplicantToFrontend, mapJobToFrontend, } from "../utils/frontendMappers.js";
+import { resolveOwnedApplicants, resolveOwnedJobs } from "../utils/ownership.js";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 import { parseJobCriteria, trimText } from "../utils/talentProfile.js";
 function buildExampleForm(payload) {
@@ -30,18 +31,16 @@ export async function getJobs(req, res) {
         if (!userId) {
             return res.status(401).json({ expiration_error: "Session expired" });
         }
-        const filter = { user_id: userId };
-        const [totalJobs, jobs, applicants] = await Promise.all([
-            Job.countDocuments(filter),
-            Job.find({ user_id: userId })
-                .sort({ updatedAt: -1, createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-            Applicant.find({ user_id: userId })
-                .sort({ updatedAt: -1, createdAt: -1 })
-                .lean(),
-        ]);
+        const allOwnedJobs = await resolveOwnedJobs({
+            userId,
+            currentUser: req.currentUser,
+        });
+        const applicants = await resolveOwnedApplicants({
+            userId,
+            ownedJobs: allOwnedJobs,
+        });
+        const totalJobs = allOwnedJobs.length;
+        const jobs = allOwnedJobs.slice(skip, skip + limit);
         const mappedApplicants = applicants.map(mapApplicantToFrontend);
         return res.status(200).json({
             jobs: jobs.map((job) => mapJobToFrontend(job, mappedApplicants)),
@@ -60,10 +59,15 @@ export async function getJobById(req, res) {
         if (!userId) {
             return res.status(401).json({ expiration_error: "Session expired" });
         }
-        const [job, applicants] = await Promise.all([
-            Job.findOne({ _id: id, user_id: userId }).lean(),
-            Applicant.find({ user_id: userId }).lean(),
-        ]);
+        const ownedJobs = await resolveOwnedJobs({
+            userId,
+            currentUser: req.currentUser,
+        });
+        const job = ownedJobs.find((item) => trimText(item._id) === id) ?? null;
+        const applicants = await resolveOwnedApplicants({
+            userId,
+            ownedJobs,
+        });
         if (!job) {
             return res.status(404).json({ data_error: "Job not found" });
         }

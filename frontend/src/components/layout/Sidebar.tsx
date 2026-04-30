@@ -135,7 +135,7 @@ export function Sidebar({ pathname: _pathname }: { pathname: string }) {
                   openRuvo();
                 }}
                 placeholder="Ask me anything..."
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-text-muted text-text-primary cursor-pointer"
+                className="w-full bg-transparent text-[13px] text-text-primary caret-text-primary opacity-100 outline-none placeholder:text-text-muted cursor-pointer"
                 readOnly
               />
             </div>

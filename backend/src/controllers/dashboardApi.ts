@@ -6,6 +6,7 @@ import {
   mapApplicantToFrontend,
   mapJobToFrontend,
 } from "../utils/frontendMappers.js";
+import { resolveOwnedApplicants, resolveOwnedJobs } from "../utils/ownership.js";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 
 export async function getDashboardOverview(req: Request, res: Response) {
@@ -24,12 +25,14 @@ export async function getDashboardOverview(req: Request, res: Response) {
       pageSizeKey: "applicantsPageSize",
     });
 
-    const [jobs, applicants] = await Promise.all([
-      Job.find({ user_id: userId }).sort({ updatedAt: -1, createdAt: -1 }).lean(),
-      Applicant.find({ user_id: userId })
-        .sort({ updatedAt: -1, createdAt: -1 })
-        .lean(),
-    ]);
+    const jobs = await resolveOwnedJobs({
+      userId,
+      currentUser: req.currentUser,
+    });
+    const applicants = await resolveOwnedApplicants({
+      userId,
+      ownedJobs: jobs,
+    });
 
     const mappedApplicants = applicants.map(mapApplicantToFrontend);
     const mappedJobs = jobs.map((job) => mapJobToFrontend(job, mappedApplicants));

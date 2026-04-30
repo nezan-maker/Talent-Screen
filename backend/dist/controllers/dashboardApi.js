@@ -1,6 +1,7 @@
 import Applicant from "../models/Applicant.js";
 import Job from "../models/Job.js";
 import { buildDashboardStats, mapApplicantToFrontend, mapJobToFrontend, } from "../utils/frontendMappers.js";
+import { resolveOwnedApplicants, resolveOwnedJobs } from "../utils/ownership.js";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 export async function getDashboardOverview(req, res) {
     try {
@@ -16,12 +17,14 @@ export async function getDashboardOverview(req, res) {
             pageKey: "applicantsPage",
             pageSizeKey: "applicantsPageSize",
         });
-        const [jobs, applicants] = await Promise.all([
-            Job.find({ user_id: userId }).sort({ updatedAt: -1, createdAt: -1 }).lean(),
-            Applicant.find({ user_id: userId })
-                .sort({ updatedAt: -1, createdAt: -1 })
-                .lean(),
-        ]);
+        const jobs = await resolveOwnedJobs({
+            userId,
+            currentUser: req.currentUser,
+        });
+        const applicants = await resolveOwnedApplicants({
+            userId,
+            ownedJobs: jobs,
+        });
         const mappedApplicants = applicants.map(mapApplicantToFrontend);
         const mappedJobs = jobs.map((job) => mapJobToFrontend(job, mappedApplicants));
         const pagedApplicants = mappedApplicants.slice(applicantsPagination.skip, applicantsPagination.skip + applicantsPagination.limit);

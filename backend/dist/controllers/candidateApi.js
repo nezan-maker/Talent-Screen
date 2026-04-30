@@ -1,5 +1,6 @@
 import Applicant from "../models/Applicant.js";
 import { mapApplicantToFrontend } from "../utils/frontendMappers.js";
+import { resolveOwnedApplicants, resolveOwnedJobs } from "../utils/ownership.js";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 import { trimText } from "../utils/talentProfile.js";
 export async function getCandidates(req, res) {
@@ -9,15 +10,16 @@ export async function getCandidates(req, res) {
         if (!userId) {
             return res.status(401).json({ expiration_error: "Session expired" });
         }
-        const filter = { user_id: userId };
-        const [totalCandidates, applicants] = await Promise.all([
-            Applicant.countDocuments(filter),
-            Applicant.find({ user_id: userId })
-                .sort({ updatedAt: -1, createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .lean(),
-        ]);
+        const ownedJobs = await resolveOwnedJobs({
+            userId,
+            currentUser: req.currentUser,
+        });
+        const allApplicants = await resolveOwnedApplicants({
+            userId,
+            ownedJobs,
+        });
+        const totalCandidates = allApplicants.length;
+        const applicants = allApplicants.slice(skip, skip + limit);
         return res.status(200).json({
             candidates: applicants.map(mapApplicantToFrontend),
             pagination: buildPaginationMeta(totalCandidates, page, pageSize),
@@ -35,10 +37,15 @@ export async function getCandidateById(req, res) {
         if (!userId) {
             return res.status(401).json({ expiration_error: "Session expired" });
         }
-        const applicant = await Applicant.findOne({
-            _id: id,
-            user_id: userId,
-        }).lean();
+        const ownedJobs = await resolveOwnedJobs({
+            userId,
+            currentUser: req.currentUser,
+        });
+        const applicants = await resolveOwnedApplicants({
+            userId,
+            ownedJobs,
+        });
+        const applicant = applicants.find((item) => trimText(item._id) === id) ?? null;
         if (!applicant) {
             return res.status(404).json({ data_error: "Candidate not found" });
         }

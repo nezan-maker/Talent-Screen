@@ -118,15 +118,19 @@ function SettingSwitch({
         aria-checked={checked}
         onClick={onChange}
         disabled={disabled}
-        className={`relative h-6 w-11 rounded-full border transition-colors ${
+        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border px-0.5 transition-all duration-200 ${
           checked
-            ? "border-accent bg-accent"
-            : "border-border bg-border/70"
-        } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
+            ? "border-accent bg-accent/95"
+            : "border-border bg-bg"
+        } ${
+          disabled
+            ? "cursor-not-allowed opacity-60"
+            : "hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
+        }`}
       >
         <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-[21px]" : "translate-x-0.5"
+          className={`inline-block h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform duration-200 ${
+            checked ? "translate-x-5" : "translate-x-0"
           }`}
           aria-hidden="true"
         />

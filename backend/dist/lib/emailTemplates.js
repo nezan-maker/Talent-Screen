@@ -34,7 +34,7 @@ function normalizeBaseUrl(value) {
     return trimmed.replace(/\/+$/, "");
 }
 function getFrontendBaseUrl() {
-    return normalizeBaseUrl(env.FRONTEND_URL ?? env.FRONTEND_ORIGIN);
+    return normalizeBaseUrl(env.FRONTEND_ORIGIN);
 }
 function buildFrontendUrl(pathname, params) {
     const url = new URL(pathname, `${getFrontendBaseUrl()}/`);

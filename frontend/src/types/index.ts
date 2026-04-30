@@ -17,6 +17,8 @@ export interface Job {
   experienceLevel: string;
   salaryMin?: number;
   salaryMax?: number;
+  workersRequired: number;
+  minimumMarks: number;
   description: string;
   responsibilities: string;
   qualifications: string;

@@ -23,6 +23,34 @@ const userSchema = new mongoose.Schema({
         required: true,
         index: true,
     },
+    google_id: {
+        type: String,
+        default: null,
+        index: true,
+    },
+    auth_provider: {
+        type: String,
+        enum: ["local", "google"],
+        default: "local",
+    },
+    onboarding_completed: {
+        type: Boolean,
+        default: false,
+    },
+    onboarding_preferences: {
+        hiring_focus: {
+            type: String,
+            default: "",
+        },
+        team_setup: {
+            type: String,
+            default: "",
+        },
+        workflow_goal: {
+            type: String,
+            default: "",
+        },
+    },
     pass_token: {
         type: String,
         default: null,

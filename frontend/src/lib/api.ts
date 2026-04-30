@@ -48,7 +48,15 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
+  companyName?: string;
+  authProvider?: string;
   isVerified?: boolean;
+  onboardingCompleted?: boolean;
+  onboardingPreferences?: {
+    hiringFocus?: string;
+    teamSetup?: string;
+    workflowGoal?: string;
+  };
   createdAtISO?: string;
   updatedAtISO?: string;
 };
@@ -76,6 +84,7 @@ export type LoginPayload = {
 export type SignupPayload = {
   user_name: string;
   user_email: string;
+  company_name?: string;
   user_pass: string;
   user_pass_conf: string;
 };
@@ -99,6 +108,7 @@ export type CompleteJobPayload = {
       priority: string;
     }>;
     workers_required: number;
+    minimum_marks: number;
     job_state?: string;
   };
 };
@@ -213,6 +223,16 @@ export type ScreeningResultApiRecord = {
   strengths: string[];
   gaps: string[];
   recommendation: string;
+  manual_review?: {
+    additional_info?: string;
+    previous_verdict?: 'Shortlisted' | 'Review' | 'Rejected';
+    updated_verdict?: 'Shortlisted' | 'Review' | 'Rejected';
+    reviewed_at?: string;
+  };
+  recruiter_decision?: {
+    verdict?: 'Shortlisted' | 'Rejected';
+    decided_at?: string;
+  };
 };
 
 export type LatestJobResultsResponse = {
@@ -293,6 +313,7 @@ type JobResponse = { job: Job };
 type CandidatesResponse = { candidates: Candidate[]; pagination?: PaginationMeta };
 type CandidateResponse = { candidate: Candidate };
 type CurrentUserResponse = { user: AuthUser };
+type CompleteOnboardingResponse = { success: string; user: AuthUser };
 type RegisterCandidatesResponse = {
   success: string;
   createdCount: number;
@@ -332,6 +353,21 @@ type ScreeningRunResponse = {
 type ReviewResultResponse = {
   success: string;
   updatedCount: number;
+};
+
+type ReviewApplicantResponse = {
+  success: string;
+  result?: ScreeningResultApiRecord;
+};
+
+type FinalizeRecruitingResponse = {
+  success: string;
+  finalizedCount: number;
+  sentCount: number;
+  shortlistedCount: number;
+  rejectedCount: number;
+  shortlistedSentCount: number;
+  rejectedSentCount: number;
 };
 
 type ScreeningRunsResponse = {
@@ -669,7 +705,14 @@ async function mockGet<T>(path: string): Promise<MockResponse<T>> {
           id: 'demo-user',
           name: 'A. Recruiter',
           email: 'recruiter@talvo.ai',
+          companyName: 'Talvo Demo',
           isVerified: true,
+          onboardingCompleted: true,
+          onboardingPreferences: {
+            hiringFocus: 'Engineering and product hiring',
+            teamSetup: 'Lean internal recruiting team',
+            workflowGoal: 'Faster, clearer shortlisting',
+          },
         },
       } as unknown as T,
     };
@@ -1136,6 +1179,19 @@ export async function signupUser(
   return response.data;
 }
 
+export async function completeOnboarding(payload: {
+  company_name: string;
+  hiring_focus: string;
+  team_setup: string;
+  workflow_goal: string;
+}): Promise<CompleteOnboardingResponse> {
+  const response = await api.post<CompleteOnboardingResponse>(
+    '/auth/onboarding',
+    payload
+  );
+  return response.data;
+}
+
 export async function confirmSignup(
   token: string,
   signupToken?: string
@@ -1336,6 +1392,54 @@ export async function reviewCandidateDecisions(
   const response = await api.post<ReviewResultResponse>('/review-result', {
     verdict_string: verdicts,
   });
+  return response.data;
+}
+
+export async function reviewApplicantResult(
+  resultId: string,
+  additionalInfo: string
+): Promise<ReviewApplicantResponse> {
+  if (isMockMode()) {
+    await sleep(250);
+    return {
+      success: 'Applicant reviewed successfully',
+    };
+  }
+
+  const response = await api.post<ReviewApplicantResponse>(
+    `/ai/results/${resultId}/review`,
+    {
+      additional_info: additionalInfo,
+    }
+  );
+  return response.data;
+}
+
+export async function finalizeJobRecruiting(
+  jobId: string,
+  decisions: Array<{
+    result_id: string;
+    applicant_id: string;
+    verdict: 'Shortlisted' | 'Rejected';
+  }>
+): Promise<FinalizeRecruitingResponse> {
+  if (isMockMode()) {
+    await sleep(250);
+    return {
+      success: 'Recruiter decisions finalized successfully',
+      finalizedCount: decisions.length,
+      sentCount: decisions.length,
+      shortlistedCount: decisions.filter((item) => item.verdict === 'Shortlisted').length,
+      rejectedCount: decisions.filter((item) => item.verdict === 'Rejected').length,
+      shortlistedSentCount: decisions.filter((item) => item.verdict === 'Shortlisted').length,
+      rejectedSentCount: decisions.filter((item) => item.verdict === 'Rejected').length,
+    };
+  }
+
+  const response = await api.post<FinalizeRecruitingResponse>(
+    `/ai/jobs/${jobId}/finalize`,
+    { decisions }
+  );
   return response.data;
 }
 

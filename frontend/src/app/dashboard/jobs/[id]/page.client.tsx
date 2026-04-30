@@ -39,7 +39,7 @@ export default function JobDetailPage() {
       <Card className="p-8">
         <div className="text-lg font-semibold">Job not found</div>
         <div className="mt-1 text-sm text-text-muted">
-          We could not load the job with id `{id}` from the current backend data.
+          We could not load this job right now.
         </div>
         <div className="mt-4">
           <Link href="/dashboard">
@@ -68,7 +68,7 @@ export default function JobDetailPage() {
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader title="Job Overview" subtitle="Key details returned by the current backend." />
+          <CardHeader title="Job Overview" subtitle="A quick snapshot of the role details and hiring setup." />
           <CardBody>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="info">{job.employmentType}</Badge>
@@ -84,6 +84,14 @@ export default function JobDetailPage() {
               <div className="rounded-card border border-border bg-bg p-4">
                 <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Shortlisted</div>
                 <div className="mt-1 text-2xl font-bold">{job.shortlistedCount}</div>
+              </div>
+              <div className="rounded-card border border-border bg-bg p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Workers Required</div>
+                <div className="mt-1 text-2xl font-bold">{job.workersRequired}</div>
+              </div>
+              <div className="rounded-card border border-border bg-bg p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Minimum Marks</div>
+                <div className="mt-1 text-2xl font-bold">{job.minimumMarks}%</div>
               </div>
             </div>
 
@@ -103,7 +111,7 @@ export default function JobDetailPage() {
         </Card>
 
         <Card>
-          <CardHeader title="AI Screening Criteria" subtitle="Normalized from the backend criteria array." />
+          <CardHeader title="AI Screening Criteria" subtitle="The screening signals currently guiding recruiter review." />
           <CardBody>
             <div className="rounded-card border border-border bg-accent/8 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Shortlist Size</div>

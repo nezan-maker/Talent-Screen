@@ -31,6 +31,7 @@ function mapJob(job) {
         title: trimText(job?.job_title) || "Role",
         requirements,
         skills,
+        minimum_marks: typeof job?.minimum_marks === "number" ? job.minimum_marks : 70,
         ...(typeof years === "number" && Number.isFinite(years) ? { experienceYearsMin: years } : {}),
         education,
         ...(notes ? { notes } : {}),

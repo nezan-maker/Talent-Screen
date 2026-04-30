@@ -191,6 +191,8 @@ export default function NewJobPage() {
     experienceLevel: "Mid",
     salaryMin: undefined,
     salaryMax: undefined,
+    workersRequired: 1,
+    minimumMarks: 70,
     description: "",
     responsibilities: "",
     qualifications: "",
@@ -222,6 +224,8 @@ export default function NewJobPage() {
             ? `${form.salaryMin ?? "Open"} - ${form.salaryMax ?? "Open"}`
             : "Not specified",
       },
+      { k: "Workers Required", v: String(form.workersRequired) },
+      { k: "Minimum Marks", v: `${form.minimumMarks}%` },
       {
         k: "Description",
         v: form.description
@@ -280,6 +284,14 @@ export default function NewJobPage() {
       form.salaryMin > form.salaryMax
     ) {
       nextErrors.salaryRange = "Minimum salary cannot exceed maximum salary";
+    }
+
+    if (!Number.isInteger(form.workersRequired) || form.workersRequired < 1) {
+      nextErrors.workersRequired = "Workers required must be at least 1";
+    }
+
+    if (!Number.isFinite(form.minimumMarks) || form.minimumMarks < 0 || form.minimumMarks > 100) {
+      nextErrors.minimumMarks = "Minimum marks must be between 0 and 100";
     }
 
     setErrors(nextErrors);
@@ -365,7 +377,8 @@ export default function NewJobPage() {
           job_qualifications: form.qualifications.trim(),
           job_shortlist_size: form.aiCriteria.shortlistSize,
           job_ai_criteria: buildJobCriteria(form),
-          workers_required: 1,
+          workers_required: form.workersRequired,
+          minimum_marks: form.minimumMarks,
           job_state: "Active",
         },
       });
@@ -442,6 +455,53 @@ export default function NewJobPage() {
                         placeholder="Kigali (Hybrid)"
                       />
                       <FieldError message={errors.location} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-semibold text-text-primary">Workers Required</label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={form.workersRequired}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            workersRequired: Number(event.target.value || 1),
+                          }))
+                        }
+                        className={`${InputClass(Boolean(errors.workersRequired))} h-10`}
+                        placeholder="1"
+                      />
+                      <div className="mt-1 text-xs text-text-muted">
+                        Set how many hires this role is intended to fill.
+                      </div>
+                      <FieldError message={errors.workersRequired} />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-semibold text-text-primary">Minimum Marks Required</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={form.minimumMarks}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            minimumMarks: Number(event.target.value || 0),
+                          }))
+                        }
+                        className={`${InputClass(Boolean(errors.minimumMarks))} h-10`}
+                        placeholder="70"
+                      />
+                      <div className="mt-1 text-xs text-text-muted">
+                        Candidates below this score will not meet the shortlist threshold.
+                      </div>
+                      <FieldError message={errors.minimumMarks} />
                     </div>
                   </div>
 
@@ -774,4 +834,3 @@ export default function NewJobPage() {
     </motion.div>
   );
 }
-

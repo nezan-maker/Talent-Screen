@@ -27,7 +27,10 @@ function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 const connectDB = async () => {
-    const { MONGO_URI } = process.env;
+    if (!process.env.MONGO_URI) {
+        throw new Error("Coulf not load database environment");
+    }
+    const MONGO_URI = process.env.MONGO_URI;
     if (!MONGO_URI) {
         throw new Error("MONGO_URI is not set");
     }

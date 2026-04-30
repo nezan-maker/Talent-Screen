@@ -52,7 +52,7 @@ export async function getJobs(req: Request, res: Response) {
         .skip(skip)
         .limit(limit)
         .lean(),
-      Applicant.find({ user_id: userId})
+      Applicant.find({ user_id: userId })
         .sort({ updatedAt: -1, createdAt: -1 })
         .lean(),
     ]);
@@ -152,6 +152,8 @@ export async function createJob(req: Request, res: Response) {
         typeof payload.workers_required === "number"
           ? payload.workers_required
           : 1,
+      minimum_marks:
+        typeof payload.minimum_marks === "number" ? payload.minimum_marks : 70,
       job_example_form: buildExampleForm({
         job_title,
         job_experience_required:

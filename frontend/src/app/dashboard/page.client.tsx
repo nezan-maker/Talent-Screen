@@ -397,7 +397,7 @@ export default function DashboardPage() {
       >
         <div className="space-y-4">
           <div className="text-sm text-text-muted">
-            Filter the live candidate pipeline returned by your backend workspace.
+            Filter the current candidate pipeline for this workspace.
           </div>
 
           <div className="space-y-2">
@@ -453,4 +453,3 @@ export default function DashboardPage() {
     </motion.div>
   );
 }
-

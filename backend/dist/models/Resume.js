@@ -5,6 +5,10 @@ const resumeSchema = new mongoose.Schema({
         type: String,
         default: () => buildEntityId("resume"),
     },
+    user_id: {
+        type: String,
+        ref: "User",
+    },
     job_id: {
         type: String,
         ref: "Job",

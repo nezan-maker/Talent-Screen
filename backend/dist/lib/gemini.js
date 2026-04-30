@@ -11,9 +11,18 @@ export const geminiOutputSchema = z.object({
         matchScore: z.number().min(0).max(100),
         strengths: z.array(z.string()).default([]),
         gaps: z.array(z.string()).default([]),
+        verdict: z.enum(["Shortlisted", "ShortListed", "Review", "Rejected"]),
         recommendation: z.string().min(1),
     }))
         .min(1),
+});
+const reviewOutputSchema = z.object({
+    matchScore: z.number().min(0).max(100),
+    verdict: z.enum(["Shortlisted", "ShortListed", "Rejected"]),
+    summary: z.string().min(1),
+    strengths: z.array(z.string()).default([]),
+    gaps: z.array(z.string()).default([]),
+    recommendation: z.string().min(1),
 });
 const assistantOutputSchema = z.object({
     answer: z.string().min(1),
@@ -53,6 +62,16 @@ function gradeFromScore(score) {
         return "C";
     return "D";
 }
+export function normalizeScreeningVerdict(value) {
+    const normalized = trimText(value).toLowerCase();
+    if (normalized === "shortlisted") {
+        return "Shortlisted";
+    }
+    if (normalized === "review") {
+        return "Review";
+    }
+    return "Rejected";
+}
 function extractFirstJsonObject(text) {
     const first = text.indexOf("{");
     const last = text.lastIndexOf("}");
@@ -65,7 +84,9 @@ function uniqueModels(models) {
 }
 function shouldFallbackModel(error) {
     const errorLike = error;
-    const status = typeof errorLike.status === "number" ? errorLike.status : Number(errorLike.status);
+    const status = typeof errorLike.status === "number"
+        ? errorLike.status
+        : Number(errorLike.status);
     const message = trimText(errorLike.message).toLowerCase();
     return (status === 404 ||
         message.includes("not found") ||
@@ -127,7 +148,10 @@ async function generateWithGemini(opts) {
         }
         throw lastError ?? new Error("Gemini request failed");
     }
-    const vertex = new VertexAI({ project: opts.projectId, location: opts.location });
+    const vertex = new VertexAI({
+        project: opts.projectId,
+        location: opts.location,
+    });
     const model = vertex.getGenerativeModel({ model: opts.model });
     const result = await withTimeout(model.generateContent({
         contents: [
@@ -149,11 +173,14 @@ function mapJobContext(rawJob) {
     const job = rawJob;
     const id = trimText(job._id ?? job.job_id ?? job.jobId);
     const title = trimText(job.job_title ?? job.title);
+    const minimum_marks = Number(trimText(job.minimum_marks));
     if (!id && !title) {
         return undefined;
     }
     const criteria = parseJobCriteria(job.job_ai_criteria ?? job.criteria);
-    const skills = criteria.map((item) => trimText(item.criteria_string)).filter(Boolean);
+    const skills = criteria
+        .map((item) => trimText(item.criteria_string))
+        .filter(Boolean);
     const requirements = splitList([job.requirements, job.job_qualifications, job.job_responsibilities]
         .map((value) => trimText(value))
         .filter(Boolean)
@@ -167,6 +194,7 @@ function mapJobContext(rawJob) {
         jobId: id || `job:${title || "unknown"}`,
         title: title || "Role",
         requirements,
+        minimum_marks,
         skills,
         ...(typeof experienceYearsMin === "number" ? { experienceYearsMin } : {}),
         education,
@@ -186,14 +214,22 @@ function mapCandidateContext(rawCandidate, index) {
     const location = trimText(candidate.location);
     const resumeText = trimText(candidate.resumeText ?? candidate.resume_text);
     const skills = Array.isArray(candidate.skills)
-        ? normalizeSkills(candidate.skills).map((item) => trimText(item.name)).filter(Boolean)
-        : normalizeSkills(candidate.skills).map((item) => trimText(item.name)).filter(Boolean);
+        ? normalizeSkills(candidate.skills)
+            .map((item) => trimText(item.name))
+            .filter(Boolean)
+        : normalizeSkills(candidate.skills)
+            .map((item) => trimText(item.name))
+            .filter(Boolean);
     const experience = normalizeExperience(candidate.experience);
     const yearsExperienceRaw = Number(candidate.yearsExperience ?? candidate.experience_in_years);
     const yearsExperience = Number.isFinite(yearsExperienceRaw)
         ? yearsExperienceRaw
         : inferExperienceYears(experience);
-    const education = normalizeEducation(candidate.education).map((item) => [trimText(item.degree), trimText(item.field_of_study), trimText(item.institution)]
+    const education = normalizeEducation(candidate.education).map((item) => [
+        trimText(item.degree),
+        trimText(item.field_of_study),
+        trimText(item.institution),
+    ]
         .filter(Boolean)
         .join(" - "));
     return {
@@ -218,7 +254,9 @@ export async function screenWithGemini(opts) {
             ? { yearsExperience: candidate.yearsExperience }
             : {}),
         education: candidate.education ?? [],
-        ...(candidate.resumeText ? { resumeText: candidate.resumeText.slice(0, 4000) } : {}),
+        ...(candidate.resumeText
+            ? { resumeText: candidate.resumeText.slice(0, 4000) }
+            : {}),
     }));
     const prompt = [
         "You are an AI assistant helping a recruiter screen candidates.",
@@ -231,6 +269,7 @@ export async function screenWithGemini(opts) {
         "- strengths and gaps must be concise bullet-like strings.",
         "- recommendation must be recruiter-friendly and action-oriented.",
         "- Be transparent: note missing information as gaps/risks.",
+        "- You have to apply your knowledge to mark the candidate as shortlisted , to be reviewed or rejected in response to the minimum marks required for shortlisting that will be provided",
         "",
         "Scoring guidance (suggested weights): skills 40%, experience 30%, education 10%, overall relevance 20%.",
         "",
@@ -246,8 +285,81 @@ export async function screenWithGemini(opts) {
     const data = geminiOutputSchema.parse(parsed);
     const sorted = [...data.shortlist]
         .sort((left, right) => left.rank - right.rank)
-        .map((item, index) => ({ ...item, rank: index + 1 }));
+        .map((item, index) => ({
+        ...item,
+        rank: index + 1,
+        verdict: normalizeScreeningVerdict(item.verdict),
+    }));
     return { shortlist: sorted.slice(0, Math.max(1, opts.topK)) };
+}
+export async function reviewApplicantWithGemini(opts) {
+    const job = mapJobContext(opts.job);
+    const candidate = mapCandidateContext(opts.candidate, 0);
+    const additionalInfo = trimText(opts.additionalInfo);
+    if (!job) {
+        throw new Error("Job context is required for review");
+    }
+    if (!additionalInfo) {
+        throw new Error("Additional review information is required");
+    }
+    const candidateCompact = {
+        applicantId: candidate.applicantId,
+        ...(candidate.fullName ? { fullName: candidate.fullName } : {}),
+        ...(candidate.email ? { email: candidate.email } : {}),
+        ...(candidate.location ? { location: candidate.location } : {}),
+        skills: candidate.skills ?? [],
+        ...(typeof candidate.yearsExperience === "number"
+            ? { yearsExperience: candidate.yearsExperience }
+            : {}),
+        education: candidate.education ?? [],
+        ...(candidate.resumeText
+            ? { resumeText: candidate.resumeText.slice(0, 4000) }
+            : {}),
+    };
+    const prompt = [
+        "You are an AI assistant helping a recruiter re-review one candidate after additional external information was collected.",
+        "Use the job requirements, the current screening result, and the new information to reassess the candidate fairly.",
+        "Treat the additional information as recruiter-supplied context. Use it carefully and stay transparent about remaining uncertainty.",
+        "",
+        "Requirements:",
+        `- Return ONLY valid JSON with this exact shape: ${JSON.stringify({
+            matchScore: 78,
+            verdict: "Review",
+            summary: "string",
+            strengths: ["string"],
+            gaps: ["string"],
+            recommendation: "string",
+        })}`,
+        "- matchScore must be 0..100.",
+        "- verdict must be one of Shortlisted or Rejected.",
+        "- summary must explain how the extra information changed or confirmed the decision.",
+        "- strengths and gaps must stay concise and recruiter-friendly.",
+        "- recommendation must be action-oriented and practical.",
+        "",
+        "JOB:",
+        JSON.stringify(job, null, 2),
+        "",
+        "CANDIDATE:",
+        JSON.stringify(candidateCompact, null, 2),
+        "",
+        "CURRENT SCREENING RESULT:",
+        JSON.stringify(opts.currentResult, null, 2),
+        "",
+        "ADDITIONAL EXTERNAL INFORMATION:",
+        additionalInfo,
+    ].join("\n");
+    const text = await generateWithGemini({ ...opts, prompt });
+    const parsed = reviewOutputSchema.parse(JSON.parse(extractFirstJsonObject(text)));
+    const matchScore = Math.max(0, Math.min(100, Math.round(parsed.matchScore)));
+    return {
+        matchScore,
+        grade: gradeFromScore(matchScore),
+        verdict: normalizeScreeningVerdict(parsed.verdict),
+        summary: trimText(parsed.summary),
+        strengths: parsed.strengths.map((item) => trimText(item)).filter(Boolean),
+        gaps: parsed.gaps.map((item) => trimText(item)).filter(Boolean),
+        recommendation: trimText(parsed.recommendation),
+    };
 }
 export async function assistantWithGemini(opts) {
     const candidatesCompact = (opts.candidates ?? []).map((candidate) => ({
@@ -260,7 +372,9 @@ export async function assistantWithGemini(opts) {
             ? { yearsExperience: candidate.yearsExperience }
             : {}),
         education: candidate.education ?? [],
-        ...(candidate.resumeText ? { resumeText: candidate.resumeText.slice(0, 2500) } : {}),
+        ...(candidate.resumeText
+            ? { resumeText: candidate.resumeText.slice(0, 2500) }
+            : {}),
     }));
     const prompt = [
         "You are an AI assistant helping a recruiter. Be concise, practical, and recruiter-friendly.",
@@ -298,9 +412,15 @@ export async function parseResumeObjectFieldsWithGemini(opts) {
         "Return ONLY valid JSON with this exact top-level shape:",
         JSON.stringify({
             skills: [
-                { name: "string", level: "Beginner|Intermediate|Advanced|Expert", yearsOfExperience: 0 },
+                {
+                    name: "string",
+                    level: "Beginner|Intermediate|Advanced|Expert",
+                    yearsOfExperience: 0,
+                },
             ],
-            languages: [{ name: "string", proficiency: "Basic|Conversational|Fluent|Native" }],
+            languages: [
+                { name: "string", proficiency: "Basic|Conversational|Fluent|Native" },
+            ],
             experience: [
                 {
                     company: "string",
@@ -321,7 +441,13 @@ export async function parseResumeObjectFieldsWithGemini(opts) {
                     end_year: 0,
                 },
             ],
-            certifications: [{ name: "string", issuer: "string", issue_date: "YYYY-MM or empty string" }],
+            certifications: [
+                {
+                    name: "string",
+                    issuer: "string",
+                    issue_date: "YYYY-MM or empty string",
+                },
+            ],
             projects: [
                 {
                     name: "string",
@@ -333,8 +459,16 @@ export async function parseResumeObjectFieldsWithGemini(opts) {
                     end_date: "YYYY-MM or empty string",
                 },
             ],
-            availability: { status: "string", type: "string", start_date: "YYYY-MM-DD or empty string" },
-            social_links: { linkedin: "string", github: "string", portfolio: "string" },
+            availability: {
+                status: "string",
+                type: "string",
+                start_date: "YYYY-MM-DD or empty string",
+            },
+            social_links: {
+                linkedin: "string",
+                github: "string",
+                portfolio: "string",
+            },
         }),
         "Rules:",
         "- If a section is missing, return an empty array/object for that section.",
@@ -472,7 +606,9 @@ export async function askRecruiterAssistant(input) {
 }
 export function toLegacyScreeningResult(params) {
     const score = Math.max(0, Math.min(100, Math.round(params.shortlistItem.matchScore)));
-    const percentile = Math.max(1, Math.round(((params.total - params.shortlistItem.rank + 1) / Math.max(params.total, 1)) * 100));
+    const percentile = Math.max(1, Math.round(((params.total - params.shortlistItem.rank + 1) /
+        Math.max(params.total, 1)) *
+        100));
     return {
         screening_run_id: params.screeningRunId,
         candidate_id: params.shortlistItem.applicantId,
@@ -482,7 +618,7 @@ export function toLegacyScreeningResult(params) {
         overall: {
             score,
             grade: gradeFromScore(score),
-            verdict: "Shortlisted",
+            verdict: normalizeScreeningVerdict(params.shortlistItem.verdict),
             summary: params.shortlistItem.recommendation,
         },
         dimension_scores: {

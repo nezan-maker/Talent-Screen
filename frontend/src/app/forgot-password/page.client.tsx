@@ -212,7 +212,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell
       title="Recover your account"
-      subtitle="Use the backend reset flow to verify your email, confirm the recovery code, and set a new password."
+      subtitle="Verify your email, confirm the recovery code, and set a new password."
       footer={
         <>
           Remembered your password?{' '}
@@ -367,4 +367,3 @@ export default function ForgotPasswordPage() {
     </AuthShell>
   );
 }
-

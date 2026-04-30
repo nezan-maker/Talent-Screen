@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "@/lib/toast";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { GoogleIcon } from "@/components/auth/GoogleIcon";
 import { Button } from "@/components/ui/Button";
 import {
   confirmSignup,
@@ -13,6 +14,8 @@ import {
   signupUser,
 } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
+
+const googleAuthUrl = `${process.env.NEXT_PUBLIC_API_URL}/auth/google/start`;
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -23,11 +26,16 @@ const isStrongPassword = (password: string) => {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$/.test(password);
 };
 
+function getPostAuthRoute(onboardingCompleted?: boolean) {
+  return onboardingCompleted ? ROUTES.dashboard : ROUTES.welcome;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const autoConfirmHandledRef = useRef(false);
   const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -36,12 +44,14 @@ export default function RegisterPage() {
   const [pendingEmail, setPendingEmail] = useState("");
   const [errors, setErrors] = useState<{
     name?: string;
+    companyName?: string;
     email?: string;
     password?: string;
     confirm?: string;
   }>({});
   const [touched, setTouched] = useState<{
     name?: boolean;
+    companyName?: boolean;
     email?: boolean;
     password?: boolean;
     confirm?: boolean;
@@ -76,6 +86,10 @@ export default function RegisterPage() {
       newErrors.name = "Full name is required";
     } else if (name.trim().length < 3) {
       newErrors.name = "Name must be at least 3 characters";
+    }
+
+    if (companyName.trim() && companyName.trim().length < 2) {
+      newErrors.companyName = "Company name must be at least 2 characters";
     }
 
     if (!email.trim()) {
@@ -134,6 +148,22 @@ export default function RegisterPage() {
     }
   };
 
+  const handleCompanyNameChange = (value: string) => {
+    setCompanyName(value);
+    if (!touched.companyName) {
+      return;
+    }
+
+    if (value.trim() && value.trim().length < 2) {
+      setErrors((prev) => ({
+        ...prev,
+        companyName: "Company name must be at least 2 characters",
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, companyName: undefined }));
+    }
+  };
+
   const handlePasswordChange = (value: string) => {
     setPassword(value);
     if (!touched.password) {
@@ -177,9 +207,9 @@ export default function RegisterPage() {
     setBusy(true);
 
     try {
-      await confirmSignup(code, signupTokenFromLink || undefined);
+      const response = await confirmSignup(code, signupTokenFromLink || undefined);
       toast.success("Account verified successfully.");
-      router.push(ROUTES.dashboard);
+      router.push(getPostAuthRoute(response.user?.onboardingCompleted));
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Unable to confirm this account right now."));
     } finally {
@@ -204,9 +234,9 @@ export default function RegisterPage() {
 
     void (async () => {
       try {
-        await confirmSignupWithLink(confirmationLinkId, signupTokenFromLink);
+        const response = await confirmSignupWithLink(confirmationLinkId, signupTokenFromLink);
         toast.success("Account verified successfully.");
-        router.push(ROUTES.dashboard);
+        router.push(getPostAuthRoute(response.user?.onboardingCompleted));
       } catch (error) {
         setAwaitingVerification(true);
         if (emailFromLink) {
@@ -268,6 +298,7 @@ export default function RegisterPage() {
       const signupResponse = await signupUser({
         user_name: name.trim(),
         user_email: email.trim(),
+        ...(companyName.trim() ? { company_name: companyName.trim() } : {}),
         user_pass: password,
         user_pass_conf: confirm,
       });
@@ -286,7 +317,7 @@ export default function RegisterPage() {
       }
 
       toast.success("Account created successfully.");
-      router.push(ROUTES.dashboard);
+      router.push(getPostAuthRoute(signupResponse.user?.onboardingCompleted));
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Unable to create your account right now."));
     } finally {
@@ -408,6 +439,33 @@ export default function RegisterPage() {
         </div>
 
         <div>
+          <label htmlFor="company-name" className="text-sm font-semibold text-text-primary">
+            Company name
+          </label>
+          <input
+            id="company-name"
+            name="company-name"
+            type="text"
+            autoComplete="organization"
+            value={companyName}
+            onChange={(event) => handleCompanyNameChange(event.target.value)}
+            onBlur={() => handleBlur("companyName")}
+            className={`mt-2 h-11 w-full rounded-input border bg-surface px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+              errors.companyName && touched.companyName
+                ? "border-danger focus:border-danger focus:ring-danger/20"
+                : "border-border focus:border-accent/40 focus:ring-accent/20"
+            }`}
+            placeholder="Acme Talent"
+          />
+          <p className="mt-1.5 text-xs text-text-muted">
+            Optional, but helpful if you’re setting up a shared hiring workspace.
+          </p>
+          {errors.companyName && touched.companyName ? (
+            <p className="mt-1.5 text-xs font-medium text-danger">{errors.companyName}</p>
+          ) : null}
+        </div>
+
+        <div>
           <label htmlFor="password" className="text-sm font-semibold text-text-primary">
             Password
           </label>
@@ -490,8 +548,27 @@ export default function RegisterPage() {
         <Button type="submit" className="h-11 w-full" disabled={busy}>
           {busy ? "Creating account..." : "Create account"}
         </Button>
+
+        <div className="flex items-center gap-3 pt-1">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+            Or continue with
+          </span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 w-full gap-2.5"
+          onClick={() => {
+            window.location.href = googleAuthUrl;
+          }}
+        >
+          <GoogleIcon className="h-4 w-4" />
+          Continue with Google
+        </Button>
       </form>
     </AuthShell>
   );
 }
-

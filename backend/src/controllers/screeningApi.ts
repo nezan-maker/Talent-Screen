@@ -5,7 +5,11 @@ import Resume from "../models/Resume.js";
 import { ScreeningResultModel } from "../models/ScreenResult.js";
 import ScreeningRunModel from "../models/ScreeningRun.js";
 import env from "../config/env.js";
-import { askRecruiterAssistant } from "../lib/gemini.js";
+import {
+  askRecruiterAssistant,
+  resolveGeminiAuth,
+  reviewApplicantWithGemini,
+} from "../lib/gemini.js";
 import {
   buildRejectedApplicantEmail,
   buildShortlistedApplicantEmail,
@@ -24,7 +28,10 @@ function latestRunSummary(jobTitle: string, shortlist: Awaited<ReturnType<typeof
   return `Screened ${shortlist.length} top candidates for ${jobTitle}. Shortlist ready for recruiter review: ${topNames || "none"}.`;
 }
 
-function buildApplicantJobQuery(job: { _id?: string; job_title?: string }) {
+function buildApplicantJobQuery(job: {
+  _id?: string | undefined;
+  job_title?: string | undefined;
+}) {
   const jobId = trimText(job?._id);
   const jobTitle = trimText(job?.job_title);
   const scopedFilters = [
@@ -41,6 +48,116 @@ function buildApplicantJobQuery(job: { _id?: string; job_title?: string }) {
   }
 
   return { $or: scopedFilters };
+}
+
+async function resolveJobForOutcomeEmails(input: {
+  userId?: string;
+  jobId?: string;
+  jobTitle?: string;
+}) {
+  const userId = trimText(input.userId);
+  const jobId = trimText(input.jobId);
+  const jobTitle = trimText(input.jobTitle);
+
+  if (!userId) {
+    return null;
+  }
+
+  if (jobId) {
+    return Job.findOne({ _id: jobId, user_id: userId }).lean();
+  }
+
+  if (jobTitle) {
+    return Job.findOne({ job_title: jobTitle, user_id: userId }).lean();
+  }
+
+  return null;
+}
+
+async function processOutcomeEmailsForJob(input: {
+  userId: string;
+  job: { _id?: string | undefined; job_title?: string | undefined };
+}) {
+  const userId = trimText(input.userId);
+  const jobTitle = trimText(input.job.job_title) || "the role";
+  const applicantScope = buildApplicantJobQuery({
+    _id: input.job._id,
+    job_title: input.job.job_title,
+  });
+
+  const applicants = await Applicant.find({
+    ...applicantScope,
+    user_id: userId,
+  }).lean();
+
+  const shortlistedApplicants = applicants.filter((applicant) => {
+    const state = trimText(applicant.applicant_state).toLowerCase();
+    return Boolean(applicant.shortlisted) || state === "shortlisted";
+  });
+  const rejectedApplicants = applicants.filter((applicant) => {
+    const state = trimText(applicant.applicant_state).toLowerCase();
+    return state === "rejected";
+  });
+
+  let shortlistedSentCount = 0;
+  let rejectedSentCount = 0;
+
+  for (const applicant of shortlistedApplicants) {
+    const recipient = trimText(applicant.applicant_email || applicant.email);
+    if (!recipient) {
+      continue;
+    }
+
+    const mail = buildShortlistedApplicantEmail({
+      applicantName: trimText(applicant.applicant_name) || "Applicant",
+      jobTitle,
+    });
+    const sent = await sendMailIfConfigured({
+      to: recipient,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    });
+    if (sent) {
+      shortlistedSentCount += 1;
+    }
+  }
+
+  for (const applicant of rejectedApplicants) {
+    const recipient = trimText(applicant.applicant_email || applicant.email);
+    if (!recipient) {
+      continue;
+    }
+
+    const mail = buildRejectedApplicantEmail({
+      applicantName: trimText(applicant.applicant_name) || "Applicant",
+      jobTitle,
+    });
+    const sent = await sendMailIfConfigured({
+      to: recipient,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    });
+    if (sent) {
+      rejectedSentCount += 1;
+    }
+  }
+
+  const mailerConfigured = Boolean(env.USER_EMAIL && env.USER_PASS);
+  return {
+    sentCount: mailerConfigured
+      ? shortlistedSentCount + rejectedSentCount
+      : shortlistedApplicants.length + rejectedApplicants.length,
+    shortlistedCount: shortlistedApplicants.length,
+    rejectedCount: rejectedApplicants.length,
+    shortlistedSentCount: mailerConfigured
+      ? shortlistedSentCount
+      : shortlistedApplicants.length,
+    rejectedSentCount: mailerConfigured
+      ? rejectedSentCount
+      : rejectedApplicants.length,
+  };
 }
 
 async function hydrateApplicantsWithResumeText(job: any, applicants: any[]) {
@@ -370,86 +487,271 @@ export async function reviewResult(req: Request, res: Response) {
   }
 }
 
+export async function reviewApplicant(req: Request, res: Response) {
+  try {
+    const resultId = trimText(
+      req.params.resultId ?? req.body?.result_id ?? req.body?.screening_result_id,
+    );
+    const additionalInfo = trimText(
+      req.body?.additional_info ?? req.body?.additionalInfo,
+    );
+    const userId = req.currentUserId;
+
+    if (!userId) {
+      return res.status(401).json({ expiration_error: "Session expired" });
+    }
+
+    if (!resultId) {
+      return res
+        .status(400)
+        .json({ data_error: "Screening result id is required" });
+    }
+
+    if (!additionalInfo) {
+      return res.status(400).json({
+        data_error: "Additional review information is required",
+      });
+    }
+
+    const existingResult = await ScreeningResultModel.findById(resultId).lean();
+    if (!existingResult) {
+      return res.status(404).json({ data_error: "Screening result not found" });
+    }
+
+    if (trimText(existingResult.overall?.verdict) !== "Review") {
+      return res.status(400).json({
+        data_error: "Only applicants in the Review bucket can be re-reviewed",
+      });
+    }
+
+    const [job, applicant] = await Promise.all([
+      Job.findOne({ _id: existingResult.job_id, user_id: userId }).lean(),
+      Applicant.findOne({ _id: existingResult.applicant_id, user_id: userId }).lean(),
+    ]);
+
+    if (!job) {
+      return res.status(404).json({
+        data_error: "Job not found for this screening result",
+      });
+    }
+
+    if (!applicant) {
+      return res.status(404).json({
+        data_error: "Applicant not found for this screening result",
+      });
+    }
+
+    const auth = resolveGeminiAuth();
+    if (!auth) {
+      return res.status(400).json({
+        data_error:
+          "Gemini is not configured. Configure GOOGLE_API_KEY or Vertex settings first.",
+      });
+    }
+
+    const reviewed = await reviewApplicantWithGemini({
+      ...auth,
+      model: trimText(env.GOOGLE_AI_MODEL) || "gemini-1.5-flash",
+      job,
+      candidate: applicant,
+      additionalInfo,
+      currentResult: {
+        score: Number(existingResult.overall?.score) || 0,
+        verdict: trimText(existingResult.overall?.verdict) || "Review",
+        summary: trimText(existingResult.overall?.summary),
+        strengths: Array.isArray(existingResult.strengths)
+          ? existingResult.strengths.map((item) => trimText(item)).filter(Boolean)
+          : [],
+        gaps: Array.isArray(existingResult.gaps)
+          ? existingResult.gaps.map((item) => trimText(item)).filter(Boolean)
+          : [],
+        recommendation: trimText(existingResult.recommendation),
+      },
+    });
+
+    const updatedResult = await ScreeningResultModel.findByIdAndUpdate(
+      resultId,
+      {
+        overall: {
+          ...existingResult.overall,
+          score: reviewed.matchScore,
+          grade: reviewed.grade,
+          verdict: reviewed.verdict,
+          summary: reviewed.summary,
+        },
+        strengths: reviewed.strengths,
+        gaps: reviewed.gaps,
+        recommendation: reviewed.recommendation,
+        manual_review: {
+          additional_info: additionalInfo,
+          previous_verdict: trimText(existingResult.overall?.verdict) || "Review",
+          updated_verdict: reviewed.verdict,
+          reviewed_at: new Date(),
+        },
+      },
+      { new: true },
+    ).lean();
+
+    await Applicant.findByIdAndUpdate(existingResult.applicant_id, {
+      shortlisted: reviewed.verdict === "Shortlisted",
+      applicant_state:
+        reviewed.verdict === "Shortlisted"
+          ? "Shortlisted"
+          : "Rejected",
+    });
+
+    return res.status(200).json({
+      success: "Applicant reviewed successfully",
+      result: updatedResult,
+    });
+  } catch (error) {
+    console.error("Error in reviewApplicant:", error);
+    return res.status(500).json({ server_error: "Internal server error" });
+  }
+}
+
+export async function finalizeJobRecruiting(req: Request, res: Response) {
+  try {
+    const jobId = trimText(req.params.jobId ?? req.body?.job_id ?? req.body?.jobId);
+    const userId = req.currentUserId;
+    const decisionInput = req.body?.decisions;
+    const decisions = Array.isArray(decisionInput) ? decisionInput : [];
+
+    if (!userId) {
+      return res.status(401).json({ expiration_error: "Session expired" });
+    }
+
+    if (!jobId) {
+      return res.status(400).json({ data_error: "Job id is required" });
+    }
+
+    if (decisions.length === 0) {
+      return res.status(400).json({ data_error: "At least one recruiter decision is required" });
+    }
+
+    const job = await Job.findOne({ _id: jobId, user_id: userId }).lean();
+    if (!job) {
+      return res.status(404).json({ data_error: "Job not found" });
+    }
+
+    const normalizedDecisions = decisions
+      .map((item) => {
+        const record = item && typeof item === "object" ? item : {};
+        const resultId = trimText((record as any).result_id ?? (record as any).resultId);
+        const applicantId = trimText((record as any).applicant_id ?? (record as any).applicantId);
+        const verdict = trimText((record as any).verdict);
+        return {
+          resultId,
+          applicantId,
+          verdict: verdict === "Shortlisted" ? "Shortlisted" : verdict === "Rejected" ? "Rejected" : "",
+        };
+      })
+      .filter((item) => item.verdict && (item.resultId || item.applicantId));
+
+    if (normalizedDecisions.length !== decisions.length) {
+      return res.status(400).json({
+        data_error: "Each recruiter decision must include a valid verdict and result/applicant id",
+      });
+    }
+
+    const latestRun = await ScreeningRunModel.findOne({ job_id: jobId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!latestRun) {
+      return res.status(404).json({ data_error: "No screening run found for this job" });
+    }
+
+    const resultIds = normalizedDecisions.map((item) => item.resultId).filter(Boolean);
+    const applicantIds = normalizedDecisions.map((item) => item.applicantId).filter(Boolean);
+
+    const results = await ScreeningResultModel.find({
+      job_id: jobId,
+      screening_run_id: latestRun._id,
+      $or: [
+        ...(resultIds.length > 0 ? [{ _id: { $in: resultIds } }] : []),
+        ...(applicantIds.length > 0 ? [{ applicant_id: { $in: applicantIds } }] : []),
+      ],
+    }).lean();
+
+    const resultById = new Map(results.map((item) => [trimText(item._id), item]));
+    const resultByApplicantId = new Map(
+      results.map((item) => [trimText(item.applicant_id), item]),
+    );
+
+    let finalizedCount = 0;
+
+    for (const decision of normalizedDecisions) {
+      const result =
+        (decision.resultId ? resultById.get(decision.resultId) : undefined) ??
+        (decision.applicantId ? resultByApplicantId.get(decision.applicantId) : undefined);
+
+      if (!result) {
+        continue;
+      }
+
+      const applicantId = trimText(result.applicant_id);
+      await Promise.all([
+        ScreeningResultModel.findByIdAndUpdate(result._id, {
+          recruiter_decision: {
+            verdict: decision.verdict,
+            decided_at: new Date(),
+          },
+        }),
+        Applicant.findOneAndUpdate(
+          { _id: applicantId, user_id: userId },
+          {
+            shortlisted: decision.verdict === "Shortlisted",
+            applicant_state: decision.verdict,
+          },
+        ),
+      ]);
+
+      finalizedCount += 1;
+    }
+    const emailSummary = await processOutcomeEmailsForJob({
+      userId,
+      job,
+    });
+
+    return res.status(200).json({
+      success: "Recruiter decisions finalized successfully",
+      finalizedCount,
+      ...emailSummary,
+    });
+  } catch (error) {
+    console.error("Error in finalizeJobRecruiting:", error);
+    return res.status(500).json({ server_error: "Internal server error" });
+  }
+}
+
 export async function sendEmails(req: Request, res: Response) {
   try {
-    const jobTitle = trimText(req.body?.job_title);
-    if (!jobTitle) {
-      return res.status(400).json({ data_error: "No job name provided" });
+    const userId = req.currentUserId;
+    if (!userId) {
+      return res.status(401).json({ expiration_error: "Session expired" });
     }
 
-    const applicants = await Applicant.find({ job_title: jobTitle }).lean();
-    const shortlistedApplicants = applicants.filter((applicant) => {
-      const state = trimText(applicant.applicant_state).toLowerCase();
-      return Boolean(applicant.shortlisted) || state === "shortlisted";
-    });
-    const rejectedApplicants = applicants.filter((applicant) => {
-      const state = trimText(applicant.applicant_state).toLowerCase();
-      return state === "rejected";
+    const job = await resolveJobForOutcomeEmails({
+      userId,
+      jobId: req.body?.job_id ?? req.body?.jobId,
+      jobTitle: req.body?.job_title,
     });
 
-    let shortlistedSentCount = 0;
-    let rejectedSentCount = 0;
-
-    for (const applicant of shortlistedApplicants) {
-      const recipient = trimText(applicant.applicant_email || applicant.email);
-      if (!recipient) {
-        continue;
-      }
-
-      const mail = buildShortlistedApplicantEmail({
-        applicantName: trimText(applicant.applicant_name) || "Applicant",
-        jobTitle,
+    if (!job) {
+      return res.status(404).json({
+        data_error: "Job not found. Provide a valid job_id or job_title.",
       });
-      const sent = await sendMailIfConfigured({
-        to: recipient,
-        subject: mail.subject,
-        text: mail.text,
-        html: mail.html,
-      });
-      if (sent) {
-        shortlistedSentCount += 1;
-      }
     }
 
-    for (const applicant of rejectedApplicants) {
-      const recipient = trimText(applicant.applicant_email || applicant.email);
-      if (!recipient) {
-        continue;
-      }
-
-      const mail = buildRejectedApplicantEmail({
-        applicantName: trimText(applicant.applicant_name) || "Applicant",
-        jobTitle,
-      });
-      const sent = await sendMailIfConfigured({
-        to: recipient,
-        subject: mail.subject,
-        text: mail.text,
-        html: mail.html,
-      });
-      if (sent) {
-        rejectedSentCount += 1;
-      }
-    }
-
-    const sentCount =
-      env.USER_EMAIL && env.USER_PASS
-        ? shortlistedSentCount + rejectedSentCount
-        : shortlistedApplicants.length + rejectedApplicants.length;
+    const emailSummary = await processOutcomeEmailsForJob({
+      userId,
+      job,
+    });
 
     return res.status(200).json({
       success: "Applicant outcome emails processed successfully",
-      sentCount,
-      shortlistedCount: shortlistedApplicants.length,
-      rejectedCount: rejectedApplicants.length,
-      shortlistedSentCount:
-        env.USER_EMAIL && env.USER_PASS
-          ? shortlistedSentCount
-          : shortlistedApplicants.length,
-      rejectedSentCount:
-        env.USER_EMAIL && env.USER_PASS
-          ? rejectedSentCount
-          : rejectedApplicants.length,
+      ...emailSummary,
     });
   } catch (error) {
     console.error("Error in sendEmails:", error);

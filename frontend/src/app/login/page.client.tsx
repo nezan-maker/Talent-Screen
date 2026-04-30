@@ -7,10 +7,13 @@ import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import toast from '@/lib/toast';
 import { AuthShell } from '@/components/auth/AuthShell';
+import { GoogleIcon } from '@/components/auth/GoogleIcon';
 import { Button } from '@/components/ui/Button';
 import { getApiErrorMessage, loginUser } from '@/lib/api';
 import { ROUTES } from '@/lib/constants';
 import { recordLastLoginAt } from '@/lib/settings';
+
+const googleAuthUrl = `${process.env.NEXT_PUBLIC_API_URL}/auth/google/start`;
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -76,6 +79,10 @@ function getVerificationRedirectPayload(error: unknown) {
     signupToken,
     devOtpToken,
   };
+}
+
+function getPostAuthRoute(onboardingCompleted?: boolean) {
+  return onboardingCompleted ? ROUTES.dashboard : ROUTES.welcome;
 }
 
 export default function LoginPage() {
@@ -150,13 +157,13 @@ export default function LoginPage() {
     setBusy(true);
 
     try {
-      await loginUser({
+      const response = await loginUser({
         user_email: email.trim(),
         user_pass: password,
       });
       recordLastLoginAt();
       toast.success('Signed in successfully.');
-      router.push(ROUTES.dashboard);
+      router.push(getPostAuthRoute(response.user?.onboardingCompleted));
     } catch (error) {
       const verificationPayload = getVerificationRedirectPayload(error);
       if (verificationPayload) {
@@ -290,9 +297,27 @@ export default function LoginPage() {
         <Button type="submit" className="h-11 w-full" disabled={busy}>
           {busy ? 'Signing in...' : 'Sign in'}
         </Button>
-        
+
+        <div className="flex items-center gap-3 pt-1">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+            Or continue with
+          </span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 w-full gap-2.5"
+          onClick={() => {
+            window.location.href = googleAuthUrl;
+          }}
+        >
+          <GoogleIcon className="h-4 w-4" />
+          Continue with Google
+        </Button>
       </form>
     </AuthShell>
   );
 }
-

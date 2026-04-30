@@ -21,6 +21,8 @@ export const mockJobs: Job[] = [
     experienceLevel: "Senior",
     salaryMin: 45000,
     salaryMax: 70000,
+    workersRequired: 2,
+    minimumMarks: 75,
     description: "Build modern web experiences and scalable services for our hiring platform.",
     responsibilities: "Own features end-to-end, collaborate with product & design, and ship reliably.",
     qualifications: "5+ years, strong TypeScript/React, solid backend fundamentals, pragmatic testing.",
@@ -43,6 +45,8 @@ export const mockJobs: Job[] = [
     location: "Remote",
     employmentType: "Contract",
     experienceLevel: "Mid",
+    workersRequired: 1,
+    minimumMarks: 70,
     description: "Design high-converting recruiter and candidate journeys.",
     responsibilities: "Create flows, wireframes, UI specs; partner closely with engineering.",
     qualifications: "Strong portfolio, UX instincts, and familiarity with design systems.",
@@ -65,6 +69,8 @@ export const mockJobs: Job[] = [
     location: "Kigali",
     employmentType: "Full-time",
     experienceLevel: "Junior",
+    workersRequired: 1,
+    minimumMarks: 65,
     description: "Support recruiting ops and candidate communications.",
     responsibilities: "Coordinate interviews, manage pipelines, keep stakeholders aligned.",
     qualifications: "Detail-oriented, great communication, comfort with tools.",
@@ -314,4 +320,3 @@ export const mockDashboardStats: DashboardStats = {
     avgTimePerCandidateMins: 6,
   },
 };
-

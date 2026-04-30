@@ -45,8 +45,8 @@ export function AuthShell({
 
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
             {[
-              { icon: ShieldCheck, label: "Secure session-backed access" },
-              { icon: Sparkles, label: "AI criteria with traceable reasoning" },
+              { icon: ShieldCheck, label: "Secure access for your team" },
+              { icon: Sparkles, label: "AI guidance with clear reasoning" },
               { icon: CheckCircle2, label: "Shortlists you can defend" },
             ].map((item) => (
               <div key={item.label} className="rounded-card border border-border bg-card/80 p-4 shadow-card">

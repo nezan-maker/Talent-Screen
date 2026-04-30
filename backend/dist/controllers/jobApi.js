@@ -1,6 +1,6 @@
 import Job from "../models/Job.js";
 import Applicant from "../models/Applicant.js";
-import { mapApplicantToFrontend, mapJobToFrontend } from "../utils/frontendMappers.js";
+import { mapApplicantToFrontend, mapJobToFrontend, } from "../utils/frontendMappers.js";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 import { parseJobCriteria, trimText } from "../utils/talentProfile.js";
 function buildExampleForm(payload) {
@@ -8,7 +8,9 @@ function buildExampleForm(payload) {
     return {
         ROLE_TITLE: payload.job_title,
         EXPERIENCE_LEVEL: payload.job_experience_required,
-        CORE_STRENGTHS: criteria.map((item) => item.criteria_string).filter(Boolean),
+        CORE_STRENGTHS: criteria
+            .map((item) => item.criteria_string)
+            .filter(Boolean),
     };
 }
 function extractPayload(body) {
@@ -24,14 +26,21 @@ function extractPayload(body) {
 export async function getJobs(req, res) {
     try {
         const { page, pageSize, skip, limit } = parsePagination(req.query);
+        const userId = req.currentUserId;
+        if (!userId) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
+        const filter = { user_id: userId };
         const [totalJobs, jobs, applicants] = await Promise.all([
-            Job.countDocuments(),
-            Job.find()
+            Job.countDocuments(filter),
+            Job.find({ user_id: userId })
                 .sort({ updatedAt: -1, createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
                 .lean(),
-            Applicant.find().sort({ updatedAt: -1, createdAt: -1 }).lean(),
+            Applicant.find({ user_id: userId })
+                .sort({ updatedAt: -1, createdAt: -1 })
+                .lean(),
         ]);
         const mappedApplicants = applicants.map(mapApplicantToFrontend);
         return res.status(200).json({
@@ -47,9 +56,13 @@ export async function getJobs(req, res) {
 export async function getJobById(req, res) {
     try {
         const id = trimText(req.params.id);
+        const userId = req.currentUserId;
+        if (!userId) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
         const [job, applicants] = await Promise.all([
-            Job.findById(id).lean(),
-            Applicant.find().lean(),
+            Job.findOne({ _id: id, user_id: userId }).lean(),
+            Applicant.find({ user_id: userId }).lean(),
         ]);
         if (!job) {
             return res.status(404).json({ data_error: "Job not found" });
@@ -72,18 +85,26 @@ export async function createJob(req, res) {
         const job_location = trimText(payload.job_location);
         const job_employment_type = trimText(payload.job_employment_type);
         const job_description = trimText(payload.job_description);
+        const user_Id = req.currentUserId;
+        if (!user_Id) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
+        const user_id = user_Id;
         if (!job_title ||
             !job_department ||
             !job_location ||
             !job_employment_type ||
             !job_description) {
-            return res.status(400).json({ data_error: "Missing required job fields" });
+            return res
+                .status(400)
+                .json({ data_error: "Missing required job fields" });
         }
         const oldJob = await Job.findOne({ job_title }).lean();
         if (oldJob) {
             return res.status(409).json({ message: "Job already registered" });
         }
         const job = await Job.create({
+            user_id,
             job_title,
             job_department,
             job_location,
@@ -96,9 +117,16 @@ export async function createJob(req, res) {
             job_ai_criteria: parseJobCriteria(payload.job_ai_criteria),
             job_shortlist_size: Number(payload.job_shortlist_size) === 20 ? 20 : 10,
             job_state: trimText(payload.job_state) || "Active",
-            job_salary_min: typeof payload.job_salary_min === "number" ? payload.job_salary_min : null,
-            job_salary_max: typeof payload.job_salary_max === "number" ? payload.job_salary_max : null,
-            workers_required: typeof payload.workers_required === "number" ? payload.workers_required : 1,
+            job_salary_min: typeof payload.job_salary_min === "number"
+                ? payload.job_salary_min
+                : null,
+            job_salary_max: typeof payload.job_salary_max === "number"
+                ? payload.job_salary_max
+                : null,
+            workers_required: typeof payload.workers_required === "number"
+                ? payload.workers_required
+                : 1,
+            minimum_marks: typeof payload.minimum_marks === "number" ? payload.minimum_marks : 70,
             job_example_form: buildExampleForm({
                 job_title,
                 job_experience_required: trimText(payload.job_experience_required) || "Mid",

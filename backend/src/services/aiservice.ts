@@ -7,7 +7,9 @@ import assistantRouter from "../routes/assistant.js";
 import screeningRouter from "../routes/screening.js";
 import {
   askAssistant,
+  finalizeJobRecruiting,
   getLatestJobResults,
+  reviewApplicant,
   getScreeningRunById,
   getScreeningRuns,
   runScreening,
@@ -54,6 +56,8 @@ router.post("/run", runScreening);
 router.get("/runs", getScreeningRuns);
 router.get("/runs/:runId", getScreeningRunById);
 router.get("/jobs/:jobId/results", getLatestJobResults);
+router.post("/jobs/:jobId/finalize", finalizeJobRecruiting);
+router.post("/results/:resultId/review", reviewApplicant);
 router.post("/ask", askAssistant);
 router.use("/assistant", assistantRouter(geminiRouteOptions));
 router.use("/screening", screeningRouter(geminiRouteOptions));

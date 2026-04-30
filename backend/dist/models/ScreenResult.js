@@ -111,6 +111,28 @@ const ScreeningResultSchema = new Schema({
     strengths: { type: [String], default: [] },
     gaps: { type: [String], default: [] },
     recommendation: { type: String, required: true },
+    manual_review: {
+        additional_info: { type: String, default: "" },
+        previous_verdict: {
+            type: String,
+            enum: ["Shortlisted", "Review", "Rejected"],
+            default: null,
+        },
+        updated_verdict: {
+            type: String,
+            enum: ["Shortlisted", "Review", "Rejected"],
+            default: null,
+        },
+        reviewed_at: { type: Date, default: null },
+    },
+    recruiter_decision: {
+        verdict: {
+            type: String,
+            enum: ["Shortlisted", "Rejected"],
+            default: null,
+        },
+        decided_at: { type: Date, default: null },
+    },
 }, { timestamps: true });
 ScreeningResultSchema.index({ screening_run_id: 1, rank: 1 }, { unique: true });
 ScreeningResultSchema.index({ screening_run_id: 1, candidate_id: 1 }, { unique: true });

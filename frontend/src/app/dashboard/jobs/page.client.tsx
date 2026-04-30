@@ -82,7 +82,7 @@ export default function JobsListPage() {
       />
 
       <Card>
-        <CardHeader title="Role directory" subtitle="Search and filter the jobs returned by the API/mock dataset." />
+        <CardHeader title="Role directory" subtitle="Search and filter your current roles." />
         <CardBody className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="relative w-full md:max-w-md">
@@ -200,4 +200,3 @@ export default function JobsListPage() {
     </motion.div>
   );
 }
-

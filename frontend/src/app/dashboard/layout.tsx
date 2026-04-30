@@ -18,7 +18,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const hasShownAuthToastRef = useRef(false);
-  const { isLoading: isUserLoading, error: currentUserError } = useCurrentUser();
+  const {
+    data: currentUser,
+    isLoading: isUserLoading,
+    error: currentUserError,
+  } = useCurrentUser();
   const isAuthError =
     axios.isAxiosError(currentUserError) &&
     [401, 403].includes(currentUserError.response?.status ?? 0);
@@ -40,12 +44,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.replace(ROUTES.login);
   }, [isAuthError, router]);
 
-  if (isUserLoading || isAuthError) {
+  useEffect(() => {
+    if (isUserLoading || isAuthError || !currentUser) {
+      return;
+    }
+
+    if (!currentUser.onboardingCompleted) {
+      router.replace(ROUTES.welcome);
+    }
+  }, [currentUser, isAuthError, isUserLoading, router]);
+
+  if (isUserLoading || isAuthError || !currentUser || !currentUser.onboardingCompleted) {
     return (
       <div className="dashboard-density flex min-h-screen items-center justify-center bg-bg px-4">
         <div className="inline-flex items-center gap-2 rounded-pill border border-border bg-surface px-4 py-2 text-sm font-medium text-text-muted">
           <Loader2 className="h-4 w-4 animate-spin text-accent" />
-          Checking your session...
+          Preparing your workspace...
         </div>
       </div>
     );

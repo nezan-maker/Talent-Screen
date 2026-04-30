@@ -13,32 +13,32 @@ import dashRoutes from "./routes/dashRoutes.js";
 import env from "./config/env.js";
 import aiRoutes from "./services/aiservice.js";
 import { ensureSeedData } from "./services/seedService.js";
-import cors from "cors"
+import cors from "cors";
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
 app.set("trust proxy", 1);
-const PORT = parseInt(process.env.PORT || "10000", 10);
+const PORT = parseInt(process.env.PORT || "5000", 10);
 const serverDebug = debug("app:server");
 
 const originsFromEnv =
   process.env.FRONTEND_ORIGIN || "https://wiserank-lmwy.onrender.com";
 
-const allowedOrigins = new Set([originsFromEnv, "http://127.0.0.1:3000"]);
+const allowedOrigins = new Set([originsFromEnv, "http://localhost:3001"]);
 
 const startServer = async () => {
   await connectDB();
   await ensureSeedData();
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-  app.use(cookie());
   app.use(
     cors({
-      origin: ["https://wiserank-lmwy.onrender.com", "http://127.0.0.1:3000"],
+      origin: ["https://wiserank-lmwy.onrender.com", "http://localhost:3001"],
       credentials: true,
     }),
   );
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  app.use(cookie());
   app.use(morgan("dev"));
   app.get("/openapi.json", (req: Request, res: Response) => {
     res.sendFile(path.join(__dirname, "openapi.json"));

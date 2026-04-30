@@ -15,6 +15,10 @@ const jobSchema = new mongoose.Schema({
         type: String,
         default: () => buildEntityId("job"),
     },
+    user_id: {
+        type: String,
+        ref: "User",
+    },
     job_title: {
         type: String,
         required: true,
@@ -78,6 +82,11 @@ const jobSchema = new mongoose.Schema({
     workers_required: {
         type: Number,
         default: 1,
+    },
+    minimum_marks: {
+        type: Number,
+        required: true,
+        default: 70,
     },
     job_example_form: {
         type: exampleFormSchema,

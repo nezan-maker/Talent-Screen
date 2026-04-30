@@ -50,6 +50,13 @@ const resetPayloadSchema = z.object({
   user_pass_conf: passwordSchema,
 });
 
+const onboardingPayloadSchema = z.object({
+  company_name: z.string().trim().min(2),
+  hiring_focus: z.string().trim().min(2),
+  team_setup: z.string().trim().min(2),
+  workflow_goal: z.string().trim().min(2),
+});
+
 type SessionPayload = {
   email?: string;
   userId?: string;
@@ -94,6 +101,7 @@ function clearSessionCookies(res: Response) {
     "signup_reference_token",
     "recovery_reference_token",
     "reset_reference_token",
+    "google_oauth_state",
   ]) {
     res.clearCookie(name, { sameSite: "none", secure:true,httpOnly: true ,path:"/"});
   }
@@ -105,6 +113,40 @@ function signSignupToken(userId: string) {
     algorithm: "HS256",
     expiresIn: "10m",
   });
+}
+
+async function issueSignupVerificationChallenge(res: Response, user: any) {
+  const otpToken = crypto.randomInt(100000, 1000000).toString();
+  user.sign_otp_token = otpToken;
+  user.confirmation_link_id = crypto.randomBytes(16).toString("hex");
+  await user.save();
+
+  const signupReferenceToken = signSignupToken(user._id.toString());
+  res.cookie(
+    "signup_reference_token",
+    signupReferenceToken,
+    getCookieOptions(10 * 60 * 1000),
+  );
+
+  const verificationEmail = buildSignupVerificationEmail({
+    userName: user.user_name,
+    userEmail: user.user_email,
+    otpCode: otpToken,
+    signupToken: signupReferenceToken,
+    confirmationLinkId: user.confirmation_link_id,
+  });
+  const emailSent = await sendMailIfConfigured({
+    to: user.user_email,
+    subject: verificationEmail.subject,
+    text: verificationEmail.text,
+    html: verificationEmail.html,
+  });
+
+  return {
+    signupReferenceToken,
+    otpToken,
+    emailSent,
+  };
 }
 
 function signAccessToken(user: any) {
@@ -148,6 +190,96 @@ async function establishSession(res: Response, user: any) {
   user.refresh_token = accessToken;
   await user.save();
   res.cookie("access_token", accessToken, getCookieOptions(60 * 60 * 1000));
+}
+
+function getRequestOrigin(req: Request) {
+  const forwardedProto = toStringValue(req.headers["x-forwarded-proto"]);
+  const protocol = forwardedProto || req.protocol || "http";
+  const host = toStringValue(req.headers["x-forwarded-host"]) || req.get("host") || "";
+  return `${protocol}://${host}`;
+}
+
+function getGoogleRedirectUri(req: Request) {
+  return `${getRequestOrigin(req)}/auth/google/callback`;
+}
+
+function getGoogleAuthConfig() {
+  const clientId = toStringValue(env.GOOGLE_CLIENT_ID);
+  const clientSecret = toStringValue(env.GOOGLE_CLIENT_SECRET);
+  return {
+    clientId,
+    clientSecret,
+    isConfigured: Boolean(clientId && clientSecret),
+  };
+}
+
+function getFrontendRedirectUrl(path = "/dashboard") {
+  const frontendUrl = toStringValue(env.FRONTEND_URL) || toStringValue(env.FRONTEND_ORIGIN);
+  const base = frontendUrl || "http://localhost:3001";
+  return `${base.replace(/\/+$/, "")}${path}`;
+}
+
+function setGoogleStateCookie(res: Response, value: string) {
+  res.cookie(
+    "google_oauth_state",
+    value,
+    getCookieOptions(10 * 60 * 1000),
+  );
+}
+
+type GoogleUserInfo = {
+  sub?: string;
+  email?: string;
+  name?: string;
+  email_verified?: boolean;
+};
+
+async function exchangeGoogleCodeForUser(req: Request, code: string) {
+  const { clientId, clientSecret, isConfigured } = getGoogleAuthConfig();
+  if (!isConfigured) {
+    throw new Error("Google OAuth credentials are missing");
+  }
+
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: getGoogleRedirectUri(req),
+      grant_type: "authorization_code",
+    }).toString(),
+  });
+
+  if (!tokenResponse.ok) {
+    throw new Error("Google token exchange failed");
+  }
+
+  const tokenData = (await tokenResponse.json()) as {
+    access_token?: string;
+    id_token?: string;
+  };
+  if (!toStringValue(tokenData.access_token)) {
+    throw new Error("Google access token missing");
+  }
+
+  const profileResponse = await fetch(
+    "https://openidconnect.googleapis.com/v1/userinfo",
+    {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+      },
+    },
+  );
+
+  if (!profileResponse.ok) {
+    throw new Error("Google profile lookup failed");
+  }
+
+  return (await profileResponse.json()) as GoogleUserInfo;
 }
 
 function extractVerifyToken(body: any) {
@@ -207,37 +339,20 @@ export const signUp = async (req: Request, res: Response) => {
         .json({ message: "You already have an account please sign in" });
     }
 
-    const otpToken = crypto.randomInt(100000, 1000000).toString();
     const newUser = await User.create({
       user_name: payload.user_name,
       user_email: payload.user_email,
       company_name:
         payload.company_name || inferDefaultCompanyName(payload.user_email),
       user_pass: await bcrypt.hash(payload.user_pass, 10),
-      sign_otp_token: otpToken,
-      confirmation_link_id: crypto.randomBytes(16).toString("hex"),
+      sign_otp_token: null,
+      confirmation_link_id: "",
     });
 
-    const signupReferenceToken = signSignupToken(newUser._id.toString());
-    res.cookie(
-      "signup_reference_token",
-      signupReferenceToken,
-      getCookieOptions(10 * 60 * 1000),
+    const { emailSent, otpToken } = await issueSignupVerificationChallenge(
+      res,
+      newUser,
     );
-
-    const verificationEmail = buildSignupVerificationEmail({
-      userName: newUser.user_name,
-      userEmail: newUser.user_email,
-      otpCode: otpToken,
-      signupToken: signupReferenceToken,
-      confirmationLinkId: newUser.confirmation_link_id,
-    });
-    const emailSent = await sendMailIfConfigured({
-      to: newUser.user_email,
-      subject: verificationEmail.subject,
-      text: verificationEmail.text,
-      html: verificationEmail.html,
-    });
 
     return res.status(201).json({
       success: "Sign up successful",
@@ -370,6 +485,127 @@ export const logIn = async (req: Request, res: Response) => {
   }
 };
 
+export const googleStart = async (req: Request, res: Response) => {
+  try {
+    const { clientId, isConfigured } = getGoogleAuthConfig();
+    if (!isConfigured) {
+      return res.status(400).json({
+        data_error: "Google OAuth is not configured yet",
+      });
+    }
+
+    const state = crypto.randomBytes(24).toString("hex");
+    setGoogleStateCookie(res, state);
+
+    const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", getGoogleRedirectUri(req));
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("scope", "openid email profile");
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("prompt", "select_account");
+
+    return res.redirect(authUrl.toString());
+  } catch (error) {
+    console.error("Error in googleStart:", error);
+    return res.redirect(
+      `${getFrontendRedirectUrl("/login")}?error=google_oauth_start_failed`,
+    );
+  }
+};
+
+export const googleCallback = async (req: Request, res: Response) => {
+  try {
+    const code = toStringValue(req.query.code);
+    const state = toStringValue(req.query.state);
+    const cookieState = toStringValue(req.cookies?.google_oauth_state);
+
+    if (!code || !state || !cookieState || state !== cookieState) {
+      clearSessionCookies(res);
+      return res.redirect(
+        `${getFrontendRedirectUrl("/login")}?error=google_oauth_state_invalid`,
+      );
+    }
+
+    const googleUser = await exchangeGoogleCodeForUser(req, code);
+    const email = toStringValue(googleUser.email).toLowerCase();
+    const googleId = toStringValue(googleUser.sub);
+    const name = toStringValue(googleUser.name) || "Google User";
+
+    if (!email || !googleId) {
+      clearSessionCookies(res);
+      return res.redirect(
+        `${getFrontendRedirectUrl("/login")}?error=google_oauth_profile_invalid`,
+      );
+    }
+
+    let user = await User.findOne({
+      $or: [{ google_id: googleId }, { user_email: email }],
+    });
+
+    if (!user) {
+      user = await User.create({
+        user_name: name,
+        user_email: email,
+        company_name: inferDefaultCompanyName(email),
+        user_pass: await bcrypt.hash(crypto.randomUUID(), 10),
+        google_id: googleId,
+        auth_provider: "google",
+        isVerified: false,
+        onboarding_completed: false,
+        sign_otp_token: null,
+        confirmation_link_id: "",
+      });
+    } else {
+      let hasChanges = false;
+
+      if (!toStringValue(user.google_id)) {
+        user.google_id = googleId;
+        hasChanges = true;
+      }
+
+      if (toStringValue(user.auth_provider) !== "google") {
+        user.auth_provider = "google";
+        hasChanges = true;
+      }
+
+      if (!toStringValue(user.user_name) && name) {
+        user.user_name = name;
+        hasChanges = true;
+      }
+
+      if (hasChanges) {
+        await user.save();
+      }
+    }
+
+    const { signupReferenceToken, otpToken, emailSent } =
+      await issueSignupVerificationChallenge(res, user);
+    res.clearCookie("google_oauth_state", {
+      sameSite: "none",
+      secure: true,
+      httpOnly: true,
+      path: "/",
+    });
+
+    const redirectUrl = new URL(getFrontendRedirectUrl("/register"));
+    redirectUrl.searchParams.set("verify", "1");
+    redirectUrl.searchParams.set("email", email);
+    redirectUrl.searchParams.set("signup_token", signupReferenceToken);
+    if (!emailSent) {
+      redirectUrl.searchParams.set("confirm_otp", otpToken);
+    }
+
+    return res.redirect(redirectUrl.toString());
+  } catch (error) {
+    console.error("Error in googleCallback:", error);
+    clearSessionCookies(res);
+    return res.redirect(
+      `${getFrontendRedirectUrl("/login")}?error=google_oauth_failed`,
+    );
+  }
+};
+
 export const forgot = async (req: Request, res: Response) => {
   try {
     const payload = forgotPayloadSchema.parse(getPayload(req.body));
@@ -417,6 +653,44 @@ export const forgot = async (req: Request, res: Response) => {
     }
 
     console.error("Error in forgot:", error);
+    return res.status(500).json({ server_error: "Internal server error" });
+  }
+};
+
+export const completeOnboarding = async (req: Request, res: Response) => {
+  try {
+    const userId = req.currentUserId;
+    if (!userId) {
+      return res.status(401).json({ user_error: "Not authenticated" });
+    }
+
+    const payload = onboardingPayloadSchema.parse(getPayload(req.body));
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ data_error: "User could not be found" });
+    }
+
+    user.company_name = payload.company_name;
+    user.onboarding_completed = true;
+    user.onboarding_preferences = {
+      hiring_focus: payload.hiring_focus,
+      team_setup: payload.team_setup,
+      workflow_goal: payload.workflow_goal,
+    };
+    await user.save();
+
+    return res.status(200).json({
+      success: "Onboarding completed successfully",
+      user: mapUserToFrontend(user),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res
+        .status(400)
+        .json({ input_error: "Input requirements not fulfilled" });
+    }
+
+    console.error("Error in completeOnboarding:", error);
     return res.status(500).json({ server_error: "Internal server error" });
   }
 };

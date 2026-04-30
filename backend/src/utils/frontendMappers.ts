@@ -70,6 +70,8 @@ type FrontendJob = {
   experienceLevel: string;
   salaryMin?: number;
   salaryMax?: number;
+  workersRequired: number;
+  minimumMarks: number;
   description: string;
   responsibilities: string;
   qualifications: string;
@@ -90,7 +92,15 @@ type FrontendUser = {
   id: string;
   name: string;
   email: string;
+  companyName: string;
+  authProvider: string;
   isVerified: boolean;
+  onboardingCompleted: boolean;
+  onboardingPreferences?: {
+    hiringFocus?: string;
+    teamSetup?: string;
+    workflowGoal?: string;
+  };
   createdAtISO?: string | undefined;
   updatedAtISO?: string | undefined;
 };
@@ -162,11 +172,30 @@ export function inferDefaultCompanyName(userEmail: string) {
 }
 
 export function mapUserToFrontend(user: any): FrontendUser {
+  const hiringFocus =
+    trimText(user?.onboarding_preferences?.hiring_focus) || undefined;
+  const teamSetup =
+    trimText(user?.onboarding_preferences?.team_setup) || undefined;
+  const workflowGoal =
+    trimText(user?.onboarding_preferences?.workflow_goal) || undefined;
+
   return {
     id: toId(user?._id),
     name: trimText(user?.user_name),
     email: trimText(user?.user_email),
+    companyName: trimText(user?.company_name),
+    authProvider: trimText(user?.auth_provider) || "local",
     isVerified: Boolean(user?.isVerified),
+    onboardingCompleted: Boolean(user?.onboarding_completed),
+    ...(hiringFocus || teamSetup || workflowGoal
+      ? {
+          onboardingPreferences: {
+            ...(hiringFocus ? { hiringFocus } : {}),
+            ...(teamSetup ? { teamSetup } : {}),
+            ...(workflowGoal ? { workflowGoal } : {}),
+          },
+        }
+      : {}),
     createdAtISO: toIso(user?.createdAt),
     updatedAtISO: toIso(user?.updatedAt),
   };
@@ -274,6 +303,10 @@ export function mapJobToFrontend(
       typeof job?.job_salary_min === "number" ? job.job_salary_min : undefined,
     salaryMax:
       typeof job?.job_salary_max === "number" ? job.job_salary_max : undefined,
+    workersRequired:
+      typeof job?.workers_required === "number" ? job.workers_required : 1,
+    minimumMarks:
+      typeof job?.minimum_marks === "number" ? job.minimum_marks : 70,
     description: trimText(job?.job_description),
     responsibilities: trimText(job?.job_responsibilities),
     qualifications: trimText(job?.job_qualifications),

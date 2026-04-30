@@ -12,44 +12,31 @@ import dashRoutes from "./routes/dashRoutes.js";
 import env from "./config/env.js";
 import aiRoutes from "./services/aiservice.js";
 import { ensureSeedData } from "./services/seedService.js";
+import cors from "cors";
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
-const PORT = parseInt(process.env.PORT || "10000", 10);
+app.set("trust proxy", 1);
+const PORT = parseInt(process.env.PORT || "5000", 10);
 const serverDebug = debug("app:server");
-const originsFromEnv = env.FRONTEND_ORIGIN?.split(",") || [
-    "https://wiserank-lmwy.onrender.com",
-];
-const allowedOrigins = new Set([
-    ...originsFromEnv.map((url) => url.trim()).filter(Boolean),
-    "http://127.0.0.1:3000",
-]);
+const originsFromEnv = process.env.FRONTEND_ORIGIN || "https://wiserank-lmwy.onrender.com";
+const allowedOrigins = new Set([originsFromEnv, "http://localhost:3001"]);
 const startServer = async () => {
     await connectDB();
     await ensureSeedData();
-    app.use((req, res, next) => {
-        const origin = req.headers.origin;
-        if (origin && allowedOrigins.has(origin)) {
-            res.header("Access-Control-Allow-Origin", origin);
-            res.header("Access-Control-Allow-Credentials", "true");
-        }
-        res.header("Vary", "Origin");
-        res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-        res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-        if (req.method === "OPTIONS") {
-            return res.sendStatus(204);
-        }
-        return next();
-    });
+    app.use(cors({
+        origin: ["https://wiserank-lmwy.onrender.com", "http://localhost:3001"],
+        credentials: true,
+    }));
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
+    app.use(cookie());
     app.use(morgan("dev"));
     app.get("/openapi.json", (req, res) => {
         res.sendFile(path.join(__dirname, "openapi.json"));
     });
     app.use("/docs", apiReference({ url: "/openapi.json" }));
-    app.use(cookie());
     app.use("/auth", authRoutes());
     app.use("/", dashRoutes());
     app.use("/ai", aiRoutes);
@@ -57,7 +44,11 @@ const startServer = async () => {
         serverDebug(`Server connected on port ${PORT}`);
     });
 };
-startServer().catch((error) => {
+startServer()
+    .then(() => {
+    serverDebug("Server started correctly");
+})
+    .catch((error) => {
     serverDebug("Server failed to start");
     serverDebug(error);
     process.exit(1);

@@ -299,9 +299,9 @@ export default function AskRuvoPage() {
                 <div className="mb-2 flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-accent">
                   <Sparkles className="h-3 w-3" />
                 </div>
-                <h4 className="text-sm font-bold text-text-primary">Live backend mode</h4>
+                <h4 className="text-sm font-bold text-text-primary">Live workspace mode</h4>
                 <p className="mt-1 text-[11px] leading-tight text-text-muted">
-                  Talvo AI is now answering with the current jobs, candidates, and screening runs available in your backend workspace.
+                  Talvo AI is answering using the latest jobs, candidates, and screening activity in your workspace.
                 </p>
               </div>
             </div>
@@ -475,4 +475,3 @@ export default function AskRuvoPage() {
     </div>
   );
 }
-

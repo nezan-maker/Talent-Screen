@@ -55,6 +55,10 @@ const applicantSchema = new mongoose.Schema({
         type: String,
         default: () => buildEntityId("cand"),
     },
+    user_id: {
+        type: String,
+        ref: "User",
+    },
     first_name: {
         type: String,
         required: true,

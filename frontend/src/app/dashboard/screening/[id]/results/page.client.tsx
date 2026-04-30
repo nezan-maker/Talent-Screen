@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase,
   ChevronLeft,
@@ -27,13 +27,17 @@ import { Card } from '@/components/ui/Card';
 import { ScoreCircle } from '@/components/ui/ScoreCircle';
 import { useCandidates } from '@/hooks/useCandidates';
 import {
+  finalizeJobRecruiting,
+  getApiErrorMessage,
   getJob,
   getLatestJobResults,
   isMockMode,
+  reviewApplicantResult,
   type ScreeningResultApiRecord,
 } from '@/lib/api';
 import { SCORE_THRESHOLDS } from '@/lib/constants';
 import { mockCandidateScores } from '@/lib/mockData';
+import toast from '@/lib/toast';
 import { clamp, cn, formatNumber, formatShortDate, initials } from '@/lib/utils';
 import type { Candidate, CandidateScore, Job, ScreeningCandidateAnalysis } from '@/types';
 
@@ -54,6 +58,7 @@ const WEIGHTS_USED = {
 type DimensionKey = keyof typeof WEIGHTS_USED;
 
 type ScreeningResultRecord = {
+  result_id: string;
   screening_id: string;
   candidate_id: string;
   job_id: string;
@@ -127,6 +132,16 @@ type ScreeningResultRecord = {
   };
   rank: number;
   percentile: number;
+  manual_review?: {
+    additional_info?: string;
+    previous_verdict?: ScreeningVerdict;
+    updated_verdict?: ScreeningVerdict;
+    reviewed_at?: string;
+  };
+  recruiter_decision?: {
+    verdict?: 'Shortlisted' | 'Rejected';
+    decided_at?: string;
+  };
 };
 
 const DIMENSIONS: Array<{ key: DimensionKey; label: string }> = [
@@ -287,6 +302,7 @@ function mapPersistedScreeningRecord(
   candidate: Candidate | null
 ): ScreeningResultRecord {
   return {
+    result_id: result._id || result.screening_id || `${result.job_id}-${result.candidate_id}`,
     screening_id: result.screening_id || result._id || `${result.job_id}-${result.candidate_id}`,
     candidate_id: result.candidate_id,
     job_id: result.job_id,
@@ -299,6 +315,8 @@ function mapPersistedScreeningRecord(
     flags: result.flags,
     rank: result.rank,
     percentile: result.percentile,
+    manual_review: result.manual_review,
+    recruiter_decision: result.recruiter_decision,
   };
 }
 
@@ -386,6 +404,7 @@ function buildScreeningRecord({
     'The current profile aligns with the job brief and is ready for recruiter review.';
 
   return {
+    result_id: `screening-${job.id}-${candidate?.id ?? result?.candidateName ?? rank}`,
     screening_id: `screening-${job.id}-${candidate?.id ?? result?.candidateName ?? rank}`,
     candidate_id: candidate?.id ?? result?.candidateId ?? `candidate-${rank}`,
     job_id: job.id,
@@ -469,6 +488,8 @@ function buildScreeningRecord({
     },
     rank,
     percentile: calculatePercentile(rank, job, totalResults),
+    manual_review: undefined,
+    recruiter_decision: undefined,
   };
 }
 
@@ -673,10 +694,15 @@ export default function DashboardScreeningResultsPage() {
   const params = useParams<{ id: string }>();
   const jobId = Array.isArray(params.id) ? params.id[0] : params.id;
   const mockMode = isMockMode();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>('all');
   const [rankingPage, setRankingPage] = useState(1);
   const [selectedScreeningId, setSelectedScreeningId] = useState<string>();
+  const [reviewAdditionalInfo, setReviewAdditionalInfo] = useState('');
+  const [finalDecisions, setFinalDecisions] = useState<
+    Record<string, 'Shortlisted' | 'Rejected' | ''>
+  >({});
 
   const { data: job, isLoading: isJobLoading } = useQuery({
     queryKey: ['job', jobId],
@@ -801,6 +827,42 @@ export default function DashboardScreeningResultsPage() {
   }, [searchQuery, verdictFilter]);
 
   useEffect(() => {
+    setReviewAdditionalInfo('');
+  }, [selectedScreeningId]);
+
+  useEffect(() => {
+    setFinalDecisions((current) => {
+      const next: Record<string, 'Shortlisted' | 'Rejected' | ''> = {};
+      for (const record of records) {
+        const existing = current[record.result_id];
+        if (existing) {
+          next[record.result_id] = existing;
+          continue;
+        }
+
+        const recruiterVerdict = record.recruiter_decision?.verdict;
+        if (recruiterVerdict === 'Shortlisted' || recruiterVerdict === 'Rejected') {
+          next[record.result_id] = recruiterVerdict;
+          continue;
+        }
+
+        if (record.overall.verdict === 'Shortlisted' || record.overall.verdict === 'Rejected') {
+          next[record.result_id] = record.overall.verdict;
+          continue;
+        }
+
+        if (record.manual_review?.updated_verdict === 'Shortlisted' || record.manual_review?.updated_verdict === 'Rejected') {
+          next[record.result_id] = record.manual_review.updated_verdict;
+          continue;
+        }
+
+        next[record.result_id] = '';
+      }
+      return next;
+    });
+  }, [records]);
+
+  useEffect(() => {
     if (rankingPage > totalRankingPages) {
       setRankingPage(totalRankingPages);
     }
@@ -825,6 +887,92 @@ export default function DashboardScreeningResultsPage() {
     filteredRecords[0] ??
     records[0] ??
     null;
+
+  const reviewMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedRecord) {
+        throw new Error('Select an applicant to review first.');
+      }
+
+      const trimmedInfo = reviewAdditionalInfo.trim();
+      if (!trimmedInfo) {
+        throw new Error('Additional information is required for re-review.');
+      }
+
+      return reviewApplicantResult(selectedRecord.result_id, trimmedInfo);
+    },
+    onSuccess: (response) => {
+      toast.success(response.success || 'Applicant reviewed successfully.');
+      setVerdictFilter('all');
+      setReviewAdditionalInfo('');
+      void queryClient.invalidateQueries({
+        queryKey: ['latestScreeningResults', jobId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['candidates'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['job', jobId],
+      });
+    },
+    onError: (error) => {
+      toast.error(
+        getApiErrorMessage(error, 'Unable to review this applicant right now.')
+      );
+    },
+  });
+
+  const unresolvedFinalDecisions = records.filter(
+    (record) => !finalDecisions[record.result_id]
+  ).length;
+
+  const finalizeMutation = useMutation({
+    mutationFn: async () => {
+      if (!jobId) {
+        throw new Error('Job id is required.');
+      }
+
+      if (records.length === 0) {
+        throw new Error('No screening results are available to finalize.');
+      }
+
+      if (unresolvedFinalDecisions > 0) {
+        throw new Error('Every candidate needs a final recruiter decision before finalizing.');
+      }
+
+      return finalizeJobRecruiting(
+        jobId,
+        records.map((record) => ({
+          result_id: record.result_id,
+          applicant_id: record.candidate_id,
+          verdict: finalDecisions[record.result_id] as 'Shortlisted' | 'Rejected',
+        }))
+      );
+    },
+    onSuccess: (response) => {
+      const emailSummary =
+        response.sentCount > 0
+          ? `${response.shortlistedSentCount} shortlisted and ${response.rejectedSentCount} rejected email${response.sentCount === 1 ? '' : 's'} processed.`
+          : 'No applicant emails were processed.';
+      toast.success(
+        `${response.success} ${emailSummary}`.trim()
+      );
+      void queryClient.invalidateQueries({
+        queryKey: ['latestScreeningResults', jobId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['candidates'],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['job', jobId],
+      });
+    },
+    onError: (error) => {
+      toast.error(
+        getApiErrorMessage(error, 'Unable to finalize recruiter decisions right now.')
+      );
+    },
+  });
 
   const totalScreened = records.length;
   const shortlistedCount = records.filter(
@@ -916,6 +1064,15 @@ export default function DashboardScreeningResultsPage() {
                 Back to intake
               </Button>
             </Link>
+            <Button
+              onClick={() => finalizeMutation.mutate()}
+              disabled={finalizeMutation.isPending || records.length === 0}
+              className="rounded-full px-5"
+            >
+              {finalizeMutation.isPending
+                ? 'Finalizing...'
+                : 'Finalize decisions & email shortlisted'}
+            </Button>
           </div>
         </div>
       </Card>
@@ -946,6 +1103,25 @@ export default function DashboardScreeningResultsPage() {
           hint={`${Math.max(job.aiCriteria.shortlistSize - shortlistedCount, 0)} more candidates needed to hit target`}
         />
       </div>
+
+      <Card className="rounded-[24px] border-border/60 bg-surface p-5 shadow-soft">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-lg font-semibold text-text-primary">
+              Final recruiter confirmation
+            </div>
+            <p className="mt-1 text-sm text-text-muted">
+              Confirm every candidate as shortlisted or rejected, then send the
+              shortlist emails in one step.
+            </p>
+          </div>
+          <Badge variant={unresolvedFinalDecisions === 0 ? 'success' : 'warning'}>
+            {unresolvedFinalDecisions === 0
+              ? 'All candidates decided'
+              : `${unresolvedFinalDecisions} decisions remaining`}
+          </Badge>
+        </div>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
         <Card className="overflow-hidden rounded-[24px] border-border/60 bg-surface shadow-soft">
@@ -992,10 +1168,12 @@ export default function DashboardScreeningResultsPage() {
                 <tr className="text-left text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">
                   <th className="px-4 pt-4">Candidate</th>
                   <th className="px-4 pt-4">Verdict</th>
+                  <th className="px-4 pt-4">Label</th>
                   <th className="px-4 pt-4">Score</th>
                   <th className="px-4 pt-4">Skills</th>
                   <th className="px-4 pt-4">Experience</th>
                   <th className="px-4 pt-4">Rank</th>
+                  <th className="px-4 pt-4">Final Decision</th>
                 </tr>
               </thead>
               <tbody>
@@ -1031,6 +1209,13 @@ export default function DashboardScreeningResultsPage() {
                           {record.overall.verdict}
                         </Badge>
                       </td>
+                      <td className="px-4 py-4">
+                        {record.manual_review?.reviewed_at ? (
+                          <Badge variant="info">Reviewed</Badge>
+                        ) : (
+                          <span className="text-sm text-text-muted">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-4 text-sm font-semibold text-text-primary">
                         {record.overall.score}
                       </td>
@@ -1042,6 +1227,25 @@ export default function DashboardScreeningResultsPage() {
                       </td>
                       <td className="rounded-r-[18px] px-4 py-4 text-sm font-semibold text-text-primary">
                         #{record.rank}
+                      </td>
+                      <td className="px-4 py-4">
+                        <select
+                          value={finalDecisions[record.result_id] ?? ''}
+                          onChange={(event) =>
+                            setFinalDecisions((current) => ({
+                              ...current,
+                              [record.result_id]: event.target.value as
+                                | 'Shortlisted'
+                                | 'Rejected'
+                                | '',
+                            }))
+                          }
+                          className="h-10 rounded-full border border-border/70 bg-surface px-3 text-sm text-text-primary outline-none"
+                        >
+                          <option value="">Select</option>
+                          <option value="Shortlisted">Shortlisted</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
                       </td>
                     </tr>
                   );
@@ -1118,9 +1322,19 @@ export default function DashboardScreeningResultsPage() {
                 title="Selected candidate"
                 subtitle="A concise recruiter summary for the active screening record."
                 right={
-                  <Badge variant={verdictVariant(selectedRecord.overall.verdict)} dot>
-                    {selectedRecord.overall.verdict}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedRecord.manual_review?.reviewed_at ? (
+                      <Badge variant="info">Reviewed</Badge>
+                    ) : null}
+                    {selectedRecord.recruiter_decision?.verdict ? (
+                      <Badge variant="success">
+                        Final: {selectedRecord.recruiter_decision.verdict}
+                      </Badge>
+                    ) : null}
+                    <Badge variant={verdictVariant(selectedRecord.overall.verdict)} dot>
+                      {selectedRecord.overall.verdict}
+                    </Badge>
+                  </div>
                 }
               />
 
@@ -1206,6 +1420,67 @@ export default function DashboardScreeningResultsPage() {
                   Open full candidate profile
                 </Link>
               ) : null}
+
+              <div className="mt-6 rounded-[18px] border border-border/60 bg-bg/20 p-4">
+                <div className="text-sm font-semibold text-text-primary">
+                  Re-review with additional information
+                </div>
+                <p className="mt-2 text-sm leading-6 text-text-muted">
+                  Add recruiter context, external notes, references, or portfolio
+                  findings so Talvo AI can reassess candidates currently in the Review
+                  bucket.
+                </p>
+
+                <textarea
+                  value={reviewAdditionalInfo}
+                  onChange={(event) => setReviewAdditionalInfo(event.target.value)}
+                  placeholder="Add the extra information you collected about this candidate..."
+                  disabled={
+                    selectedRecord.overall.verdict !== 'Review' ||
+                    reviewMutation.isPending
+                  }
+                  className="mt-4 min-h-28 w-full rounded-[18px] border border-border/70 bg-surface px-4 py-3 text-sm text-text-primary outline-none placeholder:text-text-muted disabled:cursor-not-allowed disabled:opacity-60"
+                />
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs text-text-muted">
+                    {selectedRecord.overall.verdict === 'Review'
+                      ? 'Talvo AI will save a second-pass evaluation using this added context.'
+                      : 'Only applicants currently marked Review can be re-reviewed.'}
+                  </div>
+                  <Button
+                    onClick={() => reviewMutation.mutate()}
+                    disabled={
+                      selectedRecord.overall.verdict !== 'Review' ||
+                      reviewMutation.isPending ||
+                      reviewAdditionalInfo.trim().length === 0
+                    }
+                    className="rounded-full px-5"
+                  >
+                    {reviewMutation.isPending ? 'Reviewing...' : 'Review applicant'}
+                  </Button>
+                </div>
+
+                {selectedRecord.manual_review?.additional_info ? (
+                  <div className="mt-4 rounded-[16px] border border-border/60 bg-surface p-4">
+                    <div className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">
+                      Last saved review
+                    </div>
+                    <div className="mt-2 text-sm text-text-muted">
+                      {selectedRecord.manual_review.previous_verdict} to{' '}
+                      <span className="font-semibold text-text-primary">
+                        {selectedRecord.manual_review.updated_verdict}
+                      </span>
+                      {selectedRecord.manual_review.reviewed_at
+                        ? ` on ${formatShortDate(selectedRecord.manual_review.reviewed_at)}`
+                        : ''}
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-text-muted">
+                      {selectedRecord.manual_review.additional_info}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : null}
         </Card>

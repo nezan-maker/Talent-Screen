@@ -57,7 +57,7 @@ export default function CandidateDetailPage() {
       <Card className="p-8">
         <div className="text-lg font-semibold">Candidate not found</div>
         <div className="mt-1 text-sm text-text-muted">
-          We could not load candidate `{id}` from the current backend data.
+          We could not load this candidate right now.
         </div>
         <div className="mt-4">
           <Link href="/dashboard">

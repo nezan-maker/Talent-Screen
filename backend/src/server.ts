@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
 app.set("trust proxy", 1);
-const PORT = parseInt(process.env.PORT || "10000", 10);
+const PORT = parseInt(process.env.PORT || "5000", 10);
 const serverDebug = debug("app:server");
 
 const originsFromEnv =
@@ -47,7 +47,7 @@ const startServer = async () => {
   app.use("/auth", authRoutes());
   app.use("/", dashRoutes());
   app.use("/ai", aiRoutes);
-  app.listen(10000, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     serverDebug(`Server connected on port ${PORT}`);
   });
 };

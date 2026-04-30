@@ -3,18 +3,19 @@
 import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import toast from '@/lib/toast';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { GoogleIcon } from '@/components/auth/GoogleIcon';
 import { BrainLoader } from '@/components/ui/BrainLoader';
 import { Button } from '@/components/ui/Button';
+import { getGoogleAuthErrorMessage, getGoogleAuthStartUrl } from '@/lib/auth';
 import { getApiErrorMessage, loginUser } from '@/lib/api';
 import { ROUTES } from '@/lib/constants';
 import { recordLastLoginAt } from '@/lib/settings';
 
-const googleAuthUrl = `${process.env.NEXT_PUBLIC_API_URL}/auth/google/start`;
+const googleAuthUrl = getGoogleAuthStartUrl();
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -88,6 +89,7 @@ function getPostAuthRoute(onboardingCompleted?: boolean) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const [oauthErrorShown, setOauthErrorShown] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -99,6 +101,21 @@ export default function LoginPage() {
     password?: boolean;
   }>({});
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (oauthErrorShown || typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = getGoogleAuthErrorMessage(params.get('error')?.trim() ?? '');
+    if (!oauthError) {
+      return;
+    }
+
+    setOauthErrorShown(true);
+    toast.error(oauthError);
+  }, [oauthErrorShown]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -319,6 +336,10 @@ export default function LoginPage() {
           variant="outline"
           className="h-11 w-full gap-2.5"
           onClick={() => {
+            if (!googleAuthUrl) {
+              toast.error('Google sign-in is not configured yet.');
+              return;
+            }
             window.location.href = googleAuthUrl;
           }}
         >

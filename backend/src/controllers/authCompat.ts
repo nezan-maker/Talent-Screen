@@ -194,6 +194,11 @@ async function establishSession(res: Response, user: any) {
 }
 
 function getRequestOrigin(req: Request) {
+  const configuredApiUrl = toStringValue(env.API_URL);
+  if (configuredApiUrl) {
+    return configuredApiUrl.replace(/\/+$/, "");
+  }
+
   const forwardedProto = toStringValue(req.headers["x-forwarded-proto"]);
   const protocol = forwardedProto || req.protocol || "http";
   const host = toStringValue(req.headers["x-forwarded-host"]) || req.get("host") || "";
@@ -310,6 +315,7 @@ function toStringValue(value: unknown) {
 async function finalizeConfirmation(res: Response, user: any) {
   user.isVerified = true;
   user.sign_otp_token = null;
+  user.confirmation_link_id = "";
   await establishSession(res, user);
   res.clearCookie("signup_reference_token", {
     sameSite: "none",
@@ -322,6 +328,14 @@ async function finalizeConfirmation(res: Response, user: any) {
     success: "Confirmation successful",
     user: mapUserToFrontend(user),
   });
+}
+
+async function finalizeGoogleAuthentication(res: Response, user: any) {
+  user.isVerified = true;
+  user.sign_otp_token = null;
+  user.confirmation_link_id = "";
+  await user.save();
+  await establishSession(res, user);
 }
 
 export const signUp = async (req: Request, res: Response) => {
@@ -531,8 +545,9 @@ export const googleCallback = async (req: Request, res: Response) => {
     const email = toStringValue(googleUser.email).toLowerCase();
     const googleId = toStringValue(googleUser.sub);
     const name = toStringValue(googleUser.name) || "Google User";
+    const emailVerified = Boolean(googleUser.email_verified);
 
-    if (!email || !googleId) {
+    if (!email || !googleId || !emailVerified) {
       clearSessionCookies(res);
       return res.redirect(
         `${getFrontendRedirectUrl("/login")}?error=google_oauth_profile_invalid`,
@@ -551,7 +566,7 @@ export const googleCallback = async (req: Request, res: Response) => {
         user_pass: await bcrypt.hash(crypto.randomUUID(), 10),
         google_id: googleId,
         auth_provider: "google",
-        isVerified: false,
+        isVerified: true,
         onboarding_completed: false,
         sign_otp_token: null,
         confirmation_link_id: "",
@@ -569,6 +584,11 @@ export const googleCallback = async (req: Request, res: Response) => {
         hasChanges = true;
       }
 
+      if (!user.isVerified) {
+        user.isVerified = true;
+        hasChanges = true;
+      }
+
       if (!toStringValue(user.user_name) && name) {
         user.user_name = name;
         hasChanges = true;
@@ -579,22 +599,26 @@ export const googleCallback = async (req: Request, res: Response) => {
       }
     }
 
-    const { signupReferenceToken, otpToken, emailSent } =
-      await issueSignupVerificationChallenge(res, user);
     res.clearCookie("google_oauth_state", {
       sameSite: "none",
       secure: true,
       httpOnly: true,
       path: "/",
     });
+    res.clearCookie("signup_reference_token", {
+      sameSite: "none",
+      secure: true,
+      httpOnly: true,
+      path: "/",
+    });
 
-    const redirectUrl = new URL(getFrontendRedirectUrl("/register"));
-    redirectUrl.searchParams.set("verify", "1");
-    redirectUrl.searchParams.set("email", email);
-    redirectUrl.searchParams.set("signup_token", signupReferenceToken);
-    if (!emailSent) {
-      redirectUrl.searchParams.set("confirm_otp", otpToken);
-    }
+    await finalizeGoogleAuthentication(res, user);
+
+    const redirectUrl = new URL(
+      getFrontendRedirectUrl(
+        user.onboarding_completed ? "/dashboard" : "/welcome",
+      ),
+    );
 
     return res.redirect(redirectUrl.toString());
   } catch (error) {

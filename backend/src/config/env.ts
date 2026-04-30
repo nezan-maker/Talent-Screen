@@ -13,6 +13,10 @@ const env = {
     process.env.FRONTEND_URL ||
     process.env.FRONTEND_ORIGIN ||
     "http://localhost:3000",
+  API_URL:
+    process.env.API_URL ||
+    process.env.BACKEND_URL ||
+    process.env.RENDER_EXTERNAL_URL,
   GOOGLE_CLIENT_ID:
     process.env.GOOGLE_CLIENT_ID || process.env.CLIENT_ID,
   GOOGLE_CLIENT_SECRET:

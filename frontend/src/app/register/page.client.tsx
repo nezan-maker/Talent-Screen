@@ -9,6 +9,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { GoogleIcon } from "@/components/auth/GoogleIcon";
 import { BrainLoader } from "@/components/ui/BrainLoader";
 import { Button } from "@/components/ui/Button";
+import { getGoogleAuthErrorMessage, getGoogleAuthStartUrl } from "@/lib/auth";
 import {
   confirmSignup,
   confirmSignupWithLink,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 
-const googleAuthUrl = `${process.env.NEXT_PUBLIC_API_URL}/auth/google/start`;
+const googleAuthUrl = getGoogleAuthStartUrl();
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -38,6 +39,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const autoConfirmHandledRef = useRef(false);
+  const oauthErrorShownRef = useRef(false);
   const [name, setName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
@@ -80,6 +82,22 @@ export default function RegisterPage() {
     () => searchParams.get("verify")?.trim() === "1",
     [searchParams],
   );
+
+  useEffect(() => {
+    if (oauthErrorShownRef.current) {
+      return;
+    }
+
+    const oauthError = getGoogleAuthErrorMessage(
+      searchParams.get("error")?.trim() ?? "",
+    );
+    if (!oauthError) {
+      return;
+    }
+
+    oauthErrorShownRef.current = true;
+    toast.error(oauthError);
+  }, [searchParams]);
 
   const validateForm = () => {
     const newErrors: typeof errors = {};
@@ -579,6 +597,10 @@ export default function RegisterPage() {
           variant="outline"
           className="h-11 w-full gap-2.5"
           onClick={() => {
+            if (!googleAuthUrl) {
+              toast.error("Google sign-in is not configured yet.");
+              return;
+            }
             window.location.href = googleAuthUrl;
           }}
         >

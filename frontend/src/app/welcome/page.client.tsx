@@ -61,10 +61,10 @@ function ChoiceGroup({
               key={option}
               type="button"
               onClick={() => onChange(option)}
-              className={`rounded-xl border px-3 py-3 text-left text-xs transition-all duration-300 ease-out ${
+            className={`rounded-xl border px-3 py-3 text-left text-xs transition-all duration-300 ease-out ${
                 selected
-                  ? "border-orange-500 bg-orange-500/10 text-white shadow-[0_0_0_1px_rgba(249,115,22,0.35),0_8px_24px_rgba(249,115,22,0.16)]"
-                  : "border-white/8 bg-white/4 text-slate-400 hover:-translate-y-0.5 hover:border-orange-500/30 hover:text-slate-200"
+                  ? "border-orange-500 bg-orange-500/10 text-white"
+                  : "border-white/12 bg-white/4 text-slate-400 hover:-translate-y-0.5 hover:border-orange-500/40 hover:text-slate-200"
               }`}
             >
               <span className="block font-semibold leading-snug">{option}</span>
@@ -142,7 +142,7 @@ export default function WelcomePageClient() {
 
     const timer = setTimeout(() => {
       setStage("greeting");
-    }, prefersReducedMotion ? 0 : 80);
+    }, prefersReducedMotion ? 0 : 280);
 
     return () => {
       clearTimeout(timer);
@@ -354,7 +354,7 @@ export default function WelcomePageClient() {
                 <motion.h1
                   variants={headingVariants}
                   style={{
-                    fontSize: "clamp(3.8rem, 11vw, 8.5rem)",
+                    fontSize: "clamp(3.4rem, 10vw, 7.5rem)",
                     fontWeight: 800,
                     lineHeight: 1,
                     letterSpacing: "-0.03em",
@@ -472,7 +472,7 @@ export default function WelcomePageClient() {
                     <button
                       type="submit"
                       disabled={busy}
-                      className="btn-continue flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-orange-500 text-sm font-semibold text-white shadow-[0_8px_28px_rgba(249,115,22,0.32)] transition-all hover:bg-orange-400 hover:shadow-[0_12px_36px_rgba(249,115,22,0.46)] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="btn-continue flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-orange-500 text-sm font-semibold text-white transition-all hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {busy ? (
                         <>

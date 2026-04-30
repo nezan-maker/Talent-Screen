@@ -549,7 +549,7 @@ export default function RegisterPage() {
 
         <label
           className={`flex items-start gap-3 text-sm transition-colors ${
-            !agreeToTerms ? "text-danger" : "text-text-muted"
+            !agreeToTerms ? "text-text-primary" : "text-emerald-600"
           }`}
         >
           <input

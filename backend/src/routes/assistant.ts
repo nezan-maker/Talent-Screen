@@ -5,8 +5,7 @@ import { AssistantConversationModel } from "../models/AssistantConversation.js";
 import Job from "../models/Job.js";
 import { buildEntityId } from "../utils/ids.js";
 import {
-  assistantWithGemini,
-  resolveGeminiAuth,
+  askRecruiterAssistant,
   type AssistantCandidateContext,
   type AssistantJobContext,
 } from "../lib/gemini.js";
@@ -19,8 +18,6 @@ import {
   splitList,
   trimText,
 } from "../utils/talentProfile.js";
-import env from "../config/env.js";
-
 type AssistantRouterOptions = {
   geminiModel?: string;
   aiStudioApiKey?: string;
@@ -155,19 +152,6 @@ export default function assistantRouter(options: AssistantRouterOptions = {}) {
       }
 
       const input = askSchema.parse(req.body);
-      const auth = resolveGeminiAuth({
-        ...(options.aiStudioApiKey ? { aiStudioApiKey: options.aiStudioApiKey } : {}),
-        ...(options.vertexProjectId ? { vertexProjectId: options.vertexProjectId } : {}),
-        ...(options.vertexLocation ? { vertexLocation: options.vertexLocation } : {}),
-      });
-
-      if (!auth) {
-        return res.status(400).json({
-          data_error:
-            "Gemini is not configured. Set GOOGLE_API_KEY or Vertex project/location values.",
-        });
-      }
-
       const job = input.jobId ? await Job.findById(input.jobId).lean() : null;
       if (input.jobId && !job) {
         return res.status(404).json({ data_error: "Job not found" });
@@ -183,14 +167,17 @@ export default function assistantRouter(options: AssistantRouterOptions = {}) {
         .limit(input.maxApplicants)
         .lean();
 
-      const model = trimText(options.geminiModel ?? env.GOOGLE_AI_MODEL) || "gemini-1.5-flash";
-      const reply = await assistantWithGemini({
-        ...auth,
-        model,
+      const mappedJob = job ? mapJob(job) : undefined;
+      const mappedApplicants =
+        applicants.length > 0
+          ? applicants.map((applicant, index) => mapCandidate(applicant, index))
+          : [];
+
+      const reply = await askRecruiterAssistant({
         question: input.question,
-        ...(job ? { job: mapJob(job) } : {}),
-        ...(applicants.length > 0
-          ? { candidates: applicants.map((applicant, index) => mapCandidate(applicant, index)) }
+        ...(mappedJob ? { job: mappedJob } : {}),
+        ...(mappedApplicants.length > 0
+          ? { candidates: mappedApplicants }
           : {}),
       });
 

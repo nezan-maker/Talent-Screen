@@ -63,12 +63,24 @@ router.use("/assistant", assistantRouter(geminiRouteOptions));
 router.use("/screening", screeningRouter(geminiRouteOptions));
 router.get("/context/:jobId", async (req: Request, res: Response) => {
   try {
-    const job = await Job.findById(req.params.jobId).lean();
+    const userId = req.currentUserId;
+    const jobId = String(req.params.jobId ?? "").trim();
+    if (!userId) {
+      return res.status(401).json({ expiration_error: "Session expired" });
+    }
+
+    const job = await Job.findOne({
+      _id: jobId,
+      user_id: userId,
+    }).lean();
     if (!job) {
       return res.status(404).json({ data_error: "Job not found" });
     }
 
-    const candidates = await Applicant.find({ job_id: req.params.jobId } as any).lean();
+    const candidates = await Applicant.find({
+      user_id: userId,
+      job_id: jobId,
+    } as any).lean();
     return res.status(200).json({ job, candidates });
   } catch (error) {
     console.error("Error in GET /ai/context/:jobId:", error);

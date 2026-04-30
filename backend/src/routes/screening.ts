@@ -133,6 +133,11 @@ export default function screeningRouter(options: ScreeningRouterOptions = {}) {
     let runId = "";
 
     try {
+      const userId = req.currentUserId;
+      if (!userId) {
+        return res.status(401).json({ expiration_error: "Session expired" });
+      }
+
       const input = runSchema.parse(req.body);
       const auth = resolveGeminiAuth({
         ...(options.aiStudioApiKey ? { aiStudioApiKey: options.aiStudioApiKey } : {}),
@@ -147,14 +152,20 @@ export default function screeningRouter(options: ScreeningRouterOptions = {}) {
         });
       }
 
-      const job = await Job.findById(input.jobId).lean();
+      const job = await Job.findOne({
+        _id: input.jobId,
+        user_id: userId,
+      }).lean();
       if (!job) {
         return res.status(404).json({ data_error: "Job not found" });
       }
 
       const applicantQuery = input.applicantIds?.length
-        ? { _id: { $in: input.applicantIds } }
-        : { $or: [{ job_id: input.jobId }, { job_title: trimText(job.job_title) }] };
+        ? { _id: { $in: input.applicantIds }, user_id: userId }
+        : {
+            user_id: userId,
+            $or: [{ job_id: input.jobId }, { job_title: trimText(job.job_title) }],
+          };
 
       const applicants = await Applicant.find(applicantQuery)
         .limit(500)
@@ -232,8 +243,27 @@ export default function screeningRouter(options: ScreeningRouterOptions = {}) {
 
   router.get("/runs", async (req: Request, res: Response) => {
     try {
+      const userId = req.currentUserId;
+      if (!userId) {
+        return res.status(401).json({ expiration_error: "Session expired" });
+      }
+
       const parsedQuery = listRunsSchema.parse(req.query);
-      const query = parsedQuery.jobId ? { job_id: parsedQuery.jobId } : {};
+      if (parsedQuery.jobId) {
+        const job = await Job.findOne({
+          _id: parsedQuery.jobId,
+          user_id: userId,
+        }).lean();
+        if (!job) {
+          return res.status(404).json({ data_error: "Job not found" });
+        }
+      }
+
+      const ownedJobs = await Job.find({ user_id: userId }).select("_id").lean();
+      const ownedJobIds = ownedJobs.map((job) => trimText(job._id)).filter(Boolean);
+      const query = parsedQuery.jobId
+        ? { job_id: parsedQuery.jobId }
+        : { job_id: { $in: ownedJobIds } };
       const runs = await ScreeningRunModel.find(query)
         .sort({ createdAt: -1 })
         .limit(200)
@@ -254,9 +284,22 @@ export default function screeningRouter(options: ScreeningRouterOptions = {}) {
 
   router.get("/runs/:runId/results", async (req: Request, res: Response) => {
     try {
+      const userId = req.currentUserId;
+      if (!userId) {
+        return res.status(401).json({ expiration_error: "Session expired" });
+      }
+
       const runId = z.string().min(1).parse(req.params.runId);
       const run = await ScreeningRunModel.findById(runId).lean();
       if (!run) {
+        return res.status(404).json({ data_error: "Run not found" });
+      }
+
+      const ownedJob = await Job.findOne({
+        _id: trimText(run.job_id),
+        user_id: userId,
+      }).lean();
+      if (!ownedJob) {
         return res.status(404).json({ data_error: "Run not found" });
       }
 
@@ -281,7 +324,17 @@ export default function screeningRouter(options: ScreeningRouterOptions = {}) {
 
   router.get("/jobs/:jobId/results", async (req: Request, res: Response) => {
     try {
+      const userId = req.currentUserId;
+      if (!userId) {
+        return res.status(401).json({ expiration_error: "Session expired" });
+      }
+
       const jobId = z.string().min(1).parse(req.params.jobId);
+      const ownedJob = await Job.findOne({ _id: jobId, user_id: userId }).lean();
+      if (!ownedJob) {
+        return res.status(404).json({ data_error: "Job not found" });
+      }
+
       const latestRun = await ScreeningRunModel.findOne({ job_id: jobId })
         .sort({ createdAt: -1 })
         .lean();

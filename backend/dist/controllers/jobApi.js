@@ -99,7 +99,7 @@ export async function createJob(req, res) {
                 .status(400)
                 .json({ data_error: "Missing required job fields" });
         }
-        const oldJob = await Job.findOne({ job_title }).lean();
+        const oldJob = await Job.findOne({ job_title, user_id }).lean();
         if (oldJob) {
             return res.status(409).json({ message: "Job already registered" });
         }
@@ -133,7 +133,7 @@ export async function createJob(req, res) {
                 job_ai_criteria: payload.job_ai_criteria,
             }),
         });
-        const mappedApplicants = (await Applicant.find().lean()).map(mapApplicantToFrontend);
+        const mappedApplicants = (await Applicant.find({ user_id }).lean()).map(mapApplicantToFrontend);
         return res.status(201).json({
             success: "Job successfully created",
             job: mapJobToFrontend(job.toObject(), mappedApplicants),

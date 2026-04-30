@@ -153,15 +153,21 @@ export default function assistantRouter(options: AssistantRouterOptions = {}) {
 
       const input = askSchema.parse(req.body);
       const job = input.jobId ? await Job.findById(input.jobId).lean() : null;
-      if (input.jobId && !job) {
+      if (input.jobId && (!job || trimText(job.user_id) !== req.currentUserId)) {
         return res.status(404).json({ data_error: "Job not found" });
       }
 
       const applicantQuery = input.applicantIds?.length
-        ? { _id: { $in: input.applicantIds } }
+        ? { _id: { $in: input.applicantIds }, user_id: req.currentUserId }
         : job
-          ? { $or: [{ job_id: trimText(job._id) }, { job_title: trimText(job.job_title) }] }
-          : {};
+          ? {
+              user_id: req.currentUserId,
+              $or: [
+                { job_id: trimText(job._id) },
+                { job_title: trimText(job.job_title) },
+              ],
+            }
+          : { user_id: req.currentUserId };
 
       const applicants = await Applicant.find(applicantQuery)
         .limit(input.maxApplicants)

@@ -6,7 +6,7 @@ import ScreeningRunModel from "../models/ScreeningRun.js";
 import env from "../config/env.js";
 import { askRecruiterAssistant, resolveGeminiAuth, reviewApplicantWithGemini, } from "../lib/gemini.js";
 import { buildRejectedApplicantEmail, buildShortlistedApplicantEmail, } from "../lib/emailTemplates.js";
-import { sendMailIfConfigured } from "../lib/mailer.js";
+import { emailDeliveryConfigured, sendMailIfConfigured } from "../lib/mailer.js";
 import { evaluateApplicantsForJob } from "../services/screeningService.js";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 import { trimText } from "../utils/talentProfile.js";
@@ -104,19 +104,20 @@ async function processOutcomeEmailsForJob(input) {
             rejectedSentCount += 1;
         }
     }
-    const mailerConfigured = Boolean(env.USER_EMAIL && env.USER_PASS);
+    const mailerConfigured = emailDeliveryConfigured();
     return {
-        sentCount: mailerConfigured
-            ? shortlistedSentCount + rejectedSentCount
-            : shortlistedApplicants.length + rejectedApplicants.length,
+        sentCount: shortlistedSentCount + rejectedSentCount,
         shortlistedCount: shortlistedApplicants.length,
         rejectedCount: rejectedApplicants.length,
-        shortlistedSentCount: mailerConfigured
-            ? shortlistedSentCount
-            : shortlistedApplicants.length,
-        rejectedSentCount: mailerConfigured
-            ? rejectedSentCount
-            : rejectedApplicants.length,
+        shortlistedSentCount,
+        rejectedSentCount,
+        emailDeliveryConfigured: mailerConfigured,
+        pendingEmailCount: mailerConfigured
+            ? shortlistedApplicants.length +
+                rejectedApplicants.length -
+                shortlistedSentCount -
+                rejectedSentCount
+            : shortlistedApplicants.length + rejectedApplicants.length,
     };
 }
 async function hydrateApplicantsWithResumeText(job, applicants) {
@@ -170,17 +171,24 @@ async function hydrateApplicantsWithResumeText(job, applicants) {
 export async function runScreening(req, res) {
     let runId = "";
     try {
+        const userId = req.currentUserId;
+        if (!userId) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
         const jobId = trimText(req.body?.jobId ?? req.body?.job_id);
         const jobTitle = trimText(req.body?.jobTitle ?? req.body?.job_title);
         const job = jobId
-            ? await Job.findById(jobId).lean()
-            : await Job.findOne({ job_title: jobTitle }).lean();
+            ? await Job.findOne({ _id: jobId, user_id: userId }).lean()
+            : await Job.findOne({ job_title: jobTitle, user_id: userId }).lean();
         if (!job) {
             return res.status(404).json({
                 data_error: "Could not find an active job that matches what is specified",
             });
         }
-        const applicants = await Applicant.find(buildApplicantJobQuery(job)).lean();
+        const applicants = await Applicant.find({
+            ...buildApplicantJobQuery(job),
+            user_id: userId,
+        }).lean();
         if (applicants.length === 0) {
             return res.status(404).json({
                 data_error: `No active applicants for the job ${job.job_title} yet`,
@@ -258,8 +266,20 @@ export async function runScreening(req, res) {
 }
 export async function getScreeningRuns(req, res) {
     try {
+        const userId = req.currentUserId;
+        if (!userId) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
         const jobId = trimText(req.query.jobId);
-        const query = jobId ? { job_id: jobId } : {};
+        if (jobId) {
+            const ownedJob = await Job.findOne({ _id: jobId, user_id: userId }).lean();
+            if (!ownedJob) {
+                return res.status(404).json({ data_error: "Job not found" });
+            }
+        }
+        const ownedJobs = await Job.find({ user_id: userId }).select("_id").lean();
+        const ownedJobIds = ownedJobs.map((job) => trimText(job._id)).filter(Boolean);
+        const query = jobId ? { job_id: jobId } : { job_id: { $in: ownedJobIds } };
         const { page, pageSize, skip, limit } = parsePagination(req.query);
         const [totalRuns, runs] = await Promise.all([
             ScreeningRunModel.countDocuments(query),
@@ -281,10 +301,21 @@ export async function getScreeningRuns(req, res) {
 }
 export async function getScreeningRunById(req, res) {
     try {
+        const userId = req.currentUserId;
+        if (!userId) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
         const runId = trimText(req.params.runId);
         const { page, pageSize, skip, limit } = parsePagination(req.query);
         const run = await ScreeningRunModel.findById(runId).lean();
         if (!run) {
+            return res.status(404).json({ data_error: "Run not found" });
+        }
+        const ownedJob = await Job.findOne({
+            _id: trimText(run.job_id),
+            user_id: userId,
+        }).lean();
+        if (!ownedJob) {
             return res.status(404).json({ data_error: "Run not found" });
         }
         const [totalResults, results] = await Promise.all([
@@ -308,9 +339,13 @@ export async function getScreeningRunById(req, res) {
 }
 export async function getLatestJobResults(req, res) {
     try {
+        const userId = req.currentUserId;
+        if (!userId) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
         const jobId = trimText(req.params.jobId);
         const { page, pageSize, skip, limit } = parsePagination(req.query);
-        const job = await withMongoTransientRetry(() => Job.findById(jobId)
+        const job = await withMongoTransientRetry(() => Job.findOne({ _id: jobId, user_id: userId })
             .select({ _id: 1, job_title: 1, job_state: 1 })
             .lean());
         if (!job) {
@@ -360,6 +395,10 @@ export async function getLatestJobResults(req, res) {
 }
 export async function reviewResult(req, res) {
     try {
+        const userId = req.currentUserId;
+        if (!userId) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
         const verdictInput = req.body?.verdict_string;
         const verdicts = Array.isArray(verdictInput)
             ? verdictInput
@@ -369,10 +408,14 @@ export async function reviewResult(req, res) {
         let updatedCount = 0;
         for (const verdict of verdicts) {
             const applicant = verdict?.applicant_id
-                ? await Applicant.findById(trimText(verdict.applicant_id))
+                ? await Applicant.findOne({
+                    _id: trimText(verdict.applicant_id),
+                    user_id: userId,
+                })
                 : await Applicant.findOne({
                     applicant_name: trimText(verdict?.applicant_name),
                     job_title: trimText(verdict?.job_title),
+                    user_id: userId,
                 });
             if (!applicant) {
                 continue;
@@ -616,14 +659,20 @@ export async function sendEmails(req, res) {
 }
 export async function askAssistant(req, res) {
     try {
+        const userId = req.currentUserId;
+        if (!userId) {
+            return res.status(401).json({ expiration_error: "Session expired" });
+        }
         const jobId = trimText(req.body?.job_id);
         const question = trimText(req.body?.question);
         if (!question) {
             return res.status(400).json({ data_error: "Question is required" });
         }
         const [job, candidates, latestRun] = await Promise.all([
-            jobId ? Job.findById(jobId).lean() : null,
-            jobId ? Applicant.find({ job_id: jobId }).lean() : Applicant.find().limit(20).lean(),
+            jobId ? Job.findOne({ _id: jobId, user_id: userId }).lean() : null,
+            jobId
+                ? Applicant.find({ job_id: jobId, user_id: userId }).lean()
+                : Applicant.find({ user_id: userId }).limit(20).lean(),
             jobId
                 ? ScreeningRunModel.findOne({ job_id: jobId }).sort({ createdAt: -1 }).lean()
                 : null,

@@ -10,8 +10,33 @@ export type MailPayload = {
 
 const MAIL_SEND_TIMEOUT_MS = 8_000;
 
+function trimText(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function resolveSmtpConfig() {
+  const host = trimText(env.SMTP_HOST) || "smtp.gmail.com";
+  const portValue = Number(trimText(env.SMTP_PORT));
+  const port = Number.isFinite(portValue) && portValue > 0 ? portValue : 587;
+  const secure =
+    trimText(env.SMTP_SECURE).toLowerCase() === "true" || port === 465;
+  const user = trimText(env.SMTP_USER) || trimText(env.USER_EMAIL);
+  const pass = trimText(env.SMTP_PASS) || trimText(env.USER_PASS);
+  const from = trimText(env.SMTP_FROM) || (user ? `"Talvo" <${user}>` : "");
+
+  return {
+    host,
+    port,
+    secure,
+    user,
+    pass,
+    from,
+  };
+}
+
 export function emailDeliveryConfigured() {
-  return Boolean(env.USER_EMAIL && env.USER_PASS);
+  const smtp = resolveSmtpConfig();
+  return Boolean(smtp.user && smtp.pass);
 }
 
 export async function sendMailIfConfigured(payload: MailPayload) {
@@ -20,22 +45,23 @@ export async function sendMailIfConfigured(payload: MailPayload) {
   }
 
   try {
+    const smtp = resolveSmtpConfig();
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
       connectionTimeout: MAIL_SEND_TIMEOUT_MS,
       greetingTimeout: MAIL_SEND_TIMEOUT_MS,
       socketTimeout: MAIL_SEND_TIMEOUT_MS,
       auth: {
-        user: env.USER_EMAIL,
-        pass: env.USER_PASS,
+        user: smtp.user,
+        pass: smtp.pass,
       },
     });
 
     await Promise.race([
       transporter.sendMail({
-        from: `"Talvo" <${env.USER_EMAIL}>`,
+        from: smtp.from,
         to: payload.to,
         subject: payload.subject,
         text: payload.text,

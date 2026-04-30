@@ -48,6 +48,7 @@ export default function RegisterPage() {
   const [verificationCode, setVerificationCode] = useState("");
   const [awaitingVerification, setAwaitingVerification] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
+  const [pendingSignupToken, setPendingSignupToken] = useState("");
   const [errors, setErrors] = useState<{
     name?: string;
     companyName?: string;
@@ -211,7 +212,7 @@ export default function RegisterPage() {
     try {
       const response = await confirmSignup(
         code,
-        signupTokenFromLink || undefined,
+        pendingSignupToken || signupTokenFromLink || undefined,
       );
       toast.success("Account verified successfully.");
       router.push(getPostAuthRoute(response.user?.onboardingCompleted));
@@ -236,6 +237,9 @@ export default function RegisterPage() {
     autoConfirmHandledRef.current = true;
     if (emailFromLink) {
       setPendingEmail(emailFromLink);
+    }
+    if (signupTokenFromLink) {
+      setPendingSignupToken(signupTokenFromLink);
     }
     setBusy(true);
 
@@ -282,6 +286,9 @@ export default function RegisterPage() {
     if (emailFromLink) {
       setPendingEmail(emailFromLink);
     }
+    if (signupTokenFromLink) {
+      setPendingSignupToken(signupTokenFromLink);
+    }
     if (otpFromLink) {
       setVerificationCode(otpFromLink);
     }
@@ -314,6 +321,7 @@ export default function RegisterPage() {
 
       if (signupResponse.verificationRequired) {
         setPendingEmail(email.trim());
+        setPendingSignupToken(signupResponse.signupToken?.trim() ?? "");
 
         if (signupResponse.devOtpToken) {
           await handleVerification(signupResponse.devOtpToken);

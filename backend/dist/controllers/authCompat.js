@@ -269,10 +269,11 @@ export const signUp = async (req, res) => {
             sign_otp_token: null,
             confirmation_link_id: "",
         });
-        const { emailSent, otpToken } = await issueSignupVerificationChallenge(res, newUser);
+        const { signupReferenceToken, emailSent, otpToken } = await issueSignupVerificationChallenge(res, newUser);
         return res.status(201).json({
             success: "Sign up successful",
             verificationRequired: true,
+            signupToken: signupReferenceToken,
             user: mapUserToFrontend(newUser),
             ...(emailSent ? {} : { devOtpToken: otpToken }),
         });
@@ -295,7 +296,11 @@ export const confirm = async (req, res) => {
         const payload = confirmPayloadSchema.parse({
             token: extractVerifyToken(req.body),
         });
-        const signupReferenceToken = toStringValue(req.cookies?.signup_reference_token);
+        const signupReferenceToken = toStringValue(req.body?.signup_token) ||
+            toStringValue(req.body?.signupToken) ||
+            toStringValue(req.query?.signup_token) ||
+            toStringValue(req.query?.signupToken) ||
+            toStringValue(req.cookies?.signup_reference_token);
         if (!signupReferenceToken) {
             return res
                 .status(401)

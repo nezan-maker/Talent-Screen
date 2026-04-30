@@ -10,6 +10,11 @@ import { buildPaginationMeta, parsePagination } from "../utils/pagination.js";
 
 export async function getDashboardOverview(req: Request, res: Response) {
   try {
+    const userId = req.currentUserId;
+    if (!userId) {
+      return res.status(401).json({ expiration_error: "Session expired" });
+    }
+
     const jobsPagination = parsePagination(req.query, {
       pageKey: "jobsPage",
       pageSizeKey: "jobsPageSize",
@@ -20,8 +25,10 @@ export async function getDashboardOverview(req: Request, res: Response) {
     });
 
     const [jobs, applicants] = await Promise.all([
-      Job.find().sort({ updatedAt: -1, createdAt: -1 }).lean(),
-      Applicant.find().sort({ updatedAt: -1, createdAt: -1 }).lean(),
+      Job.find({ user_id: userId }).sort({ updatedAt: -1, createdAt: -1 }).lean(),
+      Applicant.find({ user_id: userId })
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .lean(),
     ]);
 
     const mappedApplicants = applicants.map(mapApplicantToFrontend);

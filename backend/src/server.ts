@@ -14,6 +14,8 @@ import env from "./config/env.js";
 import aiRoutes from "./services/aiservice.js";
 import { ensureSeedData } from "./services/seedService.js";
 import cors from "cors";
+import { ensureCsrfCookie, verifyCsrfToken } from "./middlewares/csrf.js";
+import { createRateLimit } from "./middlewares/rateLimit.js";
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,6 +26,12 @@ const serverDebug = debug("app:server");
 
 const originsFromEnv =
   process.env.FRONTEND_ORIGIN || "https://wiserank-lmwy.onrender.com";
+const generalRateLimit = createRateLimit({
+  windowMs: 60_000,
+  maxRequests: 180,
+  keyPrefix: "general",
+  message: "Too many API requests. Please slow down and try again.",
+});
 
 const startServer = async () => {
   await connectDB();
@@ -32,11 +40,15 @@ const startServer = async () => {
     cors({
       origin: [originsFromEnv, "http://localhost:3001"],
       credentials: true,
+      allowedHeaders: ["Content-Type", "X-CSRF-Token", "X-Dev-Auth"],
     }),
   );
+  app.use(generalRateLimit);
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookie());
+  app.use(ensureCsrfCookie);
+  app.use(verifyCsrfToken);
   app.use(morgan("dev"));
   app.get("/openapi.json", (req: Request, res: Response) => {
     res.sendFile(path.join(__dirname, "openapi.json"));

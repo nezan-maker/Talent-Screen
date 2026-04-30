@@ -7,6 +7,7 @@ import { buildPasswordRecoveryEmail, buildSignupVerificationEmail, } from "../li
 import { sendMailIfConfigured } from "../lib/mailer.js";
 import User from "../models/User.js";
 import { inferDefaultCompanyName, mapUserToFrontend, } from "../utils/frontendMappers.js";
+import { issueCsrfToken } from "../middlewares/csrf.js";
 const passwordSchema = z
     .string()
     .min(8)
@@ -68,6 +69,7 @@ function getAccessSecret() {
 function clearSessionCookies(res) {
     for (const name of [
         "access_token",
+        "csrf_token",
         "signup_reference_token",
         "recovery_reference_token",
         "reset_reference_token",
@@ -272,6 +274,9 @@ export const signUp = async (req, res) => {
         console.error("Error in signUp:", error);
         return res.status(500).json({ server_error: "Internal server error" });
     }
+};
+export const csrfToken = async (req, res) => {
+    return issueCsrfToken(req, res);
 };
 export const confirm = async (req, res) => {
     try {

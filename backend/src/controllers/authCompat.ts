@@ -14,6 +14,7 @@ import {
   inferDefaultCompanyName,
   mapUserToFrontend,
 } from "../utils/frontendMappers.js";
+import { issueCsrfToken } from "../middlewares/csrf.js";
 
 const passwordSchema = z
   .string()
@@ -97,6 +98,7 @@ function getAccessSecret() {
 function clearSessionCookies(res: Response) {
   for (const name of [
     "access_token",
+    "csrf_token",
     "signup_reference_token",
     "recovery_reference_token",
     "reset_reference_token",
@@ -364,6 +366,10 @@ export const signUp = async (req: Request, res: Response) => {
     console.error("Error in signUp:", error);
     return res.status(500).json({ server_error: "Internal server error" });
   }
+};
+
+export const csrfToken = async (req: Request, res: Response) => {
+  return issueCsrfToken(req, res);
 };
 
 export const confirm = async (req: Request, res: Response) => {

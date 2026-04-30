@@ -3,6 +3,7 @@ import {
   completeOnboarding,
   confirm,
   confirm_get,
+  csrfToken,
   googleCallback,
   googleStart,
   forgot,
@@ -14,17 +15,33 @@ import {
   verifyCode,
 } from "../controllers/authCompat.js";
 import { middleAuth } from "../middlewares/authMiddleware.js";
+import { createRateLimit } from "../middlewares/rateLimit.js";
+
+const authWriteRateLimit = createRateLimit({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 20,
+  keyPrefix: "auth-write",
+  message: "Too many authentication attempts. Please wait and try again.",
+});
+
+const verificationRateLimit = createRateLimit({
+  windowMs: 10 * 60 * 1000,
+  maxRequests: 10,
+  keyPrefix: "auth-verify",
+  message: "Too many verification attempts. Please wait and try again.",
+});
 
 const authRoutes = () => {
   const router = express.Router();
-  router.post("/signup", signUp);
-  router.post("/confirm", confirm);
-  router.post("/login", logIn);
+  router.get("/csrf", csrfToken);
+  router.post("/signup", authWriteRateLimit, signUp);
+  router.post("/confirm", verificationRateLimit, confirm);
+  router.post("/login", authWriteRateLimit, logIn);
   router.get("/google/start", googleStart);
   router.get("/google/callback", googleCallback);
-  router.post("/forgot", forgot);
-  router.post("/verify", verifyCode);
-  router.post("/reset", reset);
+  router.post("/forgot", authWriteRateLimit, forgot);
+  router.post("/verify", verificationRateLimit, verifyCode);
+  router.post("/reset", verificationRateLimit, reset);
   router.post("/logout", logout);
   router.post("/onboarding", middleAuth, completeOnboarding);
   router.get("/me", middleAuth, me);

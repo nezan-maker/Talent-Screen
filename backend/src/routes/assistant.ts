@@ -1,7 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import Applicant from "../models/Applicant.js";
+import { AssistantConversationModel } from "../models/AssistantConversation.js";
 import Job from "../models/Job.js";
+import { buildEntityId } from "../utils/ids.js";
 import {
   assistantWithGemini,
   resolveGeminiAuth,
@@ -27,11 +29,35 @@ type AssistantRouterOptions = {
 };
 
 const askSchema = z.object({
+  conversationId: z.string().min(1).optional(),
   jobId: z.string().min(1).optional(),
   applicantIds: z.array(z.string().min(1)).optional(),
   maxApplicants: z.number().int().min(1).max(200).default(50),
   question: z.string().min(1).max(4000),
 });
+
+function createConversationTitle(question: string) {
+  return trimText(question).slice(0, 42) || "New chat";
+}
+
+function mapConversation(conversation: any) {
+  return {
+    id: trimText(conversation?._id),
+    title: trimText(conversation?.title) || "New chat",
+    updatedAtISO: new Date(conversation?.updatedAt ?? Date.now()).toISOString(),
+    followUps: Array.isArray(conversation?.follow_ups)
+      ? conversation.follow_ups.map((item: unknown) => trimText(item)).filter(Boolean)
+      : [],
+    messages: Array.isArray(conversation?.messages)
+      ? conversation.messages.map((message: any) => ({
+          id: trimText(message?.id) || buildEntityId("msg"),
+          role: trimText(message?.role) === "user" ? "user" : "assistant",
+          text: trimText(message?.text),
+          createdAtISO: new Date(message?.created_at ?? Date.now()).toISOString(),
+        }))
+      : [],
+  };
+}
 
 function parseYearsFromText(value: unknown) {
   const match = trimText(value).match(/(\d+)\+?\s*years?/i);
@@ -101,8 +127,33 @@ function mapCandidate(candidate: any, index: number): AssistantCandidateContext 
 export default function assistantRouter(options: AssistantRouterOptions = {}) {
   const router = Router();
 
+  router.get("/conversations", async (req: Request, res: Response) => {
+    try {
+      if (!req.currentUserId) {
+        return res.status(401).json({ user_error: "Not authenticated" });
+      }
+
+      const conversations = await AssistantConversationModel.find({
+        user_id: req.currentUserId,
+      })
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      return res.status(200).json({
+        conversations: conversations.map(mapConversation),
+      });
+    } catch (error) {
+      console.error("Error in assistant /conversations route:", error);
+      return res.status(500).json({ server_error: "Internal server error" });
+    }
+  });
+
   router.post("/ask", async (req: Request, res: Response) => {
     try {
+      if (!req.currentUserId) {
+        return res.status(401).json({ user_error: "Not authenticated" });
+      }
+
       const input = askSchema.parse(req.body);
       const auth = resolveGeminiAuth({
         ...(options.aiStudioApiKey ? { aiStudioApiKey: options.aiStudioApiKey } : {}),
@@ -143,9 +194,51 @@ export default function assistantRouter(options: AssistantRouterOptions = {}) {
           : {}),
       });
 
+      const now = new Date();
+      const conversationId = trimText(input.conversationId);
+      const userMessage = {
+        id: buildEntityId("msg"),
+        role: "user",
+        text: trimText(input.question),
+        created_at: now,
+      };
+      const assistantMessage = {
+        id: buildEntityId("msg"),
+        role: "assistant",
+        text: trimText(reply.answer),
+        created_at: new Date(),
+      };
+
+      const existingConversation = conversationId
+        ? await AssistantConversationModel.findOne({
+            _id: conversationId,
+            user_id: req.currentUserId,
+          })
+        : null;
+
+      const conversation = existingConversation
+        ? existingConversation
+        : new AssistantConversationModel({
+            user_id: req.currentUserId,
+            title: createConversationTitle(input.question),
+            follow_ups: [],
+            messages: [],
+          });
+
+      if (!trimText(conversation.title)) {
+        conversation.title = createConversationTitle(input.question);
+      }
+
+      conversation.messages.push(userMessage as any, assistantMessage as any);
+      conversation.follow_ups = reply.suggestedNextQuestions
+        .map((item) => trimText(item))
+        .filter(Boolean);
+      await conversation.save();
+
       return res.status(200).json({
         answer: reply.answer,
         suggestedNextQuestions: reply.suggestedNextQuestions,
+        conversation: mapConversation(conversation),
         context: {
           jobId: input.jobId ?? null,
           applicantCount: applicants.length,

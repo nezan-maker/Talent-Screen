@@ -1,10 +1,12 @@
 'use client';
 
+import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from '@/lib/toast';
 import { AuthShell } from '@/components/auth/AuthShell';
+import { BrainLoader } from '@/components/ui/BrainLoader';
 import { Button } from '@/components/ui/Button';
 import {
   forgotPassword,
@@ -27,8 +29,8 @@ const isStrongPassword = (password: string) => {
   );
 };
 
-function inputClass(hasError?: boolean) {
-  return `mt-2 h-11 w-full rounded-input border bg-surface px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+function inputClass(hasError?: boolean, extraClassName = '') {
+  return `mt-2 h-11 w-full rounded-input border bg-surface px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${extraClassName} ${
     hasError
       ? 'border-danger focus:border-danger focus:ring-danger/20'
       : 'border-border focus:border-accent/40 focus:ring-accent/20'
@@ -44,6 +46,8 @@ export default function ForgotPasswordPage() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{
     email?: string;
@@ -318,16 +322,31 @@ export default function ForgotPasswordPage() {
             >
               New password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className={inputClass(Boolean(errors.password))}
-              placeholder="Use upper, lower, number, and symbol"
-            />
+            <div className="relative mt-2">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className={inputClass(Boolean(errors.password), 'mt-0 pr-10')}
+                placeholder="Use upper, lower, number, and symbol"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg hover:text-text-primary"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {errors.password ? (
               <p className="mt-1.5 text-xs font-medium text-danger">
                 {errors.password}
@@ -342,16 +361,35 @@ export default function ForgotPasswordPage() {
             >
               Confirm new password
             </label>
-            <input
-              id="confirm"
-              name="confirm"
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
-              className={inputClass(Boolean(errors.confirm))}
-              placeholder="Repeat your new password"
-            />
+            <div className="relative mt-2">
+              <input
+                id="confirm"
+                name="confirm"
+                type={showConfirmPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(event) => setConfirm(event.target.value)}
+                className={inputClass(Boolean(errors.confirm), 'mt-0 pr-10')}
+                placeholder="Repeat your new password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg hover:text-text-primary"
+                aria-label={
+                  showConfirmPassword ? 'Hide password' : 'Show password'
+                }
+                title={
+                  showConfirmPassword ? 'Hide password' : 'Show password'
+                }
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {errors.confirm ? (
               <p className="mt-1.5 text-xs font-medium text-danger">
                 {errors.confirm}
@@ -360,7 +398,14 @@ export default function ForgotPasswordPage() {
           </div>
 
           <Button type="submit" className="h-11 w-full" disabled={busy}>
-            {busy ? 'Updating password...' : 'Update password'}
+            {busy ? (
+              <>
+                <BrainLoader className="h-4 w-4 text-white" label="Updating password" />
+                Updating password...
+              </>
+            ) : (
+              'Update password'
+            )}
           </Button>
         </form>
       ) : null}

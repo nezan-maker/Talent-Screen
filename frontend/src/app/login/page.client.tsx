@@ -8,6 +8,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import toast from '@/lib/toast';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { GoogleIcon } from '@/components/auth/GoogleIcon';
+import { BrainLoader } from '@/components/ui/BrainLoader';
 import { Button } from '@/components/ui/Button';
 import { getApiErrorMessage, loginUser } from '@/lib/api';
 import { ROUTES } from '@/lib/constants';
@@ -295,7 +296,14 @@ export default function LoginPage() {
         </div>
 
         <Button type="submit" className="h-11 w-full" disabled={busy}>
-          {busy ? 'Signing in...' : 'Sign in'}
+          {busy ? (
+            <>
+              <BrainLoader className="h-4 w-4 text-white" label="Signing in" />
+              Signing in...
+            </>
+          ) : (
+            'Sign in'
+          )}
         </Button>
 
         <div className="flex items-center gap-3 pt-1">

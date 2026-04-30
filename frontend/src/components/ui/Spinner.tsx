@@ -1,15 +1,5 @@
-import { cn } from "@/lib/utils";
+import { BrainLoader } from "@/components/ui/BrainLoader";
 
 export function Spinner({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        "h-5 w-5 animate-spin rounded-full border-2 border-border border-t-accent",
-        className,
-      )}
-      aria-label="Loading"
-      role="status"
-    />
-  );
+  return <BrainLoader className={className} label="Loading" />;
 }
-

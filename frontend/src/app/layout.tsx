@@ -1,31 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Nunito, JetBrains_Mono } from "next/font/google";
-import localFont from "next/font/local"
+import localFont from "next/font/local";
 import "./globals.css";
 import { AppProviders } from "@/app/providers";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
-import {
-  SITE_NAME,
-  buildMetadata,
-  getSiteUrl,
-} from "@/lib/metadata";
+import { SITE_NAME, buildMetadata, getSiteUrl } from "@/lib/metadata";
 
-const nunito = Nunito({
-  variable: "--font-nunito",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-});
 const gresa = localFont({
-    src: "../fonts/Gresa Regular.ttf",
-    variable: "--font-gresa",
+  src: "../fonts/Gresa Regular.ttf",
+  variable: "--font-gresa",
+  display: "swap",
 });
+
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
   ...buildMetadata({
@@ -62,7 +48,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${nunito.variable} ${jetbrainsMono.variable} ${gresa.variable} h-full antialiased`}>
+    <html lang="en" className={`${gresa.variable} h-full antialiased`}>
       <body className="min-h-full bg-bg text-text-primary font-sans">
         <ErrorBoundary>
           <AppProviders>{children}</AppProviders>

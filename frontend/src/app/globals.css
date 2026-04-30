@@ -100,6 +100,26 @@ body {
   line-height: 1.55;
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+summary,
+label[for],
+input[type="checkbox"],
+input[type="radio"],
+input[type="file"],
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+select {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /*
   A few screens still use hardcoded tiny text utilities.
   Normalize those here so the whole app follows the larger shared scale.
@@ -245,6 +265,77 @@ h1, h2, h3, h4 {
 label,
 thead th {
   font-family: var(--font-jetbrains);
+}
+
+.brain-loader {
+  filter: drop-shadow(0 4px 14px color-mix(in srgb, var(--accent) 22%, transparent));
+}
+
+.brain-loader__outline {
+  animation: brain-loader-breathe 1.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.brain-loader__outline--delay {
+  animation-delay: 0.2s;
+}
+
+.brain-loader__trace {
+  stroke-dasharray: 14 18;
+  animation: brain-loader-scan 1.3s linear infinite;
+}
+
+.brain-loader__node {
+  animation: brain-loader-pulse 1.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.brain-loader__node--delay-1 {
+  animation-delay: 0.18s;
+}
+
+.brain-loader__node--delay-2 {
+  animation-delay: 0.32s;
+}
+
+.brain-loader__node--delay-3 {
+  animation-delay: 0.48s;
+}
+
+@keyframes brain-loader-breathe {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes brain-loader-scan {
+  from {
+    stroke-dashoffset: 32;
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 0.7;
+  }
+}
+
+@keyframes brain-loader-pulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
 }
 
 /* Custom scrollbar */

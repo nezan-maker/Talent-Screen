@@ -1,11 +1,13 @@
 "use client";
 
+import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "@/lib/toast";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { GoogleIcon } from "@/components/auth/GoogleIcon";
+import { BrainLoader } from "@/components/ui/BrainLoader";
 import { Button } from "@/components/ui/Button";
 import {
   confirmSignup,
@@ -40,6 +42,7 @@ export default function RegisterPage() {
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
   const [awaitingVerification, setAwaitingVerification] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
@@ -171,7 +174,8 @@ export default function RegisterPage() {
     } else if (!isStrongPassword(value)) {
       setErrors((prev) => ({
         ...prev,
-        password: "Use 8+ chars with upper, lower, number, and symbol",
+        password:
+          "Use at least both-cased 8 characters ,a number, a special character",
       }));
     } else {
       setErrors((prev) => ({ ...prev, password: undefined }));
@@ -481,21 +485,35 @@ export default function RegisterPage() {
           >
             Password
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => handlePasswordChange(event.target.value)}
-            onBlur={() => handleBlur("password")}
-            className={`mt-2 h-11 w-full rounded-input border bg-surface px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
-              errors.password && touched.password
-                ? "border-danger focus:border-danger focus:ring-danger/20"
-                : "border-border focus:border-accent/40 focus:ring-accent/20"
-            }`}
-            placeholder="Use upper, lower, number, and symbol"
-          />
+          <div className="relative mt-2">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => handlePasswordChange(event.target.value)}
+              onBlur={() => handleBlur("password")}
+              className={`h-11 w-full rounded-input border bg-surface px-3 pr-10 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
+                errors.password && touched.password
+                  ? "border-danger focus:border-danger focus:ring-danger/20"
+                  : "border-border focus:border-accent/40 focus:ring-accent/20"
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-bg hover:text-text-primary"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
           {errors.password && touched.password ? (
             <p className="mt-1.5 text-xs font-medium text-danger">
               {errors.password}
@@ -538,7 +556,14 @@ export default function RegisterPage() {
         </label>
 
         <Button type="submit" className="h-11 w-full" disabled={busy}>
-          {busy ? "Creating account..." : "Create account"}
+          {busy ? (
+            <>
+              <BrainLoader className="h-4 w-4 text-white" label="Creating account" />
+              Creating account...
+            </>
+          ) : (
+            "Create account"
+          )}
         </Button>
 
         <div className="flex items-center gap-3 pt-1">

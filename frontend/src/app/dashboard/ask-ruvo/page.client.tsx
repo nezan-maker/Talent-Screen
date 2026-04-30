@@ -18,29 +18,18 @@ import {
 } from "lucide-react";
 import toast from "@/lib/toast";
 import {
+  getAssistantConversations,
   askAssistantQuestion,
+  type AssistantConversation,
+  type AssistantConversationMessage,
   getAiLimitResetDetails,
   getApiErrorMessage,
 } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-type ChatRole = "user" | "assistant";
-
-type ConversationMessage = {
-  id: string;
-  role: ChatRole;
-  createdAtISO: string;
-  text: string;
-};
-
-type Conversation = {
-  id: string;
-  title: string;
-  updatedAtISO: string;
-  messages: ConversationMessage[];
-  followUps: string[];
-};
+type Conversation = AssistantConversation;
+type ConversationMessage = AssistantConversationMessage;
 
 function uid(prefix = "ruvo") {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -62,7 +51,36 @@ export default function AskRuvoPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const [isBootingHistory, setIsBootingHistory] = useState(true);
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const savedConversations = await getAssistantConversations();
+        if (cancelled) {
+          return;
+        }
+
+        setConversations(savedConversations);
+        setActiveConversationId((current) => current ?? savedConversations[0]?.id ?? null);
+      } catch (error) {
+        if (!cancelled) {
+          toast.error(getApiErrorMessage(error, "Could not load saved Talvo AI chats."));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsBootingHistory(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -113,7 +131,8 @@ export default function AskRuvoPage() {
     }
 
     const now = new Date().toISOString();
-    const conversationId = activeConversationId ?? uid("conversation");
+    const isExistingConversation = Boolean(activeConversationId);
+    const optimisticConversationId = activeConversationId ?? uid("conversation");
     const userMessage: ConversationMessage = {
       id: uid("user"),
       role: "user",
@@ -123,14 +142,14 @@ export default function AskRuvoPage() {
 
     setInput("");
     setIsThinking(true);
-    setActiveConversationId(conversationId);
+    setActiveConversationId(optimisticConversationId);
     setConversations((current) => {
-      const existingConversation = current.find((conversation) => conversation.id === conversationId);
+      const existingConversation = current.find((conversation) => conversation.id === optimisticConversationId);
 
       if (!existingConversation) {
         return [
           {
-            id: conversationId,
+            id: optimisticConversationId,
             title: createConversationTitle(trimmed),
             updatedAtISO: now,
             messages: [userMessage],
@@ -141,7 +160,7 @@ export default function AskRuvoPage() {
       }
 
       return current.map((conversation) => {
-        if (conversation.id !== conversationId) {
+        if (conversation.id !== optimisticConversationId) {
           return conversation;
         }
 
@@ -154,29 +173,48 @@ export default function AskRuvoPage() {
     });
 
     try {
-      const reply = await askAssistantQuestion({ question: trimmed });
-      const assistantMessage: ConversationMessage = {
-        id: uid("assistant"),
-        role: "assistant",
-        createdAtISO: new Date().toISOString(),
-        text: reply.answer,
-      };
+      const reply = await askAssistantQuestion({
+        question: trimmed,
+        ...(isExistingConversation
+          ? { conversationId: optimisticConversationId }
+          : {}),
+      });
+      const persistedConversation = reply.conversation;
 
-      setConversations((current) =>
-        current.map((conversation) => {
-          if (conversation.id !== conversationId) {
-            return conversation;
-          }
+      if (persistedConversation) {
+        setActiveConversationId(persistedConversation.id);
+        setConversations((current) => {
+          const withoutOptimistic = current.filter(
+            (conversation) =>
+              conversation.id !== optimisticConversationId &&
+              conversation.id !== persistedConversation.id,
+          );
 
-          return {
-            ...conversation,
-            updatedAtISO: new Date().toISOString(),
-            messages: [...conversation.messages, assistantMessage],
-            followUps: reply.suggestedNextQuestions,
-          };
-        }),
-      );
+          return [persistedConversation, ...withoutOptimistic];
+        });
+      }
     } catch (error) {
+      setConversations((current) =>
+        current
+          .map((conversation) => {
+            if (conversation.id !== optimisticConversationId) {
+              return conversation;
+            }
+
+            return {
+              ...conversation,
+              messages: conversation.messages.filter(
+                (message) => message.id !== userMessage.id,
+              ),
+            };
+          })
+          .filter((conversation) => conversation.messages.length > 0),
+      );
+      setActiveConversationId((current) =>
+        current === optimisticConversationId && !isExistingConversation
+          ? null
+          : current,
+      );
       const aiLimitReset = getAiLimitResetDetails(error);
       if (aiLimitReset) {
         toast.error({
@@ -327,6 +365,11 @@ export default function AskRuvoPage() {
 
           {!activeConversation ? (
             <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto p-6 pt-20 md:p-8">
+              {isBootingHistory ? (
+                <div className="mb-6 text-sm font-medium text-text-muted">
+                  Loading your saved chats...
+                </div>
+              ) : null}
               <h1 className="mb-6 max-w-3xl text-center text-3xl font-medium leading-tight tracking-tight text-text-primary md:mb-10 md:text-[40px]">
                 Ready To Find Top Candidates Or Revisit Your Pipeline?
               </h1>

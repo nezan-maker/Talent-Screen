@@ -33,7 +33,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={disabled}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-pill font-semibold transition-all",
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-pill font-semibold transition-all",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
         "disabled:opacity-50 disabled:cursor-not-allowed",
         variantClasses[variant],
@@ -44,4 +44,3 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     />
   );
 });
-

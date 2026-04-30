@@ -4,11 +4,11 @@ import {
   AlertTriangle,
   Check,
   Info,
-  Loader2,
   X,
   XCircle,
 } from 'lucide-react';
 import hotToast, { type Toast as HotToast } from 'react-hot-toast';
+import { BrainLoader } from '@/components/ui/BrainLoader';
 
 export type AppToastVariant =
   | 'success'
@@ -66,7 +66,7 @@ function ToastIcon({ variant }: { variant: AppToastVariant }) {
   }
 
   if (variant === 'loading') {
-    return <Loader2 className="h-4 w-4 animate-spin" />;
+    return <BrainLoader className="h-4 w-4" label="Working" />;
   }
 
   return <Info className="h-4 w-4" />;

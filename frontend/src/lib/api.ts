@@ -1,10 +1,10 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance } from "axios";
 import {
   mockCandidates,
   mockCandidateScores,
   mockDashboardStats,
   mockJobs,
-} from '@/lib/mockData';
+} from "@/lib/mockData";
 import type {
   Candidate,
   CandidateScore,
@@ -12,20 +12,68 @@ import type {
   Job,
   ScreeningAnalysis,
   ScreeningCandidateAnalysis,
-} from '@/types';
-import { dashboardStatsSchema } from '@/types';
+} from "@/types";
+import { dashboardStatsSchema } from "@/types";
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'mock://local';
-const DEFAULT_API_TIMEOUT_MS = 15_000;
+const baseURL = process.env.NEXT_PUBLIC_API_URL || "mock://local";
+console.log(baseURL);
+const DEFAULT_API_TIMEOUT_MS = 30_000;
 const AI_REQUEST_TIMEOUT_MS = 60_000;
 const RESUME_UPLOAD_TIMEOUT_MS = 10 * 60_000;
 const SCREENING_RUN_TIMEOUT_MS = 10 * 60_000;
+const CSRF_COOKIE_NAME = "csrf_token";
+const CSRF_HEADER_NAME = "X-CSRF-Token";
 
 export const api: AxiosInstance = axios.create({
   baseURL,
   timeout: DEFAULT_API_TIMEOUT_MS,
   withCredentials: true,
 });
+
+let csrfBootstrapPromise: Promise<void> | null = null;
+
+function isUnsafeMethod(method?: string) {
+  const normalized = method?.toUpperCase();
+  return normalized === "POST" || normalized === "PUT" || normalized === "PATCH" || normalized === "DELETE";
+}
+
+function readCookie(name: string) {
+  if (typeof document === "undefined") {
+    return "";
+  }
+
+  const cookies = document.cookie.split(";").map((entry) => entry.trim());
+  const match = cookies.find((entry) => entry.startsWith(`${name}=`));
+  if (!match) {
+    return "";
+  }
+
+  return decodeURIComponent(match.slice(name.length + 1));
+}
+
+async function ensureCsrfToken() {
+  if (baseURL.startsWith("mock://")) {
+    return;
+  }
+
+  if (readCookie(CSRF_COOKIE_NAME)) {
+    return;
+  }
+
+  if (!csrfBootstrapPromise) {
+    csrfBootstrapPromise = axios
+      .get(`${baseURL}/auth/csrf`, {
+        withCredentials: true,
+        timeout: DEFAULT_API_TIMEOUT_MS,
+      })
+      .then(() => undefined)
+      .finally(() => {
+        csrfBootstrapPromise = null;
+      });
+  }
+
+  await csrfBootstrapPromise;
+}
 
 api.interceptors.response.use(
   (response) => response,
@@ -37,10 +85,30 @@ api.interceptors.response.use(
       }
     }
 
-    console.error('API Error:', error);
+    console.error("API Error:", error);
     return Promise.reject(error);
-  }
+  },
 );
+api.interceptors.request.use((config) => {
+  if (isUnsafeMethod(config.method)) {
+    return ensureCsrfToken().then(() => {
+      const csrfToken = readCookie(CSRF_COOKIE_NAME);
+      if (csrfToken) {
+        config.headers.set(CSRF_HEADER_NAME, csrfToken);
+      }
+
+      if (config.baseURL && config.url) {
+        console.log("→ Hitting:", config.baseURL + config.url);
+      }
+      return config;
+    });
+  }
+
+  if (config.baseURL && config.url) {
+    console.log("→ Hitting:", config.baseURL + config.url);
+  }
+  return config;
+});
 
 type MockResponse<T> = { data: T };
 
@@ -134,7 +202,7 @@ export type ScreeningRunSummary = {
   job_title: string;
   applicant_ids: string[];
   topK: number;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: "queued" | "running" | "completed" | "failed";
   error?: string;
   model?: string;
   started_at?: string | null;
@@ -155,7 +223,7 @@ export type ScreeningResultApiRecord = {
   overall: {
     score: number;
     grade: string;
-    verdict: 'Shortlisted' | 'Review' | 'Rejected';
+    verdict: "Shortlisted" | "Review" | "Rejected";
     summary: string;
   };
   dimension_scores: {
@@ -224,12 +292,12 @@ export type ScreeningResultApiRecord = {
   recommendation: string;
   manual_review?: {
     additional_info?: string;
-    previous_verdict?: 'Shortlisted' | 'Review' | 'Rejected';
-    updated_verdict?: 'Shortlisted' | 'Review' | 'Rejected';
+    previous_verdict?: "Shortlisted" | "Review" | "Rejected";
+    updated_verdict?: "Shortlisted" | "Review" | "Rejected";
     reviewed_at?: string;
   };
   recruiter_decision?: {
-    verdict?: 'Shortlisted' | 'Rejected';
+    verdict?: "Shortlisted" | "Rejected";
     decided_at?: string;
   };
 };
@@ -249,10 +317,26 @@ export type CandidateLatestScreening = {
 export type AssistantReply = {
   answer: string;
   suggestedNextQuestions: string[];
+  conversation?: AssistantConversation;
   context: {
     jobId: string | null;
     applicantCount: number;
   };
+};
+
+export type AssistantConversationMessage = {
+  id: string;
+  role: "user" | "assistant";
+  createdAtISO: string;
+  text: string;
+};
+
+export type AssistantConversation = {
+  id: string;
+  title: string;
+  updatedAtISO: string;
+  messages: AssistantConversationMessage[];
+  followUps: string[];
 };
 
 export type WorkspaceNotification = {
@@ -309,7 +393,10 @@ type CompleteJobResponse = {
 type DashboardResponse = DashboardOverview;
 type JobsResponse = { jobs: Job[]; pagination?: PaginationMeta };
 type JobResponse = { job: Job };
-type CandidatesResponse = { candidates: Candidate[]; pagination?: PaginationMeta };
+type CandidatesResponse = {
+  candidates: Candidate[];
+  pagination?: PaginationMeta;
+};
 type CandidateResponse = { candidate: Candidate };
 type CurrentUserResponse = { user: AuthUser };
 type CompleteOnboardingResponse = { success: string; user: AuthUser };
@@ -397,7 +484,7 @@ function normalizePositiveInteger(value: unknown, fallback: number) {
 function buildFallbackPagination(
   itemCount: number,
   page: number,
-  pageSize: number
+  pageSize: number,
 ): PaginationMeta {
   const totalItems = Math.max(itemCount, 0);
   const totalPages = totalItems === 0 ? 1 : Math.ceil(totalItems / pageSize);
@@ -422,41 +509,42 @@ function normalizeCandidateList(value: string[] | string | undefined) {
   }
 
   return value
-    .split(',')
+    .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
 function buildMockCandidate(
   input: RegisterCandidateInput,
-  index: number
+  index: number,
 ): Candidate {
   const createdAtISO = new Date().toISOString();
   const additionalInfo = normalizeCandidateList(input.additional_info);
   const email = additionalInfo.find((item) => /\S+@\S+\.\S+/.test(item));
   const linkedIn = additionalInfo.find((item) =>
-    item.toLowerCase().includes('linkedin')
+    item.toLowerCase().includes("linkedin"),
   );
 
   return {
     id: `mock-candidate-${Date.now()}-${index}`,
     name: input.applicant_name,
     currentTitle: input.job_title,
-    location: 'Location not provided',
+    location: "Location not provided",
     yearsExperience: input.experience_in_years,
     email,
     linkedIn,
     shortlisted: false,
     appliedJobId:
-      mockJobs.find((job) => normalizeText(job.title) === normalizeText(input.job_title))
-        ?.id ?? undefined,
+      mockJobs.find(
+        (job) => normalizeText(job.title) === normalizeText(input.job_title),
+      )?.id ?? undefined,
     appliedJobTitle: input.job_title,
     createdAtISO,
     updatedAtISO: createdAtISO,
     skills: {
       technical: normalizeCandidateList(input.skills),
       soft: additionalInfo.filter(
-        (item) => item !== email && item !== linkedIn
+        (item) => item !== email && item !== linkedIn,
       ),
     },
     education: normalizeCandidateList(input.education_certificates),
@@ -479,29 +567,31 @@ function normalizeDate(value: string | number | Date | null | undefined) {
   }
 
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  return Number.isNaN(parsed.getTime())
+    ? new Date().toISOString()
+    : parsed.toISOString();
 }
 
 function normalizeText(value: string | null | undefined) {
-  return (value ?? '').trim().toLowerCase();
+  return (value ?? "").trim().toLowerCase();
 }
 
 function normalizeScreeningApplicant(
-  applicant: ScreeningRunApiResult
+  applicant: ScreeningRunApiResult,
 ): ScreeningCandidateAnalysis {
   return {
     candidateId: applicant.applicant_id?.trim() || undefined,
-    candidateName: applicant.applicant_name?.trim() || 'Unnamed candidate',
+    candidateName: applicant.applicant_name?.trim() || "Unnamed candidate",
     score: clampPercentage(applicant.applicant_marks),
     skillsMatchPct: clampPercentage(
-      applicant.applicant_specification_relevance?.skills_relevance
+      applicant.applicant_specification_relevance?.skills_relevance,
     ),
     educationPct: clampPercentage(
-      applicant.applicant_specification_relevance?.education_relevance
+      applicant.applicant_specification_relevance?.education_relevance,
     ),
     reasoning:
       applicant.applicant_result_description?.trim() ||
-      'Screening summary unavailable.',
+      "Screening summary unavailable.",
   };
 }
 
@@ -510,8 +600,8 @@ function buildMockScreeningAnalysis(jobId: string): ScreeningAnalysis {
 
   return {
     jobId,
-    jobTitle: job?.title ?? 'Candidate screening',
-    verdict: 'Top candidates shortlisted based on the mock screening dataset.',
+    jobTitle: job?.title ?? "Candidate screening",
+    verdict: "Top candidates shortlisted based on the mock screening dataset.",
     generatedAtISO: new Date().toISOString(),
     applicants: mockCandidateScores
       .filter((item) => item.jobId === jobId)
@@ -519,7 +609,7 @@ function buildMockScreeningAnalysis(jobId: string): ScreeningAnalysis {
         candidateId: item.candidateId,
         candidateName:
           mockCandidates.find((candidate) => candidate.id === item.candidateId)
-            ?.name ?? 'Candidate',
+            ?.name ?? "Candidate",
         score: item.score,
         skillsMatchPct: item.skillsMatchPct,
         educationPct: item.educationPct,
@@ -528,7 +618,9 @@ function buildMockScreeningAnalysis(jobId: string): ScreeningAnalysis {
   };
 }
 
-function buildMockLatestJobResults(jobId: string): LatestJobResultsResponse | null {
+function buildMockLatestJobResults(
+  jobId: string,
+): LatestJobResultsResponse | null {
   const job = mockJobs.find((item) => item.id === jobId);
   if (!job) {
     return null;
@@ -546,7 +638,7 @@ function buildMockLatestJobResults(jobId: string): LatestJobResultsResponse | nu
       job_title: job.title,
       applicant_ids: rankedScores.map((item) => item.candidateId),
       topK: job.aiCriteria.shortlistSize,
-      status: 'completed',
+      status: "completed",
       started_at: generatedAtISO,
       completed_at: generatedAtISO,
       result_count: rankedScores.length,
@@ -565,18 +657,18 @@ function buildMockLatestJobResults(jobId: string): LatestJobResultsResponse | nu
         score: score.score,
         grade:
           score.score >= 85
-            ? 'A'
+            ? "A"
             : score.score >= 70
-              ? 'B'
+              ? "B"
               : score.score >= 55
-                ? 'C'
-                : 'D',
+                ? "C"
+                : "D",
         verdict:
           score.score >= 80
-            ? 'Shortlisted'
+            ? "Shortlisted"
             : score.score >= 60
-              ? 'Review'
-              : 'Rejected',
+              ? "Review"
+              : "Rejected",
         summary: score.reasoning,
       },
       dimension_scores: {
@@ -589,18 +681,20 @@ function buildMockLatestJobResults(jobId: string): LatestJobResultsResponse | nu
         experience_relevance: {
           score: score.experiencePct,
           total_years:
-            mockCandidates.find((candidate) => candidate.id === score.candidateId)
-              ?.yearsExperience ?? 0,
+            mockCandidates.find(
+              (candidate) => candidate.id === score.candidateId,
+            )?.yearsExperience ?? 0,
           relevant_years:
-            mockCandidates.find((candidate) => candidate.id === score.candidateId)
-              ?.yearsExperience ?? 0,
+            mockCandidates.find(
+              (candidate) => candidate.id === score.candidateId,
+            )?.yearsExperience ?? 0,
           highlights: [],
           reasoning: score.reasoning,
         },
         education_fit: {
           score: score.educationPct,
-          degree_level: 'Not specified',
-          field_relevance: 'Medium',
+          degree_level: "Not specified",
+          field_relevance: "Medium",
           reasoning: score.reasoning,
         },
         project_quality: {
@@ -618,11 +712,11 @@ function buildMockLatestJobResults(jobId: string): LatestJobResultsResponse | nu
         language_fit: {
           score: 95,
           required_met: true,
-          languages: [{ name: 'English', proficiency: 'Fluent' }],
+          languages: [{ name: "English", proficiency: "Fluent" }],
         },
         availability_fit: {
           score: 100,
-          status: 'Available',
+          status: "Available",
           type_match: true,
           earliest_start: generatedAtISO,
         },
@@ -643,15 +737,18 @@ function buildMockLatestJobResults(jobId: string): LatestJobResultsResponse | nu
         incomplete_profile: false,
       },
       rank: index + 1,
-      percentile: Math.max(1, Math.round(((rankedScores.length - index) / rankedScores.length) * 100)),
+      percentile: Math.max(
+        1,
+        Math.round(((rankedScores.length - index) / rankedScores.length) * 100),
+      ),
       strengths: score.strengths,
       gaps: score.gaps,
       recommendation:
         score.score >= 80
-          ? 'Strong shortlist candidate'
+          ? "Strong shortlist candidate"
           : score.score >= 60
-            ? 'Worth recruiter review'
-            : 'Not recommended for the first shortlist',
+            ? "Worth recruiter review"
+            : "Not recommended for the first shortlist",
     })),
   };
 }
@@ -665,52 +762,52 @@ async function mockGet<T>(path: string): Promise<MockResponse<T>> {
     stats: mockDashboardStats,
   };
 
-  if (path === '/dashboard') {
+  if (path === "/dashboard") {
     return { data: dashboardPayload as unknown as T };
   }
 
-  if (path === '/jobs') {
+  if (path === "/jobs") {
     return { data: { jobs: mockJobs } as unknown as T };
   }
 
-  if (path.startsWith('/jobs/')) {
-    const id = path.split('/')[2] ?? '';
+  if (path.startsWith("/jobs/")) {
+    const id = path.split("/")[2] ?? "";
     const job = mockJobs.find((item) => item.id === id);
     if (!job) {
-      throw new Error('Job not found');
+      throw new Error("Job not found");
     }
 
     return { data: { job } as unknown as T };
   }
 
-  if (path === '/candidates') {
+  if (path === "/candidates") {
     return { data: { candidates: mockCandidates } as unknown as T };
   }
 
-  if (path.startsWith('/candidates/')) {
-    const id = path.split('/')[2] ?? '';
+  if (path.startsWith("/candidates/")) {
+    const id = path.split("/")[2] ?? "";
     const candidate = mockCandidates.find((item) => item.id === id);
     if (!candidate) {
-      throw new Error('Candidate not found');
+      throw new Error("Candidate not found");
     }
 
     return { data: { candidate } as unknown as T };
   }
 
-  if (path === '/auth/me') {
+  if (path === "/auth/me") {
     return {
       data: {
         user: {
-          id: 'demo-user',
-          name: 'A. Recruiter',
-          email: 'recruiter@talvo.ai',
-          companyName: 'Talvo Demo',
+          id: "demo-user",
+          name: "A. Recruiter",
+          email: "recruiter@talvo.ai",
+          companyName: "Talvo Demo",
           isVerified: true,
           onboardingCompleted: true,
           onboardingPreferences: {
-            hiringFocus: 'Engineering and product hiring',
-            teamSetup: 'Lean internal recruiting team',
-            workflowGoal: 'Faster, clearer shortlisting',
+            hiringFocus: "Engineering and product hiring",
+            teamSetup: "Lean internal recruiting team",
+            workflowGoal: "Faster, clearer shortlisting",
           },
         },
       } as unknown as T,
@@ -721,38 +818,38 @@ async function mockGet<T>(path: string): Promise<MockResponse<T>> {
 }
 
 export function isMockMode() {
-  return baseURL.startsWith('mock://');
+  return baseURL.startsWith("mock://");
 }
 
 export function getApiErrorMessage(
   error: unknown,
-  fallback = 'Something went wrong'
+  fallback = "Something went wrong",
 ) {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data;
 
-    if (typeof data === 'string' && data.trim()) {
+    if (typeof data === "string" && data.trim()) {
       return data;
     }
 
-    if (data && typeof data === 'object') {
+    if (data && typeof data === "object") {
       const knownKeys = [
-        'message',
-        'success',
-        'input_error',
-        'auth_error',
-        'data_error',
-        'server_error',
-        'error',
-        'user_error',
-        'expired_error',
-        'expiration_error',
-        'ai_error',
+        "message",
+        "success",
+        "input_error",
+        "auth_error",
+        "data_error",
+        "server_error",
+        "error",
+        "user_error",
+        "expired_error",
+        "expiration_error",
+        "ai_error",
       ] as const;
 
       for (const key of knownKeys) {
         const value = (data as Record<string, unknown>)[key];
-        if (typeof value === 'string' && value.trim()) {
+        if (typeof value === "string" && value.trim()) {
           return value;
         }
       }
@@ -778,11 +875,11 @@ export type AiLimitResetDetails = {
 };
 
 function parseRetryAfterHeader(value: unknown) {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     return Math.ceil(value);
   }
 
-  if (typeof value !== 'string') {
+  if (typeof value !== "string") {
     return null;
   }
 
@@ -814,36 +911,36 @@ function formatDurationLabel(totalSeconds: number) {
 
   const segments: string[] = [];
   if (days > 0) {
-    segments.push(`${days} day${days === 1 ? '' : 's'}`);
+    segments.push(`${days} day${days === 1 ? "" : "s"}`);
   }
   if (hours > 0) {
-    segments.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+    segments.push(`${hours} hour${hours === 1 ? "" : "s"}`);
   }
   if (minutes > 0) {
-    segments.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+    segments.push(`${minutes} minute${minutes === 1 ? "" : "s"}`);
   }
   if (seconds > 0 || segments.length === 0) {
-    segments.push(`${seconds} second${seconds === 1 ? '' : 's'}`);
+    segments.push(`${seconds} second${seconds === 1 ? "" : "s"}`);
   }
 
-  return segments.join(', ');
+  return segments.join(", ");
 }
 
 function formatResetAtLabel(date: Date) {
   return new Intl.DateTimeFormat(undefined, {
-    weekday: 'short',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZoneName: 'short',
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
   }).format(date);
 }
 
 export function getAiLimitResetDetails(
-  error: unknown
+  error: unknown,
 ): AiLimitResetDetails | null {
   if (!axios.isAxiosError(error) || error.response?.status !== 429) {
     return null;
@@ -852,15 +949,17 @@ export function getAiLimitResetDetails(
   const data = error.response?.data;
   let retryAfterSeconds: number | null = null;
 
-  if (data && typeof data === 'object') {
-    const fromData = Number((data as Record<string, unknown>).retryAfterSeconds);
+  if (data && typeof data === "object") {
+    const fromData = Number(
+      (data as Record<string, unknown>).retryAfterSeconds,
+    );
     if (Number.isFinite(fromData) && fromData > 0) {
       retryAfterSeconds = Math.ceil(fromData);
     }
   }
 
   if (retryAfterSeconds == null) {
-    const retryAfterHeader = error.response?.headers?.['retry-after'];
+    const retryAfterHeader = error.response?.headers?.["retry-after"];
     if (Array.isArray(retryAfterHeader)) {
       retryAfterSeconds = parseRetryAfterHeader(retryAfterHeader[0]);
     } else {
@@ -883,7 +982,7 @@ export function getAiLimitResetDetails(
 
 export async function getDashboardOverview(): Promise<DashboardOverview> {
   if (isMockMode()) {
-    const response = await mockGet<DashboardResponse>('/dashboard');
+    const response = await mockGet<DashboardResponse>("/dashboard");
     return {
       applicants: response.data.applicants,
       jobs: response.data.jobs,
@@ -891,7 +990,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     };
   }
 
-  const response = await api.get<DashboardResponse>('/dashboard');
+  const response = await api.get<DashboardResponse>("/dashboard");
   return {
     applicants: response.data.applicants,
     jobs: response.data.jobs,
@@ -917,7 +1016,7 @@ export async function getJobs(): Promise<Job[]> {
     requestCount < MAX_PAGINATION_REQUESTS;
     requestCount += 1
   ) {
-    const response = await api.get<JobsResponse>('/jobs', {
+    const response = await api.get<JobsResponse>("/jobs", {
       params: {
         page,
         pageSize: BULK_FETCH_PAGE_SIZE,
@@ -927,7 +1026,11 @@ export async function getJobs(): Promise<Job[]> {
 
     const pagination =
       response.data.pagination ??
-      buildFallbackPagination(response.data.jobs.length, page, BULK_FETCH_PAGE_SIZE);
+      buildFallbackPagination(
+        response.data.jobs.length,
+        page,
+        BULK_FETCH_PAGE_SIZE,
+      );
 
     if (!pagination.hasNextPage || page >= pagination.totalPages) {
       break;
@@ -962,7 +1065,7 @@ export async function getCandidates(): Promise<Candidate[]> {
     requestCount < MAX_PAGINATION_REQUESTS;
     requestCount += 1
   ) {
-    const response = await api.get<CandidatesResponse>('/candidates', {
+    const response = await api.get<CandidatesResponse>("/candidates", {
       params: {
         page,
         pageSize: BULK_FETCH_PAGE_SIZE,
@@ -975,7 +1078,7 @@ export async function getCandidates(): Promise<Candidate[]> {
       buildFallbackPagination(
         response.data.candidates.length,
         page,
-        BULK_FETCH_PAGE_SIZE
+        BULK_FETCH_PAGE_SIZE,
       );
 
     if (!pagination.hasNextPage || page >= pagination.totalPages) {
@@ -999,7 +1102,7 @@ export async function getCandidate(id: string): Promise<Candidate> {
 }
 
 export async function getLatestJobResults(
-  jobId: string
+  jobId: string,
 ): Promise<LatestJobResultsResponse | null> {
   if (isMockMode()) {
     return buildMockLatestJobResults(jobId);
@@ -1025,7 +1128,7 @@ export async function getLatestJobResults(
         // Treat it as an expected empty state instead of an exception.
         validateStatus: (status) =>
           status === 404 || (status >= 200 && status < 300),
-      }
+      },
     );
 
     if (response.status === 404) {
@@ -1042,7 +1145,7 @@ export async function getLatestJobResults(
       buildFallbackPagination(
         response.data.results.length,
         page,
-        BULK_FETCH_PAGE_SIZE
+        BULK_FETCH_PAGE_SIZE,
       );
 
     if (!pagination.hasNextPage || page >= pagination.totalPages) {
@@ -1063,7 +1166,7 @@ export async function getLatestJobResults(
 }
 
 export async function getScreeningRuns(
-  jobId?: string
+  jobId?: string,
 ): Promise<ScreeningRunSummary[]> {
   if (isMockMode()) {
     const results = jobId ? buildMockLatestJobResults(jobId) : null;
@@ -1078,7 +1181,7 @@ export async function getScreeningRuns(
     requestCount < MAX_PAGINATION_REQUESTS;
     requestCount += 1
   ) {
-    const response = await api.get<ScreeningRunsResponse>('/ai/runs', {
+    const response = await api.get<ScreeningRunsResponse>("/ai/runs", {
       params: {
         ...(jobId ? { jobId } : {}),
         page,
@@ -1089,7 +1192,11 @@ export async function getScreeningRuns(
 
     const pagination =
       response.data.pagination ??
-      buildFallbackPagination(response.data.runs.length, page, BULK_FETCH_PAGE_SIZE);
+      buildFallbackPagination(
+        response.data.runs.length,
+        page,
+        BULK_FETCH_PAGE_SIZE,
+      );
 
     if (!pagination.hasNextPage || page >= pagination.totalPages) {
       break;
@@ -1112,7 +1219,7 @@ export async function getWorkspaceScreeningIndex(jobIds: string[]) {
       } catch {
         return null;
       }
-    })
+    }),
   );
 
   for (const item of jobResults) {
@@ -1130,7 +1237,7 @@ export async function getWorkspaceScreeningIndex(jobIds: string[]) {
 }
 
 export async function getScreeningResults(
-  jobId: string
+  jobId: string,
 ): Promise<CandidateScore[]> {
   if (isMockMode()) {
     return mockCandidateScores.filter((item) => item.jobId === jobId);
@@ -1158,23 +1265,24 @@ export async function getScreeningResults(
 
 export async function getCurrentUser(): Promise<AuthUser> {
   if (isMockMode()) {
-    const response = await mockGet<CurrentUserResponse>('/auth/me');
+    const response = await mockGet<CurrentUserResponse>("/auth/me");
     return response.data.user;
   }
 
-  const response = await api.get<CurrentUserResponse>('/auth/me');
+  const response = await api.get<CurrentUserResponse>("/auth/me");
   return response.data.user;
 }
 
 export async function loginUser(payload: LoginPayload): Promise<LoginResponse> {
-  const response = await api.post<LoginResponse>('/auth/login', payload);
+  const response = await api.post<LoginResponse>("/auth/login", payload);
   return response.data;
 }
 
 export async function signupUser(
-  payload: SignupPayload
+  payload: SignupPayload,
 ): Promise<SignupResponse> {
-  const response = await api.post<SignupResponse>('/auth/signup', payload);
+  const response = await api.post<SignupResponse>("/auth/signup", payload);
+  console.log(response.data);
   return response.data;
 }
 
@@ -1185,17 +1293,17 @@ export async function completeOnboarding(payload: {
   workflow_goal: string;
 }): Promise<CompleteOnboardingResponse> {
   const response = await api.post<CompleteOnboardingResponse>(
-    '/auth/onboarding',
-    payload
+    "/auth/onboarding",
+    payload,
   );
   return response.data;
 }
 
 export async function confirmSignup(
   token: string,
-  signupToken?: string
+  signupToken?: string,
 ): Promise<ConfirmResponse> {
-  const response = await api.post<ConfirmResponse>('/auth/confirm', {
+  const response = await api.post<ConfirmResponse>("/auth/confirm", {
     token,
     ...(signupToken ? { signup_token: signupToken } : {}),
   });
@@ -1204,29 +1312,29 @@ export async function confirmSignup(
 
 export async function confirmSignupWithLink(
   confirmationLinkId: string,
-  signupToken?: string
+  signupToken?: string,
 ): Promise<ConfirmResponse> {
   const response = await api.get<ConfirmResponse>(
     `/auth/confirm_link/${encodeURIComponent(confirmationLinkId)}`,
     {
       params: signupToken ? { signup_token: signupToken } : undefined,
-    }
+    },
   );
   return response.data;
 }
 
 export async function forgotPassword(
-  user_email: string
+  user_email: string,
 ): Promise<ForgotPasswordResponse> {
   if (isMockMode()) {
     await sleep(450);
     return {
-      success: 'Reset code generated successfully',
-      devResetToken: '123456',
+      success: "Reset code generated successfully",
+      devResetToken: "123456",
     };
   }
 
-  const response = await api.post<ForgotPasswordResponse>('/auth/forgot', {
+  const response = await api.post<ForgotPasswordResponse>("/auth/forgot", {
     user_email,
   });
   return response.data;
@@ -1234,14 +1342,14 @@ export async function forgotPassword(
 
 export async function verifyResetCode(
   token: string,
-  recoveryToken?: string
+  recoveryToken?: string,
 ): Promise<VerifyResetCodeResponse> {
   if (isMockMode()) {
     await sleep(350);
-    return { success: 'Token verification successful' };
+    return { success: "Token verification successful" };
   }
 
-  const response = await api.post<VerifyResetCodeResponse>('/auth/verify', {
+  const response = await api.post<VerifyResetCodeResponse>("/auth/verify", {
     token,
     ...(recoveryToken ? { recovery_token: recoveryToken } : {}),
   });
@@ -1254,43 +1362,43 @@ export async function resetPassword(payload: {
 }): Promise<ResetPasswordResponse> {
   if (isMockMode()) {
     await sleep(350);
-    return { success: 'Password reset successful' };
+    return { success: "Password reset successful" };
   }
 
   const response = await api.post<ResetPasswordResponse>(
-    '/auth/reset',
-    payload
+    "/auth/reset",
+    payload,
   );
   return response.data;
 }
 
 export async function logoutUser(): Promise<LogoutResponse> {
   if (isMockMode()) {
-    return { success: 'Logged out successfully' };
+    return { success: "Logged out successfully" };
   }
 
-  const response = await api.post<LogoutResponse>('/auth/logout');
+  const response = await api.post<LogoutResponse>("/auth/logout");
   return response.data;
 }
 
 export async function createJob(
-  payload: CompleteJobPayload
+  payload: CompleteJobPayload,
 ): Promise<CompleteJobResponse> {
   const response = await api.post<CompleteJobResponse>(
-    '/complete-job',
-    payload
+    "/complete-job",
+    payload,
   );
   return response.data;
 }
 
 export async function uploadCandidatesFile(
   file: File,
-  defaults?: { jobId?: string; jobTitle?: string }
+  defaults?: { jobId?: string; jobTitle?: string },
 ): Promise<RegisterCandidatesResponse> {
   if (isMockMode()) {
     await sleep(450);
     return {
-      success: 'Applicants processed successfully',
+      success: "Applicants processed successfully",
       createdCount: 0,
       skippedCount: 0,
       applicants: mockCandidates,
@@ -1298,22 +1406,22 @@ export async function uploadCandidatesFile(
   }
 
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append("file", file);
   if (defaults?.jobId) {
-    formData.append('default_job_id', defaults.jobId);
+    formData.append("default_job_id", defaults.jobId);
   }
   if (defaults?.jobTitle) {
-    formData.append('default_job_title', defaults.jobTitle);
+    formData.append("default_job_title", defaults.jobTitle);
   }
 
   const response = await api.post<RegisterCandidatesResponse>(
-    '/register-candidates',
+    "/register-candidates",
     formData,
     {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
-    }
+    },
   );
 
   return response.data;
@@ -1321,29 +1429,29 @@ export async function uploadCandidatesFile(
 
 export async function uploadResumeZip(
   file: File,
-  defaults?: { jobId?: string; jobTitle?: string }
+  defaults?: { jobId?: string; jobTitle?: string },
 ): Promise<ResumeUploadResponse> {
   if (isMockMode()) {
     await sleep(450);
     return {
-      success: 'Successfully uploaded resume PDFs',
+      success: "Successfully uploaded resume PDFs",
       uploadedCount: 1,
-      applicants: ['Mock Applicant'],
+      applicants: ["Mock Applicant"],
     };
   }
 
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append("file", file);
   if (defaults?.jobId) {
-    formData.append('default_job_id', defaults.jobId);
+    formData.append("default_job_id", defaults.jobId);
   }
   if (defaults?.jobTitle) {
-    formData.append('default_job_title', defaults.jobTitle);
+    formData.append("default_job_title", defaults.jobTitle);
   }
 
-  const response = await api.post<ResumeUploadResponse>('/resume', formData, {
+  const response = await api.post<ResumeUploadResponse>("/resume", formData, {
     headers: {
-      'Content-Type': 'multipart/form-data',
+      "Content-Type": "multipart/form-data",
     },
     timeout: RESUME_UPLOAD_TIMEOUT_MS,
   });
@@ -1352,12 +1460,12 @@ export async function uploadResumeZip(
 }
 
 export async function registerCandidates(
-  applicants: RegisterCandidateInput[]
+  applicants: RegisterCandidateInput[],
 ): Promise<RegisterCandidatesResponse> {
   if (isMockMode()) {
     await sleep(450);
     return {
-      success: 'Applicants processed successfully',
+      success: "Applicants processed successfully",
       createdCount: applicants.length,
       skippedCount: 0,
       applicants: applicants.map(buildMockCandidate),
@@ -1365,30 +1473,30 @@ export async function registerCandidates(
   }
 
   const response = await api.post<RegisterCandidatesResponse>(
-    '/register-candidates',
+    "/register-candidates",
     applicants,
     {
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-    }
+    },
   );
 
   return response.data;
 }
 
 export async function reviewCandidateDecisions(
-  verdicts: ReviewCandidateDecision[]
+  verdicts: ReviewCandidateDecision[],
 ): Promise<ReviewResultResponse> {
   if (isMockMode()) {
     await sleep(250);
     return {
-      success: 'Review decisions saved successfully',
+      success: "Review decisions saved successfully",
       updatedCount: verdicts.length,
     };
   }
 
-  const response = await api.post<ReviewResultResponse>('/review-result', {
+  const response = await api.post<ReviewResultResponse>("/review-result", {
     verdict_string: verdicts,
   });
   return response.data;
@@ -1396,12 +1504,12 @@ export async function reviewCandidateDecisions(
 
 export async function reviewApplicantResult(
   resultId: string,
-  additionalInfo: string
+  additionalInfo: string,
 ): Promise<ReviewApplicantResponse> {
   if (isMockMode()) {
     await sleep(250);
     return {
-      success: 'Applicant reviewed successfully',
+      success: "Applicant reviewed successfully",
     };
   }
 
@@ -1409,7 +1517,7 @@ export async function reviewApplicantResult(
     `/ai/results/${resultId}/review`,
     {
       additional_info: additionalInfo,
-    }
+    },
   );
   return response.data;
 }
@@ -1419,59 +1527,70 @@ export async function finalizeJobRecruiting(
   decisions: Array<{
     result_id: string;
     applicant_id: string;
-    verdict: 'Shortlisted' | 'Rejected';
-  }>
+    verdict: "Shortlisted" | "Rejected";
+  }>,
 ): Promise<FinalizeRecruitingResponse> {
   if (isMockMode()) {
     await sleep(250);
     return {
-      success: 'Recruiter decisions finalized successfully',
+      success: "Recruiter decisions finalized successfully",
       finalizedCount: decisions.length,
       sentCount: decisions.length,
-      shortlistedCount: decisions.filter((item) => item.verdict === 'Shortlisted').length,
-      rejectedCount: decisions.filter((item) => item.verdict === 'Rejected').length,
-      shortlistedSentCount: decisions.filter((item) => item.verdict === 'Shortlisted').length,
-      rejectedSentCount: decisions.filter((item) => item.verdict === 'Rejected').length,
+      shortlistedCount: decisions.filter(
+        (item) => item.verdict === "Shortlisted",
+      ).length,
+      rejectedCount: decisions.filter((item) => item.verdict === "Rejected")
+        .length,
+      shortlistedSentCount: decisions.filter(
+        (item) => item.verdict === "Shortlisted",
+      ).length,
+      rejectedSentCount: decisions.filter((item) => item.verdict === "Rejected")
+        .length,
     };
   }
 
   const response = await api.post<FinalizeRecruitingResponse>(
     `/ai/jobs/${jobId}/finalize`,
-    { decisions }
+    { decisions },
   );
   return response.data;
 }
 
 export async function runScreening(
   jobId: string,
-  jobTitle: string
+  jobTitle: string,
 ): Promise<ScreeningAnalysis> {
   if (isMockMode()) {
     return buildMockScreeningAnalysis(jobId);
   }
 
-  const response = await api.post<ScreeningRunResponse>('/ask', {
-    jobId,
-    jobTitle,
-  }, {
-    timeout: SCREENING_RUN_TIMEOUT_MS,
-  });
+  const response = await api.post<ScreeningRunResponse>(
+    "/ask",
+    {
+      jobId,
+      jobTitle,
+    },
+    {
+      timeout: SCREENING_RUN_TIMEOUT_MS,
+    },
+  );
   const result = response.data.success;
 
   return {
     jobId,
     jobTitle: result.job_title?.trim() || jobTitle,
     verdict:
-      result.result_verdict?.trim() || 'Screening completed successfully',
+      result.result_verdict?.trim() || "Screening completed successfully",
     generatedAtISO: new Date().toISOString(),
     applicants: (result.applicants_details ?? []).map(
-      normalizeScreeningApplicant
+      normalizeScreeningApplicant,
     ),
   };
 }
 
 export async function askAssistantQuestion(input: {
   question: string;
+  conversationId?: string;
   jobId?: string;
   applicantIds?: string[];
   maxApplicants?: number;
@@ -1487,8 +1606,8 @@ export async function askAssistantQuestion(input: {
         ? `Using the mock workspace, ${job.title} currently has ${job.applicantsCount} applicants and a shortlist target of ${job.aiCriteria.shortlistSize}.`
         : `Using the mock workspace, you currently have ${mockJobs.length} jobs and ${mockCandidates.length} candidates loaded.`,
       suggestedNextQuestions: [
-        'Who are the strongest candidates right now?',
-        'What gaps should I look at before shortlisting?',
+        "Who are the strongest candidates right now?",
+        "What gaps should I look at before shortlisting?",
       ],
       context: {
         jobId: input.jobId ?? null,
@@ -1497,30 +1616,56 @@ export async function askAssistantQuestion(input: {
     };
   }
 
-  const response = await api.post<AssistantReply>('/ai/ask', {
-    question: input.question,
-    ...(input.jobId ? { job_id: input.jobId, jobId: input.jobId } : {}),
-    ...(input.applicantIds?.length ? { applicantIds: input.applicantIds } : {}),
-    ...(typeof input.maxApplicants === 'number'
-      ? { maxApplicants: input.maxApplicants }
-      : {}),
-  }, {
-    timeout: AI_REQUEST_TIMEOUT_MS,
-  });
+  const response = await api.post<AssistantReply>(
+    "/ai/assistant/ask",
+    {
+      question: input.question,
+      ...(input.conversationId
+        ? { conversationId: input.conversationId }
+        : {}),
+      ...(input.jobId ? { job_id: input.jobId, jobId: input.jobId } : {}),
+      ...(input.applicantIds?.length
+        ? { applicantIds: input.applicantIds }
+        : {}),
+      ...(typeof input.maxApplicants === "number"
+        ? { maxApplicants: input.maxApplicants }
+        : {}),
+    },
+    {
+      timeout: AI_REQUEST_TIMEOUT_MS,
+    },
+  );
 
   return response.data;
 }
 
+export async function getAssistantConversations(): Promise<
+  AssistantConversation[]
+> {
+  if (isMockMode()) {
+    return [];
+  }
+
+  const response = await api.get<{ conversations: AssistantConversation[] }>(
+    "/ai/assistant/conversations",
+  );
+
+  return Array.isArray(response.data.conversations)
+    ? response.data.conversations
+    : [];
+}
+
 export async function getCandidateLatestScreening(
-  candidate: Candidate
+  candidate: Candidate,
 ): Promise<CandidateLatestScreening | null> {
   let jobId = candidate.appliedJobId;
-  let jobTitle = candidate.appliedJobTitle || candidate.currentTitle || 'Role';
+  let jobTitle = candidate.appliedJobTitle || candidate.currentTitle || "Role";
 
   if (!jobId && candidate.appliedJobTitle) {
     const jobs = await getJobs();
     const matchedJob = jobs.find(
-      (job) => normalizeText(job.title) === normalizeText(candidate.appliedJobTitle)
+      (job) =>
+        normalizeText(job.title) === normalizeText(candidate.appliedJobTitle),
     );
     jobId = matchedJob?.id;
     jobTitle = matchedJob?.title ?? jobTitle;
@@ -1538,7 +1683,8 @@ export async function getCandidateLatestScreening(
   const result =
     latestResults.results.find(
       (item) =>
-        item.candidate_id === candidate.id || item.applicant_id === candidate.id
+        item.candidate_id === candidate.id ||
+        item.applicant_id === candidate.id,
     ) ?? null;
 
   if (!result) {
@@ -1551,31 +1697,33 @@ export async function getCandidateLatestScreening(
     generatedAtISO: normalizeDate(
       latestResults.run.completed_at ||
         latestResults.run.updatedAt ||
-        latestResults.run.createdAt
+        latestResults.run.createdAt,
     ),
     result,
   };
 }
 
-export async function getWorkspaceNotifications(): Promise<WorkspaceNotification[]> {
+export async function getWorkspaceNotifications(): Promise<
+  WorkspaceNotification[]
+> {
   if (isMockMode()) {
     const latestMockJob = mockJobs[0];
     return [
       {
-        id: 'mock-screening-ready',
-        title: 'Screening ready for review',
-        body: `Mock screening results are available for ${latestMockJob?.title ?? 'your role'}.`,
+        id: "mock-screening-ready",
+        title: "Screening ready for review",
+        body: `Mock screening results are available for ${latestMockJob?.title ?? "your role"}.`,
         createdAtISO: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
         href: latestMockJob
           ? `/dashboard/screening/${latestMockJob.id}/results`
-          : '/dashboard',
+          : "/dashboard",
       },
       {
-        id: 'mock-candidate-pool',
-        title: 'Candidate pool updated',
+        id: "mock-candidate-pool",
+        title: "Candidate pool updated",
         body: `${mockCandidates.length} mock candidates are currently loaded in the workspace.`,
         createdAtISO: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-        href: '/dashboard/candidates',
+        href: "/dashboard/candidates",
       },
     ];
   }
@@ -1590,29 +1738,29 @@ export async function getWorkspaceNotifications(): Promise<WorkspaceNotification
 
   if (latestRun) {
     const href =
-      latestRun.status === 'completed'
+      latestRun.status === "completed"
         ? `/dashboard/screening/${latestRun.job_id}/results`
         : `/dashboard/screening/${latestRun.job_id}/progress`;
 
     notifications.push({
       id: `screening-${latestRun._id}`,
       title:
-        latestRun.status === 'completed'
-          ? 'Screening ready for review'
-          : latestRun.status === 'failed'
-            ? 'Screening run needs attention'
-            : 'Screening is in progress',
+        latestRun.status === "completed"
+          ? "Screening ready for review"
+          : latestRun.status === "failed"
+            ? "Screening run needs attention"
+            : "Screening is in progress",
       body:
-        latestRun.status === 'completed'
+        latestRun.status === "completed"
           ? `${latestRun.job_title} has fresh screening results ready for recruiter review.`
-          : latestRun.status === 'failed'
-            ? `${latestRun.job_title} hit an issue during screening${latestRun.error ? `: ${latestRun.error}` : '.'}`
+          : latestRun.status === "failed"
+            ? `${latestRun.job_title} hit an issue during screening${latestRun.error ? `: ${latestRun.error}` : "."}`
             : `${latestRun.job_title} is currently being analyzed by Talvo AI.`,
       createdAtISO: normalizeDate(
         latestRun.completed_at ||
           latestRun.updatedAt ||
           latestRun.started_at ||
-          latestRun.createdAt
+          latestRun.createdAt,
       ),
       href,
     });
@@ -1629,21 +1777,21 @@ export async function getWorkspaceNotifications(): Promise<WorkspaceNotification
     if (latestApplicant) {
       notifications.push({
         id: `candidate-${latestApplicant.id}`,
-        title: 'Candidate pool updated',
+        title: "Candidate pool updated",
         body: `${overview.applicants.length} candidates are currently in the workspace. ${latestApplicant.name} is one of the most recent records.`,
         createdAtISO: normalizeDate(
-          latestApplicant.updatedAtISO || latestApplicant.createdAtISO
+          latestApplicant.updatedAtISO || latestApplicant.createdAtISO,
         ),
-        href: '/dashboard/candidates',
+        href: "/dashboard/candidates",
       });
     }
   }
 
-  const draftJob = overview.jobs.find((job) => job.status === 'Draft');
+  const draftJob = overview.jobs.find((job) => job.status === "Draft");
   if (draftJob) {
     notifications.push({
       id: `draft-${draftJob.id}`,
-      title: 'Draft role needs review',
+      title: "Draft role needs review",
       body: `${draftJob.title} is still in draft. Finish the brief when you are ready to screen candidates.`,
       createdAtISO: normalizeDate(draftJob.updatedAtISO),
       href: `/dashboard/jobs/${draftJob.id}`,
@@ -1653,6 +1801,6 @@ export async function getWorkspaceNotifications(): Promise<WorkspaceNotification
   return notifications.sort(
     (left, right) =>
       new Date(right.createdAtISO).getTime() -
-      new Date(left.createdAtISO).getTime()
+      new Date(left.createdAtISO).getTime(),
   );
 }

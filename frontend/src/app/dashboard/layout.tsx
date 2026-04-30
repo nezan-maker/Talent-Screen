@@ -7,7 +7,7 @@ import { Sidebar } from "@/components/layout/Sidebar.client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { ROUTES } from "@/lib/constants";
 import toast from "@/lib/toast";
-import { Loader2 } from "lucide-react";
+import { BrainLoader } from "@/components/ui/BrainLoader";
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -58,7 +58,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
       <div className="dashboard-density flex min-h-screen items-center justify-center bg-bg px-4">
         <div className="inline-flex items-center gap-2 rounded-pill border border-border bg-surface px-4 py-2 text-sm font-medium text-text-muted">
-          <Loader2 className="h-4 w-4 animate-spin text-accent" />
+          <BrainLoader className="h-4 w-4" label="Preparing workspace" />
           Preparing your workspace...
         </div>
       </div>

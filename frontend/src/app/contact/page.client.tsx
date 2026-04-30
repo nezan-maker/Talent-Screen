@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Zap, Moon, Sun, Mail, Phone, MapPin, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { BrainLoader } from "@/components/ui/BrainLoader";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { ROUTES } from "@/lib/constants";
 import { useState } from "react";
@@ -327,7 +328,7 @@ export default function ContactPage() {
                     <Button type="submit" disabled={loading || Object.keys(errors).length > 0} size="lg" className="w-full font-semibold">
                       {loading ? (
                         <span className="flex items-center gap-2">
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          <BrainLoader className="h-4 w-4 text-white" label="Sending message" />
                           Sending...
                         </span>
                       ) : (
@@ -407,4 +408,3 @@ export default function ContactPage() {
     </div>
   );
 }
-

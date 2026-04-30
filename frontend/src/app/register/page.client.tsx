@@ -23,7 +23,9 @@ const isValidEmail = (email: string) => {
 };
 
 const isStrongPassword = (password: string) => {
-  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$/.test(password);
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$/.test(
+    password,
+  );
 };
 
 function getPostAuthRoute(onboardingCompleted?: boolean) {
@@ -38,7 +40,6 @@ export default function RegisterPage() {
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [awaitingVerification, setAwaitingVerification] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
@@ -47,36 +48,34 @@ export default function RegisterPage() {
     companyName?: string;
     email?: string;
     password?: string;
-    confirm?: string;
   }>({});
   const [touched, setTouched] = useState<{
     name?: boolean;
     companyName?: boolean;
     email?: boolean;
     password?: boolean;
-    confirm?: boolean;
   }>({});
   const [busy, setBusy] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const signupTokenFromLink = useMemo(
     () => searchParams.get("signup_token")?.trim() ?? "",
-    [searchParams]
+    [searchParams],
   );
   const confirmationLinkId = useMemo(
     () => searchParams.get("confirmation_link_id")?.trim() ?? "",
-    [searchParams]
+    [searchParams],
   );
   const emailFromLink = useMemo(
     () => searchParams.get("email")?.trim() ?? "",
-    [searchParams]
+    [searchParams],
   );
   const otpFromLink = useMemo(
     () => searchParams.get("confirm_otp")?.trim() ?? "",
-    [searchParams]
+    [searchParams],
   );
   const forceVerifyMode = useMemo(
     () => searchParams.get("verify")?.trim() === "1",
-    [searchParams]
+    [searchParams],
   );
 
   const validateForm = () => {
@@ -101,15 +100,9 @@ export default function RegisterPage() {
     if (!password) {
       newErrors.password = "Password is required";
     } else if (!isStrongPassword(password)) {
-      newErrors.password = "Use 8+ chars with upper, lower, number, and symbol";
+      newErrors.password =
+        "Password must contain: \n At least 8 characters \n  An number  \n  Both uppercase and lowercasr letters \n A special character";
     }
-
-    if (!confirm) {
-      newErrors.confirm = "Please confirm your password";
-    } else if (password !== confirm) {
-      newErrors.confirm = "Passwords do not match";
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0 && agreeToTerms;
   };
@@ -127,7 +120,10 @@ export default function RegisterPage() {
     if (!value.trim()) {
       setErrors((prev) => ({ ...prev, name: "Full name is required" }));
     } else if (value.trim().length < 3) {
-      setErrors((prev) => ({ ...prev, name: "Name must be at least 3 characters" }));
+      setErrors((prev) => ({
+        ...prev,
+        name: "Name must be at least 3 characters",
+      }));
     } else {
       setErrors((prev) => ({ ...prev, name: undefined }));
     }
@@ -181,22 +177,6 @@ export default function RegisterPage() {
       setErrors((prev) => ({ ...prev, password: undefined }));
     }
   };
-
-  const handleConfirmChange = (value: string) => {
-    setConfirm(value);
-    if (!touched.confirm) {
-      return;
-    }
-
-    if (!value) {
-      setErrors((prev) => ({ ...prev, confirm: "Please confirm your password" }));
-    } else if (password !== value) {
-      setErrors((prev) => ({ ...prev, confirm: "Passwords do not match" }));
-    } else {
-      setErrors((prev) => ({ ...prev, confirm: undefined }));
-    }
-  };
-
   async function handleVerification(codeOverride?: string) {
     const code = (codeOverride ?? verificationCode).trim();
     if (!code) {
@@ -207,11 +187,16 @@ export default function RegisterPage() {
     setBusy(true);
 
     try {
-      const response = await confirmSignup(code, signupTokenFromLink || undefined);
+      const response = await confirmSignup(
+        code,
+        signupTokenFromLink || undefined,
+      );
       toast.success("Account verified successfully.");
       router.push(getPostAuthRoute(response.user?.onboardingCompleted));
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Unable to confirm this account right now."));
+      toast.error(
+        getApiErrorMessage(error, "Unable to confirm this account right now."),
+      );
     } finally {
       setBusy(false);
     }
@@ -234,7 +219,10 @@ export default function RegisterPage() {
 
     void (async () => {
       try {
-        const response = await confirmSignupWithLink(confirmationLinkId, signupTokenFromLink);
+        const response = await confirmSignupWithLink(
+          confirmationLinkId,
+          signupTokenFromLink,
+        );
         toast.success("Account verified successfully.");
         router.push(getPostAuthRoute(response.user?.onboardingCompleted));
       } catch (error) {
@@ -248,8 +236,8 @@ export default function RegisterPage() {
         toast.error(
           getApiErrorMessage(
             error,
-            "Confirmation link could not be completed. Please use the OTP code."
-          )
+            "Confirmation link could not be completed. Please use the OTP code.",
+          ),
         );
       } finally {
         setBusy(false);
@@ -300,7 +288,6 @@ export default function RegisterPage() {
         user_email: email.trim(),
         ...(companyName.trim() ? { company_name: companyName.trim() } : {}),
         user_pass: password,
-        user_pass_conf: confirm,
       });
 
       if (signupResponse.verificationRequired) {
@@ -312,14 +299,18 @@ export default function RegisterPage() {
         }
 
         setAwaitingVerification(true);
-        toast.success("Account created. Enter the verification code to finish setup.");
+        toast.success(
+          "Account created. Enter the verification code to finish setup.",
+        );
         return;
       }
 
       toast.success("Account created successfully.");
       router.push(getPostAuthRoute(signupResponse.user?.onboardingCompleted));
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Unable to create your account right now."));
+      toast.error(
+        getApiErrorMessage(error, "Unable to create your account right now."),
+      );
     } finally {
       setBusy(false);
     }
@@ -352,7 +343,10 @@ export default function RegisterPage() {
           className="space-y-5"
         >
           <div>
-            <label htmlFor="verification-code" className="text-sm font-semibold text-text-primary">
+            <label
+              htmlFor="verification-code"
+              className="text-sm font-semibold text-text-primary"
+            >
               Verification code
             </label>
             <input
@@ -383,7 +377,10 @@ export default function RegisterPage() {
       footer={
         <>
           Already have an account?{" "}
-          <Link href={ROUTES.login} className="font-semibold text-accent hover:text-accent-hover">
+          <Link
+            href={ROUTES.login}
+            className="font-semibold text-accent hover:text-accent-hover"
+          >
             Sign in
           </Link>
         </>
@@ -391,7 +388,10 @@ export default function RegisterPage() {
     >
       <form onSubmit={onSubmit} className="space-y-5">
         <div>
-          <label htmlFor="name" className="text-sm font-semibold text-text-primary">
+          <label
+            htmlFor="name"
+            className="text-sm font-semibold text-text-primary"
+          >
             Full name
           </label>
           <input
@@ -410,12 +410,17 @@ export default function RegisterPage() {
             placeholder="Alex Recruiter"
           />
           {errors.name && touched.name ? (
-            <p className="mt-1.5 text-xs font-medium text-danger">{errors.name}</p>
+            <p className="mt-1.5 text-xs font-medium text-danger">
+              {errors.name}
+            </p>
           ) : null}
         </div>
 
         <div>
-          <label htmlFor="email" className="text-sm font-semibold text-text-primary">
+          <label
+            htmlFor="email"
+            className="text-sm font-semibold text-text-primary"
+          >
             Work email
           </label>
           <input
@@ -434,12 +439,17 @@ export default function RegisterPage() {
             placeholder="you@company.com"
           />
           {errors.email && touched.email ? (
-            <p className="mt-1.5 text-xs font-medium text-danger">{errors.email}</p>
+            <p className="mt-1.5 text-xs font-medium text-danger">
+              {errors.email}
+            </p>
           ) : null}
         </div>
 
         <div>
-          <label htmlFor="company-name" className="text-sm font-semibold text-text-primary">
+          <label
+            htmlFor="company-name"
+            className="text-sm font-semibold text-text-primary"
+          >
             Company name
           </label>
           <input
@@ -457,16 +467,18 @@ export default function RegisterPage() {
             }`}
             placeholder="Acme Talent"
           />
-          <p className="mt-1.5 text-xs text-text-muted">
-            Optional, but helpful if you’re setting up a shared hiring workspace.
-          </p>
           {errors.companyName && touched.companyName ? (
-            <p className="mt-1.5 text-xs font-medium text-danger">{errors.companyName}</p>
+            <p className="mt-1.5 text-xs font-medium text-danger">
+              {errors.companyName}
+            </p>
           ) : null}
         </div>
 
         <div>
-          <label htmlFor="password" className="text-sm font-semibold text-text-primary">
+          <label
+            htmlFor="password"
+            className="text-sm font-semibold text-text-primary"
+          >
             Password
           </label>
           <input
@@ -485,31 +497,9 @@ export default function RegisterPage() {
             placeholder="Use upper, lower, number, and symbol"
           />
           {errors.password && touched.password ? (
-            <p className="mt-1.5 text-xs font-medium text-danger">{errors.password}</p>
-          ) : null}
-        </div>
-
-        <div>
-          <label htmlFor="confirm" className="text-sm font-semibold text-text-primary">
-            Confirm password
-          </label>
-          <input
-            id="confirm"
-            name="confirm"
-            type="password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(event) => handleConfirmChange(event.target.value)}
-            onBlur={() => handleBlur("confirm")}
-            className={`mt-2 h-11 w-full rounded-input border bg-surface px-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-muted focus:ring-2 ${
-              errors.confirm && touched.confirm
-                ? "border-danger focus:border-danger focus:ring-danger/20"
-                : "border-border focus:border-accent/40 focus:ring-accent/20"
-            }`}
-            placeholder="Repeat password"
-          />
-          {errors.confirm && touched.confirm ? (
-            <p className="mt-1.5 text-xs font-medium text-danger">{errors.confirm}</p>
+            <p className="mt-1.5 text-xs font-medium text-danger">
+              {errors.password}
+            </p>
           ) : null}
         </div>
 
@@ -537,7 +527,9 @@ export default function RegisterPage() {
             <button
               type="button"
               className="font-semibold text-accent hover:text-accent-hover"
-              onClick={() => toast("Privacy policy is still placeholder content.")}
+              onClick={() =>
+                toast("Privacy policy is still placeholder content.")
+              }
             >
               Privacy Policy
             </button>

@@ -86,7 +86,6 @@ export type SignupPayload = {
   user_email: string;
   company_name?: string;
   user_pass: string;
-  user_pass_conf: string;
 };
 
 export type CompleteJobPayload = {

@@ -2,6 +2,13 @@ import { parse as parseCsv } from "csv-parse/sync";
 import ExcelJS from "exceljs";
 import { PDFParse } from "pdf-parse";
 import { z } from "zod";
+import {
+  extractCellText,
+  extractEmailFromText,
+  extractLinksFromText,
+  parseResumeHeuristics,
+  pickBestRecordValue,
+} from "../utils/applicantParsing.js";
 
 export type ParsedApplicant = {
   fullName?: string;
@@ -16,62 +23,127 @@ export type ParsedApplicant = {
   raw?: unknown;
 };
 
-const normalizeHeader = (s: string) =>
-  s
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/_/g, " ");
-
 function splitList(value: unknown): string[] {
-  if (typeof value !== "string") return [];
-  return value
+  return extractCellText(value)
     .split(/[,;|]/g)
     .map((x) => x.trim())
     .filter(Boolean);
 }
 
 function toNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const n = Number(value.trim());
-    if (Number.isFinite(n)) return n;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
   }
+
+  const text = extractCellText(value);
+  if (!text) {
+    return undefined;
+  }
+  const direct = Number(text);
+  if (Number.isFinite(direct)) {
+    return direct;
+  }
+
+  const yearsMatch = text.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs)\b/i);
+  if (yearsMatch) {
+    const parsed = Number(yearsMatch[1]);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
   return undefined;
 }
 
 function mapRow(row: Record<string, unknown>): ParsedApplicant {
   const out: ParsedApplicant = { raw: row };
 
-  // Accept common column names (teams can adapt frontend to match these)
-  const get = (names: string[]) => {
-    for (const name of names) {
-      const key = Object.keys(row).find((k) => normalizeHeader(k) === name);
-      if (key) return row[key];
-    }
-    return undefined;
-  };
+  const get = (names: string[]) => pickBestRecordValue(row, names);
 
-  const fullName = get(["full name", "name", "candidate name"]);
-  const email = get(["email", "email address"]);
-  const phone = get(["phone", "phone number", "mobile"]);
-  const location = get(["location", "city", "country"]);
-  const skills = get(["skills", "skill", "tech stack", "technology"]);
-  const yearsExp = get(["years experience", "experience years", "yoe", "years of experience"]);
+  const fullName = get([
+    "full name",
+    "name",
+    "candidate name",
+    "applicant name",
+    "fullname",
+  ]);
+  const emailValue = get([
+    "email",
+    "email address",
+    "applicant email",
+    "mail",
+  ]);
+  const phone = get(["phone", "phone number", "mobile", "telephone"]);
+  const location = get(["location", "city", "country", "address"]);
+  const skills = get([
+    "skills",
+    "skill",
+    "tech stack",
+    "technology",
+    "technical skills",
+  ]);
+  const yearsExp = get([
+    "years experience",
+    "experience years",
+    "yoe",
+    "years of experience",
+    "experience in years",
+  ]);
   const education = get(["education", "degree", "qualification"]);
-  const links = get(["links", "portfolio", "github", "linkedin", "url"]);
+  const linksValue = get([
+    "links",
+    "url",
+    "website",
+  ]);
+  const linkedinValue = get(["linkedin", "linked in", "linkedin url"]);
+  const githubValue = get(["github", "github url", "git hub"]);
+  const portfolioValue = get(["portfolio", "website", "personal site"]);
+  const bioValue = get(["bio", "summary", "professional summary"]);
   const resumeText = get(["resume text", "resume", "cv text"]);
 
-  if (typeof fullName === "string") out.fullName = fullName.trim();
-  if (typeof email === "string") out.email = email.trim();
-  if (typeof phone === "string") out.phone = phone.trim();
-  if (typeof location === "string") out.location = location.trim();
+  if (fullName) out.fullName = fullName;
+  const directEmail = extractEmailFromText(emailValue);
+  if (directEmail) {
+    out.email = directEmail;
+  }
+  if (phone) out.phone = phone;
+  if (location) out.location = location;
   out.skills = splitList(skills);
   out.education = splitList(education);
-  out.links = splitList(links);
+  out.links = Array.from(
+    new Set([
+      ...extractLinksFromText(linksValue).all,
+      ...extractLinksFromText(linkedinValue).all,
+      ...extractLinksFromText(githubValue).all,
+      ...extractLinksFromText(portfolioValue).all,
+    ]),
+  );
   const parsedExp = toNumber(yearsExp);
   if (parsedExp !== undefined) out.yearsExperience = parsedExp;
-  if (typeof resumeText === "string" && resumeText.trim()) out.resumeText = resumeText.trim();
+  if (resumeText) {
+    out.resumeText = resumeText;
+    const heuristic = parseResumeHeuristics(resumeText);
+    if (!out.fullName && heuristic.applicant_name) out.fullName = heuristic.applicant_name;
+    if (!out.email && heuristic.email) out.email = heuristic.email;
+    if (!out.location && heuristic.location) out.location = heuristic.location;
+    if ((!out.skills || out.skills.length === 0) && heuristic.skills) {
+      out.skills = heuristic.skills.map((item) => item.name);
+    }
+    if ((!out.education || out.education.length === 0) && heuristic.education) {
+      out.education = heuristic.education
+        .map((item) => [item.degree, item.field_of_study, item.institution].filter(Boolean).join(" - "))
+        .filter(Boolean);
+    }
+    if ((!out.links || out.links.length === 0) && heuristic.social_links) {
+      out.links = [heuristic.social_links.linkedin, heuristic.social_links.github, heuristic.social_links.portfolio]
+        .filter(Boolean) as string[];
+    }
+    if (out.yearsExperience === undefined && typeof heuristic.experience_in_years === "number") {
+      out.yearsExperience = heuristic.experience_in_years;
+    }
+  } else if (bioValue) {
+    out.resumeText = bioValue;
+  }
 
   return out;
 }
@@ -117,11 +189,10 @@ export async function parseXlsxApplicants(buffer: Uint8Array): Promise<ParsedApp
     const obj: Record<string, unknown> = {};
     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const key = headers[colNumber - 1] || `col_${colNumber}`;
-      obj[key] = cell.text ?? "";
+      obj[key] = extractCellText(cell.value ?? cell.text ?? "");
     });
     rows.push(obj);
   });
 
   return rows.map(mapRow).filter((a) => a.fullName || a.email || a.resumeText);
 }
-

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useDashboardOverview } from "@/hooks/useDashboard";
-import { cn } from "@/lib/utils";
+import { clamp, cn, formatDurationCompact } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 
 export function Sidebar({ pathname: _pathname }: { pathname: string }) {
@@ -21,10 +21,13 @@ export function Sidebar({ pathname: _pathname }: { pathname: string }) {
   const { data } = useDashboardOverview();
   const jobs = data?.jobs ?? [];
   const stats = data?.stats;
-  const avgTimeToHire = Number(
-    (stats?.inScreening.avgTimePerCandidateMins ?? 0).toFixed(1)
+  const avgTimeToHireMins = Number(stats?.inScreening.avgTimePerCandidateMins ?? 0);
+  const avgTimeToHireLabel = formatDurationCompact(avgTimeToHireMins);
+  const gaugeProgress = clamp(
+    Math.round((avgTimeToHireMins / (14 * 24 * 60)) * 100),
+    0,
+    100,
   );
-  const gaugeProgress = Math.min(100, Math.round(avgTimeToHire * 10));
   const maxApplicants = Math.max(1, ...jobs.map((job) => job.applicantsCount));
   const hiringInsightItems = jobs
     .slice()
@@ -201,7 +204,7 @@ export function Sidebar({ pathname: _pathname }: { pathname: string }) {
 
               <div className="absolute inset-x-0 bottom-5 flex flex-col items-center">
                 <div className="text-5xl font-medium tracking-tight text-text-primary">
-                  {avgTimeToHire}
+                  {avgTimeToHireLabel}
                 </div>
                 <div className="text-sm font-medium text-text-muted">Avg. Time to Hire</div>
               </div>

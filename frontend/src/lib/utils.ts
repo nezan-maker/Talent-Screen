@@ -22,3 +22,20 @@ export function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+export function formatDurationCompact(totalMinutes: number) {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+    return "--";
+  }
+
+  if (totalMinutes < 60) {
+    return `${Math.round(totalMinutes)}m`;
+  }
+
+  const hours = totalMinutes / 60;
+  if (hours < 24) {
+    return `${Math.round(hours * 10) / 10}h`;
+  }
+
+  const days = hours / 24;
+  return `${Math.round(days * 10) / 10}d`;
+}

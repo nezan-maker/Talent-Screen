@@ -305,7 +305,10 @@ export async function runScreening(req: Request, res: Response) {
       completed_at: new Date(),
       result_count: evaluated.results.length,
     });
-    await Job.findByIdAndUpdate(job._id, { job_state: "Complete" });
+    await Job.findOneAndUpdate(
+      { _id: job._id, user_id: userId },
+      { job_state: "Complete" },
+    );
 
     return res.status(200).json({
       success: {
@@ -643,13 +646,16 @@ export async function reviewApplicant(req: Request, res: Response) {
       { new: true },
     ).lean();
 
-    await Applicant.findByIdAndUpdate(existingResult.applicant_id, {
-      shortlisted: reviewed.verdict === "Shortlisted",
-      applicant_state:
-        reviewed.verdict === "Shortlisted"
-          ? "Shortlisted"
-          : "Rejected",
-    });
+    await Applicant.findOneAndUpdate(
+      { _id: existingResult.applicant_id, user_id: userId },
+      {
+        shortlisted: reviewed.verdict === "Shortlisted",
+        applicant_state:
+          reviewed.verdict === "Shortlisted"
+            ? "Shortlisted"
+            : "Rejected",
+      },
+    );
 
     return res.status(200).json({
       success: "Applicant reviewed successfully",

@@ -134,6 +134,50 @@ function neutralTrend(label: string): FrontendTrend {
   };
 }
 
+function toTimestamp(value: unknown) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+}
+
+function computeAverageHireTimeMinutes(applicants: FrontendCandidate[]) {
+  const finalizedApplicants = applicants.filter((candidate) => candidate.shortlisted);
+  const fallbackApplicants =
+    finalizedApplicants.length > 0
+      ? finalizedApplicants
+      : applicants.filter((candidate) => {
+          const updatedAt = toTimestamp(candidate.updatedAtISO);
+          const createdAt = toTimestamp(candidate.createdAtISO);
+          return (
+            typeof updatedAt === "number" &&
+            typeof createdAt === "number" &&
+            updatedAt > createdAt
+          );
+        });
+
+  const durations = fallbackApplicants
+    .map((candidate) => {
+      const createdAt = toTimestamp(candidate.createdAtISO);
+      const updatedAt = toTimestamp(candidate.updatedAtISO);
+      if (typeof createdAt !== "number" || typeof updatedAt !== "number") {
+        return null;
+      }
+
+      const diffMinutes = (updatedAt - createdAt) / (1000 * 60);
+      return diffMinutes > 0 ? diffMinutes : null;
+    })
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  if (durations.length === 0) {
+    return 0;
+  }
+
+  return Math.round((durations.reduce((sum, value) => sum + value, 0) / durations.length) * 10) / 10;
+}
+
 function normalizeJobStatus(value: unknown): FrontendJob["status"] {
   const status = trimText(value).toLowerCase();
   if (status === "screening") {
@@ -336,6 +380,7 @@ export function buildDashboardStats(
   const shortlisted = applicants.filter((candidate) => candidate.shortlisted)
     .length;
   const screeningJobs = jobs.filter((job) => job.status === "Screening").length;
+  const avgTimePerCandidateMins = computeAverageHireTimeMinutes(applicants);
 
   return {
     activeJobs: {
@@ -356,8 +401,12 @@ export function buildDashboardStats(
     },
     inScreening: {
       value: screeningJobs,
-      trend: neutralTrend("based on current data"),
-      avgTimePerCandidateMins: applicants.length > 0 ? 6 : 0,
+      trend: neutralTrend(
+        shortlisted > 0
+          ? "avg. from applicant creation to shortlist"
+          : "avg. from available candidate lifecycle data",
+      ),
+      avgTimePerCandidateMins,
     },
   };
 }

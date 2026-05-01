@@ -1,358 +1,342 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "WiseRank API",
+    "title": "Talvo Backend API",
     "version": "1.0.0",
-    "description": "WiseRank Recruiter Workspace – REST API for authentication, job management, applicant ingestion, AI-assisted screening, shortlisting and candidate email dispatch.",
-    "contact": {
-      "email": "hello@rankwise.io"
-    }
+    "description": "Current API surface for the Talvo backend. Auth is cookie-based, write operations require a matching CSRF cookie/header pair, and protected workspace data is scoped to the authenticated user's own records."
   },
   "servers": [
     {
-      "url": "http://localhost:5000",
+      "url": "http://localhost:10000",
       "description": "Local development server"
     }
   ],
   "tags": [
     {
-      "name": "Auth",
-      "description": "User registration, login and password recovery"
+      "name": "Auth"
     },
-    { "name": "Dashboard", "description": "Dashboard overview" },
-    { "name": "Jobs", "description": "Job creation" },
     {
-      "name": "Applicants",
-      "description": "Applicant registration and file ingestion"
+      "name": "Dashboard"
     },
-    { "name": "Shortlist", "description": "AI shortlisting and manual review" },
-    { "name": "Emails", "description": "Shortlist email dispatch" },
-    { "name": "AI", "description": "Gemini-powered screening and assistant" }
+    {
+      "name": "Jobs"
+    },
+    {
+      "name": "Candidates"
+    },
+    {
+      "name": "Intake"
+    },
+    {
+      "name": "Screening"
+    },
+    {
+      "name": "Assistant"
+    }
   ],
   "paths": {
-    "/auth/signup": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Register a new recruiter account",
-        "description": "Creates a new user, sends a 6-digit OTP to the provided email and sets a `signup_reference_token` cookie valid for 10 minutes.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SignUpRequest"
-              },
-              "example": {
-                "user_name": "Jane Doe",
-                "user_email": "jane@acme.com",
-                "user_pass": "Secure@123",
-                "user_pass_conf": "Secure@123",
-                "company_name": "Acme Corp"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Sign up successful. OTP sent by email.",
-            "headers": {
-              "Set-Cookie": {
-                "description": "`signup_reference_token` (HttpOnly, 10 min)",
-                "schema": { "type": "string" }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" },
-                "example": { "success": "Sign up successful" }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/InputError" },
-          "401": {
-            "description": "Account already exists",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/MessageError" },
-                "example": {
-                  "message": "You already have an account please sign in"
-                }
-              }
-            }
-          },
-          "500": { "$ref": "#/components/responses/ServerError" }
-        }
-      }
-    },
-    "/auth/confirm": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Confirm email with OTP (token-based)",
-        "description": "Validates the 6-digit OTP against the `signup_reference_token` cookie. On success marks the user as verified, issues `access_token` cookie and sends welcome email.",
-        "parameters": [
-          {
-            "in": "cookie",
-            "name": "signup_reference_token",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "JWT set during signup, expires in 10 minutes"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["token"],
-                "properties": {
-                  "token": {
-                    "type": "string",
-                    "description": "6-digit OTP from email",
-                    "example": "482910"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Email confirmed and access_token cookie set",
-            "headers": {
-              "Set-Cookie": {
-                "description": "`access_token` (HttpOnly, 1 h)",
-                "schema": { "type": "string" }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" },
-                "example": { "success": "Confirmation successful" }
-              }
-            }
-          },
-          "401": {
-            "description": "Cookie expired or OTP invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "oneOf": [
-                    { "$ref": "#/components/schemas/ExpiredError" },
-                    { "$ref": "#/components/schemas/AuthError" }
-                  ]
-                }
-              }
-            }
-          },
-          "500": { "$ref": "#/components/responses/ServerError" }
-        }
-      }
-    },
-    "/auth/confirm_link/{confirmation_link_id}": {
+    "/auth/csrf": {
       "get": {
         "tags": ["Auth"],
-        "summary": "Confirm email via magic link",
-        "description": "Alternative confirmation via the link sent in the signup email. Requires `signup_reference_token` cookie.",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "confirmation_link_id",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "Random 32-byte hex ID embedded in the confirmation link"
-          },
-          {
-            "in": "cookie",
-            "name": "signup_reference_token",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
+        "summary": "Issue CSRF token",
         "responses": {
           "200": {
-            "description": "Email confirmed via link",
-            "headers": {
-              "Set-Cookie": {
-                "description": "`access_token` (HttpOnly)",
-                "schema": { "type": "string" }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" },
-                "example": { "success": "Confirmation successful" }
-              }
-            }
-          },
-          "400": {
-            "description": "URL incorrect or missing ID",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DataError" }
-              }
-            }
-          },
-          "401": {
-            "description": "Cookie expired or ID mismatch",
+            "description": "CSRF token response",
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    { "$ref": "#/components/schemas/ExpiredError" },
-                    { "$ref": "#/components/schemas/DataError" }
-                  ]
-                }
-              }
-            }
-          },
-          "500": { "$ref": "#/components/responses/ServerError" }
-        }
-      }
-    },
-    "/auth/login": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Log in",
-        "description": "Validates credentials. **Note:** the request body must be nested under a `reqBody` key.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["reqBody"],
-                "properties": {
-                  "reqBody": { "$ref": "#/components/schemas/LoginRequest" }
-                }
-              },
-              "example": {
-                "reqBody": {
-                  "user_email": "jane@acme.com",
-                  "user_pass": "Secure@123",
-                  "user_pass_conf": "Secure@123"
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Login successful",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" },
-                "example": { "success": "Login successful" }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/InputError" },
-          "401": { "$ref": "#/components/responses/AuthError" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/ServerError" }
-        }
-      }
-    },
-    "/auth/forgot": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Request password reset OTP",
-        "description": "Sends a 6-digit reset code to the user's email and sets a `recovery_reference_token` cookie (10 min).",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["user_email"],
-                "properties": {
-                  "user_email": {
-                    "type": "string",
-                    "format": "email",
-                    "example": "jane@acme.com"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OTP sent",
-            "headers": {
-              "Set-Cookie": {
-                "description": "`recovery_reference_token` (HttpOnly, 10 min)",
-                "schema": { "type": "string" }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" },
-                "example": { "success": "OTP token sent" }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/InputError" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/ServerError" }
-        }
-      }
-    },
-    "/auth/verify": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Verify password reset OTP",
-        "description": "Checks the 6-digit OTP against the hashed token stored on the user. On success sets a `reset_reference_token` cookie. **Known bug:** `payload.id` should be `payload.user_id` – the user lookup currently always fails.",
-        "parameters": [
-          {
-            "in": "cookie",
-            "name": "recovery_reference_token",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["token"],
-                "properties": {
-                  "token": {
-                    "type": "object",
-                    "required": ["token"],
-                    "properties": {
-                      "token": {
-                        "type": "string",
-                        "pattern": "^[0-9]{6}$",
-                        "example": "819302"
-                      }
+                  "type": "object",
+                  "properties": {
+                    "csrfToken": {
+                      "type": "string"
                     }
                   }
                 }
               }
             }
           }
+        }
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Create recruiter account",
+        "description": "Accepts either a plain JSON body or the same payload nested under `reqBody`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SignupRequest"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reqBody": {
+                        "$ref": "#/components/schemas/SignupRequest"
+                      }
+                    },
+                    "required": ["reqBody"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Signup successful"
+          },
+          "400": {
+            "$ref": "#/components/responses/InputError"
+          },
+          "409": {
+            "description": "Account already exists"
+          }
+        }
+      }
+    },
+    "/auth/confirm": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Confirm signup OTP",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$"
+                  },
+                  "signup_token": {
+                    "type": "string"
+                  },
+                  "signupToken": {
+                    "type": "string"
+                  }
+                },
+                "required": ["token"]
+              }
+            }
+          }
         },
         "responses": {
           "200": {
-            "description": "OTP verified, reset_reference_token cookie set",
-            "headers": {
-              "Set-Cookie": {
-                "description": "`reset_reference_token` (HttpOnly, 10 min)",
-                "schema": { "type": "string" }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" },
-                "example": { "success": "Token verification successful" }
-              }
+            "description": "Confirmation successful"
+          },
+          "400": {
+            "$ref": "#/components/responses/InputError"
+          },
+          "401": {
+            "description": "Expired or invalid token"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/auth/confirm_link/{confirmation_link_id}": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Confirm signup by link",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "confirmation_link_id",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           },
-          "401": { "$ref": "#/components/responses/InputError" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          {
+            "in": "query",
+            "name": "signup_token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Confirmation successful"
+          },
+          "401": {
+            "description": "Expired or invalid handler"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "description": "Accepts either a plain JSON body or the same payload nested under `reqBody`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/LoginRequest"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reqBody": {
+                        "$ref": "#/components/schemas/LoginRequest"
+                      }
+                    },
+                    "required": ["reqBody"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful"
+          },
+          "400": {
+            "$ref": "#/components/responses/InputError"
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthError"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/auth/google/start": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Start Google OAuth",
+        "responses": {
+          "302": {
+            "description": "Redirect to Google"
+          },
+          "400": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/auth/google/callback": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Google OAuth callback",
+        "responses": {
+          "302": {
+            "description": "Redirect to frontend login, welcome, or dashboard"
+          }
+        }
+      }
+    },
+    "/auth/forgot": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Generate password reset OTP",
+        "description": "Accepts either a plain JSON body or the same payload nested under `reqBody`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ForgotRequest"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reqBody": {
+                        "$ref": "#/components/schemas/ForgotRequest"
+                      }
+                    },
+                    "required": ["reqBody"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reset token generated"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Verify reset OTP",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$"
+                  }
+                },
+                "required": ["token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification successful"
+          },
+          "401": {
+            "description": "Expired or invalid reset flow"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
         }
       }
     },
@@ -360,13 +344,10 @@
       "post": {
         "tags": ["Auth"],
         "summary": "Reset password",
-        "description": "Sets a new password. Requires a valid `reset_reference_token` cookie. **Known bug:** `user.user_pass == hashedPassword` uses `==` (comparison) instead of `=` (assignment) so the password is never actually saved.",
+        "description": "Accepts either a plain JSON body or the same payload nested under `reqBody`.",
         "parameters": [
           {
-            "in": "cookie",
-            "name": "reset_reference_token",
-            "required": true,
-            "schema": { "type": "string" }
+            "$ref": "#/components/parameters/CsrfHeader"
           }
         ],
         "requestBody": {
@@ -374,148 +355,397 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": ["reqBody"],
-                "properties": {
-                  "reqBody": { "$ref": "#/components/schemas/ResetRequest" }
-                }
-              },
-              "example": {
-                "reqBody": {
-                  "user_pass": "NewSecure@456",
-                  "user_pass_conf": "NewSecure@456"
-                }
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ResetPasswordRequest"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reqBody": {
+                        "$ref": "#/components/schemas/ResetPasswordRequest"
+                      }
+                    },
+                    "required": ["reqBody"]
+                  }
+                ]
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": "Password reset successful",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" },
-                "example": { "success": "Password reset successful" }
+          "200": {
+            "description": "Password reset successful"
+          },
+          "401": {
+            "description": "Expired or invalid reset flow"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logged out"
+          }
+        }
+      }
+    },
+    "/auth/onboarding": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Complete onboarding",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/OnboardingRequest"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reqBody": {
+                        "$ref": "#/components/schemas/OnboardingRequest"
+                      }
+                    },
+                    "required": ["reqBody"]
+                  }
+                ]
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Onboarding completed"
           },
-          "401": { "$ref": "#/components/responses/InputError" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "401": {
+            "$ref": "#/components/responses/UserError"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user"
+          },
+          "401": {
+            "$ref": "#/components/responses/UserError"
+          }
         }
       }
     },
     "/dashboard": {
       "get": {
         "tags": ["Dashboard"],
-        "summary": "Get dashboard overview",
-        "description": "Returns a JSON-stringified array `[applicants[], jobs[]]`. Requires authentication cookie.",
-        "security": [{ "cookieAuth": [] }],
+        "summary": "Dashboard overview",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobsPage"
+          },
+          {
+            "$ref": "#/components/parameters/JobsPageSize"
+          },
+          {
+            "$ref": "#/components/parameters/ApplicantsPage"
+          },
+          {
+            "$ref": "#/components/parameters/ApplicantsPageSize"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Stringified dashboard data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "string",
-                      "description": "JSON-encoded array of [applicants, jobs]",
-                      "example": "[[{\"_id\":\"...\",\"applicant_name\":\"...\"}],[{\"_id\":\"...\",\"job_title\":\"...\"}]]"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Dashboard payload"
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "List jobs",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
           },
-          "401": { "$ref": "#/components/responses/AuthError" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated jobs"
+          }
+        }
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get job by id",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job detail"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/candidates": {
+      "get": {
+        "tags": ["Candidates"],
+        "summary": "List candidates",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated candidates"
+          }
+        }
+      }
+    },
+    "/candidates/{id}": {
+      "get": {
+        "tags": ["Candidates"],
+        "summary": "Get candidate by id",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidate detail"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
         }
       }
     },
     "/complete-job": {
       "post": {
         "tags": ["Jobs"],
-        "summary": "Create a new job posting",
-        "description": "Creates a Job document. The body must be JSON-stringified under the `reqString` key. Reads the company name from the `access_token` cookie. **Known bug:** reads cookie `reference_token` instead of `access_token`, so the user lookup always fails.",
-        "security": [{ "cookieAuth": [] }],
+        "summary": "Create a job",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": ["reqString"],
-                "properties": {
-                  "reqString": {
-                    "type": "string",
-                    "description": "JSON-stringified job object",
-                    "example": "{\"job_title\":\"Backend Engineer\",\"job_department\":\"Engineering\",\"job_location\":\"Kigali, Rwanda\",\"job_employment_type\":\"Full-time\",\"job_requirements\":\"3+ years Node.js\",\"job_skills\":[\"Node.js\",\"MongoDB\"],\"job_qualifications\":\"BSc Computer Science\",\"workers_required\":2,\"job_notes\":[\"Remote-friendly\"]}"
-                  }
-                }
+                "$ref": "#/components/schemas/CreateJobRequest"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Job created successfully",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" },
-                "example": { "success": "Job successfully created" }
-              }
-            }
+            "description": "Job created"
           },
-          "400": { "$ref": "#/components/responses/InputError" },
-          "401": {
-            "description": "Job already exists",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/MessageError" }
-              }
-            }
+          "400": {
+            "$ref": "#/components/responses/DataError"
           },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "409": {
+            "description": "Duplicate job"
+          }
         }
       }
     },
-    "/register-candidate": {
+    "/register-candidates": {
       "post": {
-        "tags": ["Applicants"],
-        "summary": "Register applicants (JSON or file upload)",
-        "description": "Accepts either:\n- **Raw JSON** (`raw_application_data` string in body) for bulk applicant registration.\n- **Multipart upload** with `applicants_spreadsheet` (XLSX or CSV) + `resume_pdf_zip` (ZIP of PDFs). The ZIP filenames must match the applicant email or `first_name last_name` from the spreadsheet. Resumes are uploaded to Cloudinary and parsed via Gemini AI.",
-        "security": [{ "cookieAuth": [] }],
+        "tags": ["Intake"],
+        "summary": "Register candidates",
+        "description": "Supports either multipart spreadsheet upload using `file` or `applicants_spreadsheet`, or a raw JSON array of applicant objects.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["raw_application_data"],
                 "properties": {
-                  "raw_application_data": {
+                  "file": {
                     "type": "string",
-                    "description": "JSON-stringified array of applicant objects",
-                    "example": "[{\"first_name\":\"John\",\"last_name\":\"Smith\",\"email\":\"john@example.com\",\"job_title\":\"Backend Engineer\"}]"
+                    "format": "binary"
+                  },
+                  "applicants_spreadsheet": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "default_job_id": {
+                    "type": "string"
+                  },
+                  "default_job_title": {
+                    "type": "string"
+                  },
+                  "job_id": {
+                    "type": "string"
+                  },
+                  "job_title": {
+                    "type": "string"
                   }
                 }
               }
             },
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ApplicantInput"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Applicants processed"
+          },
+          "400": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/resume": {
+      "post": {
+        "tags": ["Intake"],
+        "summary": "Upload resume ZIP",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["applicants_spreadsheet", "resume_pdf_zip"],
                 "properties": {
-                  "applicants_spreadsheet": {
+                  "file": {
                     "type": "string",
-                    "format": "binary",
-                    "description": "XLSX or CSV file with columns: first_name, last_name, email, job_title"
+                    "format": "binary"
                   },
                   "resume_pdf_zip": {
                     "type": "string",
-                    "format": "binary",
-                    "description": "ZIP archive of PDF resumes. Filenames should be `applicant@email.com.pdf` or `First Last.pdf`"
+                    "format": "binary"
+                  },
+                  "default_job_id": {
+                    "type": "string"
+                  },
+                  "default_job_title": {
+                    "type": "string"
+                  },
+                  "job_id": {
+                    "type": "string"
+                  },
+                  "job_title": {
+                    "type": "string"
                   }
                 }
               }
@@ -524,284 +754,602 @@
         },
         "responses": {
           "201": {
-            "description": "Applicants registered",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" }
-              }
-            }
+            "description": "Resume ZIP processed"
           },
-          "400": { "$ref": "#/components/responses/DataError" },
-          "401": {
-            "description": "Applicant email already registered",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DataError" }
-              }
-            }
+          "400": {
+            "$ref": "#/components/responses/DataError"
           },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
         }
       }
     },
     "/ask": {
       "post": {
-        "tags": ["Shortlist"],
-        "summary": "AI shortlist – process and persist results",
-        "description": "Parses `shortList_applicants` JSON string, updates applicant states (`Shortlisted` / `Rejected`), and calls the email controller via `next()`. **Note:** this is a middleware chain endpoint (`shortList → emailingController`).",
-        "security": [{ "cookieAuth": [] }],
+        "tags": ["Screening"],
+        "summary": "Run screening via controller flow",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": ["shortList_applicants"],
-                "properties": {
-                  "shortList_applicants": {
-                    "type": "string",
-                    "description": "JSON-stringified array of shortlist decisions",
-                    "example": "[{\"applicant_name\":\"John Smith\",\"shortlisted\":true},{\"applicant_name\":\"Jane Doe\",\"shortlisted\":false}]"
-                  }
-                }
+                "$ref": "#/components/schemas/RunScreeningRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Shortlist processed and emails dispatched",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" }
-              }
-            }
+            "description": "Screening completed"
           },
-          "400": { "$ref": "#/components/responses/InputError" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
         }
       }
     },
     "/review-result": {
       "post": {
-        "tags": ["Shortlist"],
-        "summary": "Record final verdict on applicants",
-        "description": "Marks shortlisted applicants by setting `shortlisted: true` on the Applicant document. **Known bug:** no response is sent on success (missing `res.status(200).json(...)` call).",
-        "security": [{ "cookieAuth": [] }],
+        "tags": ["Screening"],
+        "summary": "Save manual recruiter verdicts",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": ["verdict_string"],
-                "properties": {
-                  "verdict_string": {
-                    "type": "string",
-                    "description": "JSON-stringified array of verdict objects",
-                    "example": "[{\"applicant_name\":\"John Smith\",\"job_title\":\"Backend Engineer\",\"shortlisted\":true}]"
-                  }
-                }
+                "$ref": "#/components/schemas/ReviewResultRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Verdicts saved (no body returned – see bug note)",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/DataError" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+            "description": "Review decisions saved"
+          }
         }
       }
     },
     "/sendEmails": {
       "post": {
-        "tags": ["Emails"],
-        "summary": "Send shortlist notification emails",
-        "description": "Finds all applicants with `shortlisted: true` for the given `job_title` and dispatches a shortlist email to each.",
-        "security": [{ "cookieAuth": [] }],
+        "tags": ["Screening"],
+        "summary": "Send applicant outcome emails",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": ["job_title"],
-                "properties": {
-                  "job_title": {
-                    "type": "string",
-                    "example": "Backend Engineer"
-                  }
-                }
+                "$ref": "#/components/schemas/SendEmailsRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Emails dispatched",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessMessage" }
-              }
-            }
+            "description": "Email processing completed"
           },
-          "400": { "$ref": "#/components/responses/DataError" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
         }
       }
     },
     "/ai/models": {
       "get": {
-        "tags": ["AI"],
-        "summary": "List available Gemini models",
-        "description": "Proxies the Google Generative Language API models list.",
+        "tags": ["Screening"],
+        "summary": "List Gemini models",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Model list from Google API",
-            "content": {
-              "application/json": {
-                "schema": { "type": "object" }
-              }
-            }
+            "description": "Available models"
           },
-          "400": { "$ref": "#/components/responses/DataError" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "400": {
+            "$ref": "#/components/responses/DataError"
+          }
         }
       }
     },
     "/ai/run": {
       "post": {
-        "tags": ["AI"],
-        "summary": "Trigger AI screening run",
-        "description": "Runs a Gemini screening against a job and its applicants. Creates a `ScreeningRun`, calls `screenWithGemini`, persists `ScreeningResult` documents and returns results. **Known bug:** env-guard condition uses `||` instead of `!env.VERTEX_PROJECT_ID || !env.VERTEX_LOCATION` — the guard fires even when the env vars are present.",
+        "tags": ["Screening"],
+        "summary": "Run screening via `/ai/run`",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TriggerScreeningRequest"
-              },
-              "example": {
-                "job_id": "6630f4e2a1b2c3d4e5f60001",
-                "applicant_ids": ["6630f4e2a1b2c3d4e5f60010"],
-                "topK": 5
+                "$ref": "#/components/schemas/RunScreeningRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Screening completed"
+          }
+        }
+      }
+    },
+    "/ai/runs": {
+      "get": {
+        "tags": ["Screening"],
+        "summary": "List screening runs",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "in": "query",
+            "name": "jobId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated runs"
+          }
+        }
+      }
+    },
+    "/ai/runs/{runId}": {
+      "get": {
+        "tags": ["Screening"],
+        "summary": "Get run by id",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run and paginated results"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/ai/jobs/{jobId}/results": {
+      "get": {
+        "tags": ["Screening"],
+        "summary": "Get latest results for job",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run and paginated results"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/ai/jobs/{jobId}/finalize": {
+      "post": {
+        "tags": ["Screening"],
+        "summary": "Finalize recruiter decisions",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinalizeJobRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Finalization completed"
+          },
+          "400": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/ai/results/{resultId}/review": {
+      "post": {
+        "tags": ["Screening"],
+        "summary": "Re-review a result with Gemini",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "in": "path",
+            "name": "resultId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewApplicantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applicant reviewed"
+          },
+          "400": {
+            "$ref": "#/components/responses/DataError"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/ai/ask": {
+      "post": {
+        "tags": ["Assistant"],
+        "summary": "Ask recruiter assistant",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimpleAssistantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Assistant answer"
+          },
+          "400": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/ai/context/{jobId}": {
+      "get": {
+        "tags": ["Screening"],
+        "summary": "Get raw job and candidate context",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Context payload"
+          },
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/ai/assistant/conversations": {
+      "get": {
+        "tags": ["Assistant"],
+        "summary": "List assistant conversations",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation list"
+          }
+        }
+      }
+    },
+    "/ai/assistant/ask": {
+      "post": {
+        "tags": ["Assistant"],
+        "summary": "Ask assistant and persist conversation",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantConversationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Assistant answer with conversation payload"
+          },
+          "400": {
+            "$ref": "#/components/responses/InputError"
+          }
+        }
+      }
+    },
+    "/ai/screening/models": {
+      "get": {
+        "tags": ["Screening"],
+        "summary": "List Gemini screening models",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available models"
+          },
+          "400": {
+            "$ref": "#/components/responses/DataError"
+          }
+        }
+      }
+    },
+    "/ai/screening/run": {
+      "post": {
+        "tags": ["Screening"],
+        "summary": "Run direct Gemini screening",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreeningRouterRunRequest"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Screening run completed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScreeningRunResponse"
-                }
-              }
-            }
+            "description": "Run created"
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "400": {
+            "$ref": "#/components/responses/InputError"
+          }
         }
       }
     },
-    "/ai/runs": {
+    "/ai/screening/runs": {
       "get": {
-        "tags": ["AI"],
-        "summary": "List screening runs",
-        "description": "Returns up to 200 screening runs, optionally filtered by `jobId`.",
+        "tags": ["Screening"],
+        "summary": "List direct screening runs",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
             "name": "jobId",
             "required": false,
-            "schema": { "type": "string" },
-            "description": "MongoDB ObjectId of the job to filter by"
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Array of ScreeningRun documents",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": { "$ref": "#/components/schemas/ScreeningRun" }
-                }
-              }
-            }
-          },
-          "500": { "$ref": "#/components/responses/ServerError" }
+            "description": "Runs list"
+          }
         }
       }
     },
-    "/ai/runs/{runId}": {
+    "/ai/screening/runs/{runId}/results": {
       "get": {
-        "tags": ["AI"],
-        "summary": "Get screening run results",
-        "description": "Returns the run metadata and its sorted `ScreeningResult` documents. **Known bug:** query uses `screeningRunId` instead of `screening_run_id` (the schema field name), so results are always empty.",
+        "tags": ["Screening"],
+        "summary": "Get direct screening run results",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",
             "name": "runId",
             "required": true,
-            "schema": { "type": "string" },
-            "description": "MongoDB ObjectId of the screening run"
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Run and results",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScreeningRunResponse"
-                }
-              }
-            }
+            "description": "Run and results"
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
         }
       }
     },
-    "/ai/ask": {
-      "post": {
-        "tags": ["AI"],
-        "summary": "Ask the AI assistant about applicants",
-        "description": "Sends a natural-language question to Gemini along with job and applicant context. Returns an answer and suggested follow-up questions.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/AskRequest" },
-              "example": {
-                "question": "Which applicants have the strongest TypeScript background?",
-                "job_id": "6630f4e2a1b2c3d4e5f60001",
-                "max_applicants": 50
-              }
+    "/ai/screening/jobs/{jobId}/results": {
+      "get": {
+        "tags": ["Screening"],
+        "summary": "Get latest direct screening results by job",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
-            "description": "AI answer",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AskResponse" }
-              }
-            }
+            "description": "Run and results"
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/ServerError" }
+          "404": {
+            "$ref": "#/components/responses/DataError"
+          }
         }
       }
     }
@@ -812,238 +1360,440 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "access_token",
-        "description": "HttpOnly JWT cookie set on login or email confirmation"
+        "description": "Authenticated workspace cookie. Protected endpoints only return or mutate the current user's own records."
       }
     },
-    "schemas": {
-      "SignUpRequest": {
-        "type": "object",
-        "required": [
-          "user_name",
-          "user_email",
-          "user_pass",
-          "user_pass_conf",
-          "company_name"
-        ],
-        "properties": {
-          "user_name": { "type": "string", "minLength": 3 },
-          "user_email": { "type": "string", "format": "email" },
-          "user_pass": {
-            "type": "string",
-            "description": "Min 1 lowercase, 1 uppercase, 1 digit, 1 special character",
-            "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])"
-          },
-          "user_pass_conf": {
-            "type": "string",
-            "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])"
-          },
-          "company_name": { "type": "string" }
+    "parameters": {
+      "CsrfHeader": {
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Required for mutating requests unless using the dev auth bypass."
+      },
+      "Page": {
+        "in": "query",
+        "name": "page",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
         }
       },
-      "LoginRequest": {
-        "type": "object",
-        "required": ["user_email", "user_pass", "user_pass_conf"],
-        "properties": {
-          "user_email": { "type": "string", "format": "email" },
-          "user_pass": { "type": "string" },
-          "user_pass_conf": { "type": "string" }
+      "PageSize": {
+        "in": "query",
+        "name": "pageSize",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
         }
       },
-      "ResetRequest": {
-        "type": "object",
-        "required": ["user_pass", "user_pass_conf"],
-        "properties": {
-          "user_pass": {
-            "type": "string",
-            "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])"
-          },
-          "user_pass_conf": {
-            "type": "string",
-            "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])"
-          }
+      "JobsPage": {
+        "in": "query",
+        "name": "jobsPage",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
         }
       },
-      "TriggerScreeningRequest": {
-        "type": "object",
-        "required": ["job_id"],
-        "properties": {
-          "job_id": { "type": "string", "minLength": 1 },
-          "applicant_ids": {
-            "type": "array",
-            "items": { "type": "string", "minLength": 1 },
-            "description": "If omitted, all applicants for the job are used"
-          },
-          "topK": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 50,
-            "default": 10,
-            "description": "Number of top-ranked candidates to return"
-          }
+      "JobsPageSize": {
+        "in": "query",
+        "name": "jobsPageSize",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
         }
       },
-      "AskRequest": {
-        "type": "object",
-        "required": ["question"],
-        "properties": {
-          "question": { "type": "string", "minLength": 1, "maxLength": 4000 },
-          "job_id": { "type": "string", "description": "Optional job context" },
-          "applicant_ids": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Optional specific applicant subset"
-          },
-          "max_applicants": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 200,
-            "default": 50
-          }
+      "ApplicantsPage": {
+        "in": "query",
+        "name": "applicantsPage",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
         }
       },
-      "AskResponse": {
-        "type": "object",
-        "properties": {
-          "answer": { "type": "string" },
-          "suggestedNextQuestions": {
-            "type": "array",
-            "items": { "type": "string" }
-          },
-          "context": {
-            "type": "object",
-            "properties": {
-              "jobId": { "type": "string", "nullable": true },
-              "applicantCount": { "type": "integer" }
-            }
-          }
-        }
-      },
-      "ScreeningRun": {
-        "type": "object",
-        "properties": {
-          "_id": { "type": "string" },
-          "job_id": { "type": "string" },
-          "applicants_ids": { "type": "array", "items": { "type": "string" } },
-          "topK": { "type": "integer" },
-          "status": {
-            "type": "string",
-            "enum": ["queued", "completed", "failed"]
-          },
-          "model": { "type": "string" },
-          "error": { "type": "string" },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "updatedAt": { "type": "string", "format": "date-time" }
-        }
-      },
-      "ScreeningResult": {
-        "type": "object",
-        "properties": {
-          "_id": { "type": "string" },
-          "screening_run_id": { "type": "string" },
-          "job_id": { "type": "string" },
-          "applicant_id": { "type": "string" },
-          "rank": { "type": "integer" },
-          "match_score": { "type": "number", "minimum": 0, "maximum": 100 },
-          "strengths": { "type": "array", "items": { "type": "string" } },
-          "gaps": { "type": "array", "items": { "type": "string" } },
-          "recommendation": { "type": "string" }
-        }
-      },
-      "ScreeningRunResponse": {
-        "type": "object",
-        "properties": {
-          "runId": { "type": "string" },
-          "results": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/ScreeningResult" }
-          }
-        }
-      },
-      "SuccessMessage": {
-        "type": "object",
-        "properties": {
-          "success": { "type": "string" }
-        }
-      },
-      "MessageError": {
-        "type": "object",
-        "properties": {
-          "message": { "type": "string" }
-        }
-      },
-      "InputError": {
-        "type": "object",
-        "properties": {
-          "input_error": { "type": "string" }
-        }
-      },
-      "AuthError": {
-        "type": "object",
-        "properties": {
-          "auth_error": { "type": "string" }
-        }
-      },
-      "DataError": {
-        "type": "object",
-        "properties": {
-          "data_error": { "type": "string" }
-        }
-      },
-      "ExpiredError": {
-        "type": "object",
-        "properties": {
-          "expired_error": { "type": "string" }
-        }
-      },
-      "ServerError": {
-        "type": "object",
-        "properties": {
-          "server_error": { "type": "string" }
+      "ApplicantsPageSize": {
+        "in": "query",
+        "name": "applicantsPageSize",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
     "responses": {
       "InputError": {
-        "description": "Validation / input error",
+        "description": "Validation error",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/InputError" }
-          }
-        }
-      },
-      "AuthError": {
-        "description": "Authentication or authorisation failure",
-        "content": {
-          "application/json": {
-            "schema": { "$ref": "#/components/schemas/AuthError" }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
           }
         }
       },
       "DataError": {
-        "description": "Missing or invalid data",
+        "description": "Data or not-found error",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/DataError" }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
           }
         }
       },
-      "NotFound": {
-        "description": "Resource not found",
+      "AuthError": {
+        "description": "Authentication error",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/DataError" },
-            "example": { "data_error": "Resource not found" }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
           }
         }
       },
-      "ServerError": {
-        "description": "Internal server error",
+      "UserError": {
+        "description": "User session error",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ServerError" },
-            "example": { "server_error": "Internal server error" }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
           }
         }
+      }
+    },
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "additionalProperties": {
+          "type": ["string", "number", "boolean", "object", "array", "null"]
+        }
+      },
+      "SignupRequest": {
+        "type": "object",
+        "properties": {
+          "user_name": {
+            "type": "string"
+          },
+          "user_email": {
+            "type": "string",
+            "format": "email"
+          },
+          "company_name": {
+            "type": "string"
+          },
+          "user_pass": {
+            "type": "string",
+            "description": "Must include uppercase, lowercase, number, and symbol."
+          }
+        },
+        "required": ["user_name", "user_email", "user_pass"]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "user_email": {
+            "type": "string",
+            "format": "email"
+          },
+          "user_pass": {
+            "type": "string"
+          }
+        },
+        "required": ["user_email", "user_pass"]
+      },
+      "ForgotRequest": {
+        "type": "object",
+        "properties": {
+          "user_email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": ["user_email"]
+      },
+      "ResetPasswordRequest": {
+        "type": "object",
+        "properties": {
+          "user_pass": {
+            "type": "string"
+          },
+          "user_pass_conf": {
+            "type": "string"
+          }
+        },
+        "required": ["user_pass", "user_pass_conf"]
+      },
+      "OnboardingRequest": {
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "hiring_focus": {
+            "type": "string"
+          },
+          "team_setup": {
+            "type": "string"
+          },
+          "workflow_goal": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "company_name",
+          "hiring_focus",
+          "team_setup",
+          "workflow_goal"
+        ]
+      },
+      "CreateJobRequest": {
+        "type": "object",
+        "properties": {
+          "job_title": {
+            "type": "string"
+          },
+          "job_department": {
+            "type": "string"
+          },
+          "job_location": {
+            "type": "string"
+          },
+          "job_employment_type": {
+            "type": "string"
+          },
+          "job_description": {
+            "type": "string"
+          },
+          "job_experience_required": {
+            "type": "string"
+          },
+          "job_responsibilities": {
+            "type": "string"
+          },
+          "job_qualifications": {
+            "type": "string"
+          },
+          "job_ai_criteria": {
+            "type": ["array", "object", "string", "null"]
+          },
+          "job_shortlist_size": {
+            "type": "integer"
+          },
+          "job_state": {
+            "type": "string"
+          },
+          "job_salary_min": {
+            "type": "number"
+          },
+          "job_salary_max": {
+            "type": "number"
+          },
+          "workers_required": {
+            "type": "integer"
+          },
+          "minimum_marks": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "job_title",
+          "job_department",
+          "job_location",
+          "job_employment_type",
+          "job_description"
+        ]
+      },
+      "ApplicantInput": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "RunScreeningRequest": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "job_title": {
+            "type": "string"
+          }
+        }
+      },
+      "ReviewDecisionItem": {
+        "type": "object",
+        "properties": {
+          "applicant_id": {
+            "type": "string"
+          },
+          "applicant_name": {
+            "type": "string"
+          },
+          "job_title": {
+            "type": "string"
+          },
+          "shortlisted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ReviewResultRequest": {
+        "type": "object",
+        "properties": {
+          "verdict_string": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReviewDecisionItem"
+                }
+              }
+            ]
+          }
+        },
+        "required": ["verdict_string"]
+      },
+      "SendEmailsRequest": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "job_title": {
+            "type": "string"
+          }
+        }
+      },
+      "FinalizeDecisionItem": {
+        "type": "object",
+        "properties": {
+          "result_id": {
+            "type": "string"
+          },
+          "resultId": {
+            "type": "string"
+          },
+          "applicant_id": {
+            "type": "string"
+          },
+          "applicantId": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["Shortlisted", "Rejected"]
+          }
+        },
+        "required": ["verdict"]
+      },
+      "FinalizeJobRequest": {
+        "type": "object",
+        "properties": {
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinalizeDecisionItem"
+            }
+          }
+        },
+        "required": ["decisions"]
+      },
+      "ReviewApplicantRequest": {
+        "type": "object",
+        "properties": {
+          "additional_info": {
+            "type": "string"
+          },
+          "additionalInfo": {
+            "type": "string"
+          },
+          "result_id": {
+            "type": "string"
+          },
+          "screening_result_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SimpleAssistantRequest": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          }
+        },
+        "required": ["question"]
+      },
+      "AssistantConversationRequest": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "applicantIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxApplicants": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": ["question"]
+      },
+      "ScreeningRouterRunRequest": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "applicantIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "topK": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 10
+          }
+        },
+        "required": ["jobId"]
       }
     }
   }

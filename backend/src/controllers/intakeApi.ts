@@ -23,6 +23,13 @@ import {
   splitList,
   trimText,
 } from "../utils/talentProfile.js";
+import {
+  extractCellText,
+  extractEmailFromText,
+  extractLinksFromText,
+  parseResumeHeuristics,
+  pickBestRecordValue,
+} from "../utils/applicantParsing.js";
 
 const RESUME_ZIP_PROCESS_CONCURRENCY = 3;
 
@@ -55,14 +62,7 @@ function getUploadedFile(
 }
 
 function pickRecordValue(record: Record<string, string>, keys: string[]) {
-  for (const key of keys) {
-    const value = trimText(record[key]);
-    if (value) {
-      return value;
-    }
-  }
-
-  return "";
+  return pickBestRecordValue(record, keys);
 }
 
 function mapApplicantStateFromStatus(status: string) {
@@ -125,7 +125,7 @@ function worksheetToRecords(worksheet: Worksheet) {
 
   worksheet.eachRow({ includeEmpty: false }, (row: any, rowNumber: number) => {
     const values: string[] = Array.isArray(row.values)
-      ? row.values.slice(1).map((value: any) => trimText(value))
+      ? row.values.slice(1).map((value: any) => extractCellText(value))
       : [];
 
     if (rowNumber === 1) {
@@ -177,6 +177,7 @@ async function createApplicant(
 ) {
   const duplicateQuery = normalized.job_id
     ? {
+        user_id: userId,
         job_id: normalized.job_id,
         $or: [
           { applicant_email: normalized.email },
@@ -184,6 +185,7 @@ async function createApplicant(
         ],
       }
     : {
+        user_id: userId,
         job_title: normalized.job_title,
         $or: [
           { applicant_email: normalized.email },
@@ -285,16 +287,26 @@ function normalizeRecord(
   );
 
   return buildNormalizedApplicant({
-    first_name: record.first_name,
-    last_name: record.last_name,
+    first_name: pickRecordValue(record, ["first_name", "frist_name", "firstname"]),
+    last_name: pickRecordValue(record, ["last_name", "last_name_", "lastname", "sur_name", "surname"]),
     applicant_name,
     email:
-      pickRecordValue(record, ["email", "applicant_email", "e_mail"]) ||
+      extractEmailFromText(
+        pickRecordValue(record, [
+          "email",
+          "applicant_email",
+          "e_mail",
+          "email_address",
+          "mail",
+        ]),
+      ) ||
       extracted.email,
     headline: pickRecordValue(record, [
       "headline",
       "position_applied",
       "job_title",
+      "role_headline",
+      "tagline",
     ]),
     bio: record.bio,
     location: pickRecordValue(record, ["location", "city", "country"]),
@@ -308,16 +320,25 @@ function normalizeRecord(
       "key_skills",
       "technical_skills",
     ]),
-    languages: record.languages || record.language,
-    experience: record.experience,
+    languages: pickRecordValue(record, ["languages", "language", "langauges"]),
+    experience: pickRecordValue(record, [
+      "experience",
+      "work_experience",
+      "employment_history",
+      "professional_experience",
+    ]),
     education: pickRecordValue(record, [
       "education",
       "education_certificates",
       "qualifications",
       "qualification",
     ]),
-    certifications: record.certifications,
-    projects: record.projects,
+    certifications: pickRecordValue(record, [
+      "certifications",
+      "certification",
+      "licenses",
+    ]),
+    projects: pickRecordValue(record, ["projects", "project_work", "portfolio_projects"]),
     experience_in_years: pickRecordValue(record, [
       "experience_in_years",
       "years_experience",
@@ -327,14 +348,35 @@ function normalizeRecord(
     ]),
     availability: {
       status:
-        record.availability_status || record.status || "Open to Opportunities",
-      type: record.availability_type || "Full-time",
-      start_date: record.availability_start_date || null,
+        pickRecordValue(record, [
+          "availability_status",
+          "availability",
+          "status",
+          "availablity_status",
+        ]) || "Open to Opportunities",
+      type:
+        pickRecordValue(record, [
+          "availability_type",
+          "employment_type",
+          "work_type",
+        ]) || "Full-time",
+      start_date:
+        pickRecordValue(record, [
+          "availability_start_date",
+          "start_date",
+          "available_from",
+        ]) || null,
     },
     social_links: {
-      linkedin: record.linkedin || extracted.linkedin,
-      github: record.github || extracted.github,
-      portfolio: record.portfolio || extracted.portfolio,
+      linkedin:
+        pickRecordValue(record, ["linkedin", "linked_in", "linkedin_url"]) ||
+        extracted.linkedin,
+      github:
+        pickRecordValue(record, ["github", "github_url", "git_hub"]) ||
+        extracted.github,
+      portfolio:
+        pickRecordValue(record, ["portfolio", "website", "personal_site"]) ||
+        extracted.portfolio,
     },
     additional_info: additionalInfo,
     source: "upload",
@@ -481,42 +523,70 @@ function findApplicantForResume(
 function buildApplicantObjectFieldUpdate(
   applicant: any,
   parsed: ParsedResumeObjectFields | null,
+  heuristic: ReturnType<typeof parseResumeHeuristics>,
 ) {
-  if (!parsed) {
-    return {};
-  }
-
   const update: Record<string, unknown> = {};
+  const parsedOrHeuristic = {
+    skills: parsed?.skills ?? heuristic.skills ?? [],
+    languages: parsed?.languages ?? heuristic.languages ?? [],
+    experience: parsed?.experience ?? heuristic.experience ?? [],
+    education: parsed?.education ?? heuristic.education ?? [],
+    availability: parsed?.availability ?? heuristic.availability,
+    social_links: parsed?.social_links ?? heuristic.social_links,
+  };
 
-  if (parsed.skills.length > 0) {
-    update.skills = parsed.skills;
+  if (parsedOrHeuristic.skills.length > 0) {
+    update.skills = parsedOrHeuristic.skills;
   }
-  if (parsed.languages.length > 0) {
-    update.languages = parsed.languages;
+  if (parsedOrHeuristic.languages.length > 0) {
+    update.languages = parsedOrHeuristic.languages;
   }
-  if (parsed.experience.length > 0) {
-    update.experience = parsed.experience;
+  if (parsedOrHeuristic.experience.length > 0) {
+    update.experience = parsedOrHeuristic.experience;
   }
-  if (parsed.education.length > 0) {
-    update.education = parsed.education;
+  if (parsedOrHeuristic.education.length > 0) {
+    update.education = parsedOrHeuristic.education;
   }
-  if (parsed.certifications.length > 0) {
+  if (parsed?.certifications && parsed.certifications.length > 0) {
     update.certifications = parsed.certifications;
   }
-  if (parsed.projects.length > 0) {
+  if (parsed?.projects && parsed.projects.length > 0) {
     update.projects = parsed.projects;
   }
-  if (parsed.availability) {
+  if (parsedOrHeuristic.availability) {
     update.availability = {
       ...(applicant?.availability ?? {}),
-      ...parsed.availability,
+      ...parsedOrHeuristic.availability,
     };
   }
-  if (parsed.social_links) {
+  if (parsedOrHeuristic.social_links) {
     update.social_links = {
       ...(applicant?.social_links ?? {}),
-      ...parsed.social_links,
+      ...parsedOrHeuristic.social_links,
     };
+  }
+  if (!trimText(applicant?.headline) && heuristic.headline) {
+    update.headline = heuristic.headline;
+  }
+  if (!trimText(applicant?.bio) && heuristic.bio) {
+    update.bio = heuristic.bio;
+  }
+  if (!trimText(applicant?.location) && heuristic.location) {
+    update.location = heuristic.location;
+  }
+  if (!trimText(applicant?.email) && heuristic.email) {
+    update.email = heuristic.email;
+    update.applicant_email = heuristic.email;
+  }
+  if (Array.isArray(heuristic.additional_info) && heuristic.additional_info.length > 0) {
+    const existing = Array.isArray(applicant?.additional_info) ? applicant.additional_info : [];
+    update.additional_info = Array.from(
+      new Set(
+        [...existing, ...heuristic.additional_info]
+          .map((item) => trimText(item))
+          .filter(Boolean),
+      ),
+    );
   }
 
   return update;
@@ -538,6 +608,11 @@ async function extractPdfText(buffer: Buffer) {
 
 export async function uploadResumeZip(req: Request, res: Response) {
   try {
+    const userId = req.currentUserId;
+    if (!userId) {
+      return res.status(401).json({ expiration_error: "Session expired" });
+    }
+
     const resumeZipFile = getUploadedFile(req, ["file", "resume_pdf_zip"]);
     if (!resumeZipFile) {
       return res.status(400).json({ data_error: "Resume ZIP file required" });
@@ -548,16 +623,25 @@ export async function uploadResumeZip(req: Request, res: Response) {
     const defaultJobTitle = trimText(
       req.body?.default_job_title ?? req.body?.job_title,
     );
+    if (defaultJobId) {
+      const ownedJob = await Job.findOne({ _id: defaultJobId, user_id: userId }).lean();
+      if (!ownedJob) {
+        return res.status(404).json({
+          data_error: "Job not found for this workspace.",
+        });
+      }
+    }
+
     const applicantScope = [
       ...(defaultJobId ? [{ job_id: defaultJobId }] : []),
       ...(defaultJobTitle ? [{ job_title: defaultJobTitle }] : []),
     ];
     const applicants = await Applicant.find(
       applicantScope.length === 0
-        ? {}
+        ? { user_id: userId }
         : applicantScope.length === 1
-          ? applicantScope[0]
-          : { $or: applicantScope },
+          ? { user_id: userId, ...applicantScope[0] }
+          : { user_id: userId, $or: applicantScope },
     ).lean();
 
     if (applicants.length === 0) {
@@ -598,6 +682,7 @@ export async function uploadResumeZip(req: Request, res: Response) {
         try {
           const entryBuffer = await entry.buffer();
           const parsed_text = await extractPdfText(entryBuffer);
+          const heuristicResumeFields = parseResumeHeuristics(parsed_text);
           const lookupKey = normalizeResumeMatchKey(entryPath);
 
           const applicant = findApplicantForResume(
@@ -612,8 +697,13 @@ export async function uploadResumeZip(req: Request, res: Response) {
           }
 
           await Resume.findOneAndUpdate(
-            { applicant_id: applicant._id, job_id: applicant.job_id ?? null },
             {
+              user_id: userId,
+              applicant_id: applicant._id,
+              job_id: applicant.job_id ?? null,
+            },
+            {
+              user_id: userId,
               applicant_id: applicant._id,
               job_id: applicant.job_id ?? null,
               job_title: applicant.job_title,
@@ -652,11 +742,15 @@ export async function uploadResumeZip(req: Request, res: Response) {
           const objectFieldUpdate = buildApplicantObjectFieldUpdate(
             applicant,
             parsedObjectFields,
+            heuristicResumeFields,
           );
-          await Applicant.findByIdAndUpdate(applicant._id, {
-            resume_text: parsed_text,
-            ...objectFieldUpdate,
-          });
+          await Applicant.findOneAndUpdate(
+            { _id: applicant._id, user_id: userId },
+            {
+              resume_text: parsed_text,
+              ...objectFieldUpdate,
+            },
+          );
           uploadedApplicants.push(trimText(applicant.applicant_name));
         } catch (error) {
           failedFiles.push(entryPath);

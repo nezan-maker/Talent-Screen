@@ -1,8 +1,18 @@
 import Applicant from "../models/Applicant.js";
 import Job from "../models/Job.js";
+import User from "../models/User.js";
 import { trimText } from "./talentProfile.js";
 function getLegacyUserIdFilter() {
     return [{ user_id: { $exists: false } }, { user_id: null }, { user_id: "" }];
+}
+async function canClaimLegacyCompanyRecords(companyName) {
+    if (!companyName) {
+        return false;
+    }
+    const matchingUsersCount = await User.countDocuments({
+        company_name: companyName,
+    });
+    return matchingUsersCount <= 1;
 }
 export async function resolveOwnedJobs(input) {
     const userId = trimText(input.userId);
@@ -11,6 +21,9 @@ export async function resolveOwnedJobs(input) {
         .sort({ updatedAt: -1, createdAt: -1 })
         .lean();
     if (ownedJobs.length > 0 || !companyName) {
+        return ownedJobs;
+    }
+    if (!(await canClaimLegacyCompanyRecords(companyName))) {
         return ownedJobs;
     }
     const legacyJobs = await Job.find({

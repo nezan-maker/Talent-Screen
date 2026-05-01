@@ -569,12 +569,6 @@ export async function reviewApplicant(req: Request, res: Response) {
       return res.status(404).json({ data_error: "Screening result not found" });
     }
 
-    if (trimText(existingResult.overall?.verdict) !== "Review") {
-      return res.status(400).json({
-        data_error: "Only applicants in the Review bucket can be re-reviewed",
-      });
-    }
-
     const [job, applicant] = await Promise.all([
       Job.findOne({ _id: existingResult.job_id, user_id: userId }).lean(),
       Applicant.findOne({ _id: existingResult.applicant_id, user_id: userId }).lean(),
@@ -589,6 +583,12 @@ export async function reviewApplicant(req: Request, res: Response) {
     if (!applicant) {
       return res.status(404).json({
         data_error: "Applicant not found for this screening result",
+      });
+    }
+
+    if (trimText(existingResult.overall?.verdict) !== "Review") {
+      return res.status(400).json({
+        data_error: "Only applicants in the Review bucket can be re-reviewed",
       });
     }
 
@@ -832,6 +832,10 @@ export async function askAssistant(req: Request, res: Response) {
         ? ScreeningRunModel.findOne({ job_id: jobId }).sort({ createdAt: -1 }).lean()
         : null,
     ]);
+
+    if (jobId && !job) {
+      return res.status(404).json({ data_error: "Job not found" });
+    }
 
     const results = latestRun
       ? await ScreeningResultModel.find({ screening_run_id: latestRun._id })

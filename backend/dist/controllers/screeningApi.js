@@ -66,44 +66,40 @@ async function processOutcomeEmailsForJob(input) {
     });
     let shortlistedSentCount = 0;
     let rejectedSentCount = 0;
-    for (const applicant of shortlistedApplicants) {
+    const shortlistedResults = await Promise.all(shortlistedApplicants.map(async (applicant) => {
         const recipient = trimText(applicant.applicant_email || applicant.email);
         if (!recipient) {
-            continue;
+            return false;
         }
         const mail = buildShortlistedApplicantEmail({
             applicantName: trimText(applicant.applicant_name) || "Applicant",
             jobTitle,
         });
-        const sent = await sendMailIfConfigured({
+        return sendMailIfConfigured({
             to: recipient,
             subject: mail.subject,
             text: mail.text,
             html: mail.html,
         });
-        if (sent) {
-            shortlistedSentCount += 1;
-        }
-    }
-    for (const applicant of rejectedApplicants) {
+    }));
+    const rejectedResults = await Promise.all(rejectedApplicants.map(async (applicant) => {
         const recipient = trimText(applicant.applicant_email || applicant.email);
         if (!recipient) {
-            continue;
+            return false;
         }
         const mail = buildRejectedApplicantEmail({
             applicantName: trimText(applicant.applicant_name) || "Applicant",
             jobTitle,
         });
-        const sent = await sendMailIfConfigured({
+        return sendMailIfConfigured({
             to: recipient,
             subject: mail.subject,
             text: mail.text,
             html: mail.html,
         });
-        if (sent) {
-            rejectedSentCount += 1;
-        }
-    }
+    }));
+    shortlistedSentCount = shortlistedResults.filter(Boolean).length;
+    rejectedSentCount = rejectedResults.filter(Boolean).length;
     const mailerConfigured = emailDeliveryConfigured();
     return {
         sentCount: shortlistedSentCount + rejectedSentCount,

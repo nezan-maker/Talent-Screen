@@ -65,6 +65,23 @@ function gradeFromScore(score) {
         return "C";
     return "D";
 }
+function resolveMinimumMarks(job) {
+    const rawValue = Number(job?.minimum_marks);
+    if (Number.isFinite(rawValue)) {
+        return clampScore(rawValue);
+    }
+    return 70;
+}
+function resolveVerdictFromScore(input) {
+    const reviewFloor = Math.max(0, input.minimumMarks - 10);
+    if (input.score >= input.minimumMarks) {
+        return "Shortlisted";
+    }
+    if (input.incompleteProfile || input.score >= reviewFloor) {
+        return "Review";
+    }
+    return "Rejected";
+}
 function summarizeEducation(education) {
     if (!education.length) {
         return {
@@ -126,6 +143,7 @@ function buildDeterministicSummary(input) {
 }
 export async function evaluateApplicantsForJob(input) {
     const requiredYears = parseRequiredYears(input.job);
+    const minimumMarks = resolveMinimumMarks(input.job);
     const remoteFriendly = trimText(input.job?.job_location).toLowerCase().includes("remote");
     const jobCriteria = tokenizeJobCriteria(input.job);
     const evaluated = input.applicants.map((applicant) => {
@@ -319,16 +337,23 @@ export async function evaluateApplicantsForJob(input) {
         };
     });
     evaluated.sort((left, right) => right.overall.score - left.overall.score);
-    const shortlistIds = new Set(evaluated.slice(0, input.topK).map((item) => item.candidate_id));
     const totalCount = evaluated.length || 1;
+    let shortlistedCount = 0;
     evaluated.forEach((item, index) => {
         item.rank = index + 1;
         item.percentile = clampScore(((totalCount - index) / totalCount) * 100);
-        item.overall.verdict = shortlistIds.has(item.candidate_id)
-            ? "Shortlisted"
-            : item.overall.score >= 60
-                ? "Review"
-                : "Rejected";
+        const computedVerdict = resolveVerdictFromScore({
+            score: item.overall.score,
+            minimumMarks,
+            incompleteProfile: item.flags.incomplete_profile,
+        });
+        if (computedVerdict === "Shortlisted" && shortlistedCount < input.topK) {
+            item.overall.verdict = "Shortlisted";
+            shortlistedCount += 1;
+            return;
+        }
+        item.overall.verdict =
+            computedVerdict === "Shortlisted" ? "Review" : computedVerdict;
     });
     const enriched = await enrichScreeningNarratives({
         job: {
@@ -386,8 +411,9 @@ export async function evaluateApplicantsForJob(input) {
         gaps: item.gaps,
         recommendation: item.recommendation,
     }));
-    const shortlist = results.slice(0, input.topK);
-    const resultVerdict = `Screened ${results.length} applicants for ${trimText(input.job?.job_title)}. Top ${Math.min(input.topK, shortlist.length)} candidates are ready for recruiter review.`;
+    const shortlist = results.filter((item) => item.overall.verdict === "Shortlisted");
+    const reviewCount = results.filter((item) => item.overall.verdict === "Review").length;
+    const resultVerdict = `Screened ${results.length} applicants for ${trimText(input.job?.job_title)}. ${shortlist.length} candidate${shortlist.length === 1 ? "" : "s"} met the shortlist threshold of ${minimumMarks} and ${reviewCount} candidate${reviewCount === 1 ? "" : "s"} need recruiter review.`;
     return {
         results,
         shortlist,

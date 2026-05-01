@@ -62,6 +62,23 @@ function gradeFromScore(score) {
         return "C";
     return "D";
 }
+function normalizeMinimumMarks(value) {
+    const parsed = Number(trimText(value));
+    if (Number.isFinite(parsed)) {
+        return Math.max(0, Math.min(100, Math.round(parsed)));
+    }
+    return 70;
+}
+function verdictFromScoreAndThreshold(input) {
+    const reviewFloor = Math.max(0, input.minimumMarks - 10);
+    if (input.score >= input.minimumMarks) {
+        return "Shortlisted";
+    }
+    if (!input.hasSignals || input.score >= reviewFloor) {
+        return "Review";
+    }
+    return "Rejected";
+}
 export function normalizeScreeningVerdict(value) {
     const normalized = trimText(value).toLowerCase();
     if (normalized === "shortlisted") {
@@ -266,6 +283,8 @@ export async function screenWithGemini(opts) {
         `- Return ONLY valid JSON with this shape: ${JSON.stringify({ shortlist: [{ applicantId: "id", rank: 1, matchScore: 85, strengths: ["..."], gaps: ["..."], recommendation: "..." }] })}`,
         `- Provide exactly topK=${opts.topK} items unless fewer candidates exist.`,
         "- matchScore must be 0..100.",
+        `- A candidate can only be Shortlisted when matchScore is at least ${normalizeMinimumMarks(opts.job.minimum_marks)}.`,
+        "- If the evidence is borderline or incomplete, prefer Review over Shortlisted.",
         "- strengths and gaps must be concise bullet-like strings.",
         "- recommendation must be recruiter-friendly and action-oriented.",
         "- Be transparent: note missing information as gaps/risks.",
@@ -283,12 +302,19 @@ export async function screenWithGemini(opts) {
     const jsonText = extractFirstJsonObject(text);
     const parsed = JSON.parse(jsonText);
     const data = geminiOutputSchema.parse(parsed);
+    const minimumMarks = normalizeMinimumMarks(opts.job.minimum_marks);
     const sorted = [...data.shortlist]
         .sort((left, right) => left.rank - right.rank)
         .map((item, index) => ({
         ...item,
         rank: index + 1,
-        verdict: normalizeScreeningVerdict(item.verdict),
+        verdict: verdictFromScoreAndThreshold({
+            score: Math.max(0, Math.min(100, Math.round(item.matchScore))),
+            minimumMarks,
+            hasSignals: item.strengths.length > 0 ||
+                item.gaps.length > 0 ||
+                trimText(item.recommendation).length > 0,
+        }),
     }));
     return { shortlist: sorted.slice(0, Math.max(1, opts.topK)) };
 }
@@ -324,7 +350,7 @@ export async function reviewApplicantWithGemini(opts) {
         "Requirements:",
         `- Return ONLY valid JSON with this exact shape: ${JSON.stringify({
             matchScore: 78,
-            verdict: "Review",
+            verdict: "Shortlisted",
             summary: "string",
             strengths: ["string"],
             gaps: ["string"],
@@ -332,6 +358,7 @@ export async function reviewApplicantWithGemini(opts) {
         })}`,
         "- matchScore must be 0..100.",
         "- verdict must be one of Shortlisted or Rejected.",
+        `- Shortlisted is only valid when matchScore is at least ${normalizeMinimumMarks(job.minimum_marks)}.`,
         "- summary must explain how the extra information changed or confirmed the decision.",
         "- strengths and gaps must stay concise and recruiter-friendly.",
         "- recommendation must be action-oriented and practical.",
@@ -351,10 +378,12 @@ export async function reviewApplicantWithGemini(opts) {
     const text = await generateWithGemini({ ...opts, prompt });
     const parsed = reviewOutputSchema.parse(JSON.parse(extractFirstJsonObject(text)));
     const matchScore = Math.max(0, Math.min(100, Math.round(parsed.matchScore)));
+    const minimumMarks = normalizeMinimumMarks(job.minimum_marks);
+    const verdict = matchScore >= minimumMarks ? "Shortlisted" : "Rejected";
     return {
         matchScore,
         grade: gradeFromScore(matchScore),
-        verdict: normalizeScreeningVerdict(parsed.verdict),
+        verdict,
         summary: trimText(parsed.summary),
         strengths: parsed.strengths.map((item) => trimText(item)).filter(Boolean),
         gaps: parsed.gaps.map((item) => trimText(item)).filter(Boolean),
